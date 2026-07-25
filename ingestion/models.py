@@ -78,3 +78,43 @@ class DecisionOutcome(Base):
     evaluated_at: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), primary_key=True)
     result: Mapped[str] = mapped_column(Text, nullable=False)
     pnl_pct: Mapped[float] = mapped_column(Numeric, nullable=False)
+
+
+class Basket(Base):
+    """Panier thématique/géographique/sectoriel utilisé pour agréger le
+    George Index (Phase 2) — voir `engine/george_index.md`."""
+
+    __tablename__ = "baskets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    type: Mapped[str] = mapped_column(Text, nullable=False)  # pays | devise | secteur | theme
+
+
+class BasketSecurity(Base):
+    """Table de liaison panier <-> titre, avec un poids optionnel (sinon
+    équipondération au sein du panier)."""
+
+    __tablename__ = "basket_securities"
+
+    basket_id: Mapped[int] = mapped_column(ForeignKey("baskets.id"), primary_key=True)
+    symbol: Mapped[str] = mapped_column(ForeignKey("securities.symbol"), primary_key=True)
+    weight: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+
+
+class PatternCandidate(Base):
+    """Même forme que `patterns_detected`, mais pour les figures proposées
+    par l'agent de veille méthodologique (Phase 7) : elles sont backtestées
+    ici avant toute promotion éventuelle vers le catalogue actif des
+    détecteurs de `engine/patterns/`. Aucun code ne les promeut encore
+    automatiquement — cette table n'est pour l'instant qu'un espace
+    d'atterrissage/backtesting manuel."""
+
+    __tablename__ = "pattern_candidates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(ForeignKey("securities.symbol"), nullable=False)
+    pattern_type: Mapped[str] = mapped_column(Text, nullable=False)
+    detected_at: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    confidence: Mapped[float] = mapped_column(Numeric, nullable=False)
+    context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)

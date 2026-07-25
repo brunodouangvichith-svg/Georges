@@ -15,6 +15,9 @@ EXPECTED_TABLES = {
     "patterns_detected",
     "decisions",
     "decision_outcomes",
+    "baskets",
+    "basket_securities",
+    "pattern_candidates",
 }
 
 

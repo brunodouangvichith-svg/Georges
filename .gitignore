@@ -9,6 +9,12 @@ __pycache__/
 .env
 infra/.env
 
+# Modèles entraînés et jeux de données dérivés (Phase 2) — régénérables via
+# engine/build_training_set.py + engine/notebooks/train_confidence_model.ipynb,
+# volontairement non versionnés (binaires, dépendants des données du moment).
+engine/models/
+engine/data/
+
 # Node / web (voir aussi web/.gitignore)
 web/node_modules/
 web/dist/
