@@ -1,0 +1,32 @@
+[project]
+name = "george"
+version = "0.1.0"
+description = "George — agent d'analyse technique des marchés financiers."
+requires-python = ">=3.11"
+dependencies = [
+  "sqlalchemy>=2.0",
+  "alembic>=1.13",
+  "psycopg[binary]>=3.1",
+  "python-dotenv>=1.0",
+  "pandas>=2.2",
+  "numpy>=1.26",
+  "scipy>=1.12",
+  "yfinance>=0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "testcontainers[postgres]>=4",
+]
+notebook = [
+  "mplfinance>=0.12",
+  "jupyter>=1.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["ingestion*", "engine*", "agents*", "api*"]

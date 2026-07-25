@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0f1626;
+  --panel: #17203a;
+  --panel-alt: #1c2748;
+  --hairline: #2b3660;
+  --text: #eef1f8;
+  --text-dim: #8b96b8;
+  --accent: #4d7fe0;
+  --accent-dim: #2c3f6e;
+  --positive: #2fbf82;
+  --warning: #e3a344;
+  --negative: #e2555f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Inter", sans-serif;
+}
+
+.mono {
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.display {
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.gd-scrollbar::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.gd-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--hairline);
+  border-radius: 3px;
+}
+
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-track {
+  animation: ticker-scroll 38s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; }
+}

@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>George — Interface web</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0f1626;
+    --panel: #17203a;
+    --panel-alt: #1c2748;
+    --hairline: #2b3660;
+    --text: #eef1f8;
+    --text-dim: #8b96b8;
+    --accent: #4d7fe0;
+    --accent-dim: #2c3f6e;
+    --positive: #2fbf82;
+    --warning: #e3a344;
+    --negative: #e2555f;
+    --radius: 10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'Inter', sans-serif;
+    height:100vh; overflow:hidden;
+  }
+  .mono{ font-family:'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+  .display{ font-family:'Space Grotesk', sans-serif; }
+
+  .app{ display:grid; grid-template-rows: 56px 1fr 84px; height:100vh; }
+
+  /* Top bar */
+  .topbar{
+    display:flex; align-items:center; gap:28px; padding:0 20px;
+    border-bottom:1px solid var(--hairline); background:var(--panel);
+  }
+  .logo{ font-family:'Space Grotesk'; font-weight:700; font-size:19px; letter-spacing:0.01em; }
+  .logo span{ color:var(--accent); }
+  .nav{ display:flex; gap:4px; }
+  .nav a{
+    color:var(--text-dim); text-decoration:none; font-size:13.5px; font-weight:500;
+    padding:8px 14px; border-radius:7px; transition:.15s;
+  }
+  .nav a.active, .nav a:hover{ color:var(--text); background:var(--panel-alt); }
+  .topbar-right{ margin-left:auto; display:flex; align-items:center; gap:16px; color:var(--text-dim); font-size:12.5px; }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--positive); display:inline-block; margin-right:6px; box-shadow:0 0 6px var(--positive); }
+
+  /* Body */
+  .body{ display:grid; grid-template-columns: 190px 1fr 340px; overflow:hidden; }
+
+  .sidebar{
+    border-right:1px solid var(--hairline); padding:18px 10px; background:var(--panel);
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .sidebar .group-label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.1em; color:var(--text-dim); padding:10px 10px 6px; }
+  .sidebar a{
+    display:flex; align-items:center; gap:10px; color:var(--text-dim); text-decoration:none;
+    font-size:13px; padding:9px 10px; border-radius:7px; font-weight:500;
+  }
+  .sidebar a.active{ background:var(--accent-dim); color:var(--text); }
+  .sidebar a:hover{ color:var(--text); }
+  .sidebar .icon{ width:16px; text-align:center; opacity:.85; }
+
+  /* Watchlist */
+  .watchlist-wrap{ overflow-y:auto; padding:16px 18px; }
+  .wl-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .wl-title{ font-family:'Space Grotesk'; font-size:16px; font-weight:600; }
+  .wl-sub{ color:var(--text-dim); font-size:12px; margin-top:2px; }
+  .filters{ display:flex; gap:6px; }
+  .chip{
+    font-size:11.5px; padding:6px 12px; border-radius:20px; border:1px solid var(--hairline);
+    color:var(--text-dim); cursor:pointer; background:transparent; font-family:inherit;
+  }
+  .chip.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  table{ width:100%; border-collapse:collapse; }
+  thead th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--text-dim); font-weight:500; padding:8px 10px; border-bottom:1px solid var(--hairline);
+  }
+  tbody tr{ cursor:pointer; border-bottom:1px solid var(--hairline); }
+  tbody tr:hover{ background:var(--panel); }
+  tbody tr.selected{ background:var(--panel-alt); }
+  td{ padding:11px 10px; font-size:13px; }
+  .ticker{ font-family:'IBM Plex Mono'; font-weight:600; }
+  .company{ color:var(--text-dim); }
+  .conf-bar-wrap{ width:70px; height:5px; background:var(--panel-alt); border-radius:3px; overflow:hidden; }
+  .conf-bar{ height:100%; border-radius:3px; }
+  .conf-val{ font-family:'IBM Plex Mono'; font-size:12px; margin-left:8px; }
+  .tag{ font-size:11px; font-weight:600; padding:3px 9px; border-radius:5px; display:inline-block; }
+  .tag.achat{ background:rgba(47,191,130,.15); color:var(--positive); }
+  .tag.surveiller{ background:rgba(227,163,68,.15); color:var(--warning); }
+  .tag.alleger{ background:rgba(226,85,95,.15); color:var(--negative); }
+  .spark{ display:block; }
+
+  /* Widget tiles row (dense, tuilé — inspiré des plateformes pro) */
+  .tiles-row{ display:grid; grid-template-columns: 150px 150px 1fr; gap:12px; margin-top:16px; }
+  .tile{
+    border:1px solid var(--hairline); border-radius:var(--radius); background:var(--panel);
+    padding:12px; display:flex; flex-direction:column; gap:8px;
+  }
+  .tile-label{ font-size:10px; text-transform:uppercase; letter-spacing:.07em; color:var(--text-dim); }
+  .gauge-wrap{ display:flex; align-items:center; gap:10px; }
+  .gauge{
+    width:56px; height:56px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background: conic-gradient(var(--g-color) calc(var(--g-val) * 1%), var(--panel-alt) 0);
+  }
+  .gauge::after{
+    content:''; width:38px; height:38px; border-radius:50%; background:var(--panel);
+  }
+  .gauge-val{ position:absolute; font-family:'IBM Plex Mono'; font-size:12px; font-weight:600; }
+  .gauge-txt{ font-size:11px; color:var(--text-dim); line-height:1.3; }
+  .gauge-txt b{ color:var(--text); display:block; font-size:12.5px; }
+  .macro-tile .row{ display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:3px 0; }
+  .macro-tile .row .name{ color:var(--text-dim); }
+  .macro-tile .row .val{ font-family:'IBM Plex Mono'; }
+  .macro-tile .up{ color:var(--positive); } .macro-tile .down{ color:var(--negative); }
+
+  /* Detail panel */
+  .detail-col{ border-left:1px solid var(--hairline); background:var(--panel); display:flex; flex-direction:column; overflow-y:auto; }
+  .detail{ padding:20px 20px 4px; }
+  .detail h2{ font-family:'Space Grotesk'; font-size:19px; margin:0 0 2px; }
+  .detail .sub{ color:var(--text-dim); font-size:12.5px; margin-bottom:16px; }
+  .chart-box{
+    height:150px; border:1px solid var(--hairline); border-radius:var(--radius); margin-bottom:16px;
+    background:var(--panel-alt); display:flex; align-items:center; padding:0; overflow:hidden;
+  }
+  .section-label{ font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); margin:16px 0 8px; }
+  .kv{ display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid var(--hairline); }
+  .kv span:first-child{ color:var(--text-dim); }
+  .kv span:last-child{ font-family:'IBM Plex Mono'; }
+  .levels{ display:flex; gap:10px; margin-top:10px; }
+  .level-box{ flex:1; border:1px solid var(--hairline); border-radius:8px; padding:10px; text-align:center; }
+  .level-box .l{ font-size:11px; color:var(--text-dim); }
+  .level-box .v{ font-family:'IBM Plex Mono'; font-weight:600; font-size:15px; margin-top:4px; }
+  .level-box.tp .v{ color:var(--positive); }
+  .level-box.sl .v{ color:var(--negative); }
+  .btn-row{ display:flex; gap:8px; margin-top:14px; }
+  .btn{ flex:1; padding:10px; border-radius:8px; border:none; font-weight:600; font-size:13px; cursor:pointer; font-family:inherit; }
+  .btn.primary{ background:var(--accent); color:#fff; }
+  .btn.ghost{ background:transparent; border:1px solid var(--hairline); color:var(--text); }
+
+  /* Agent activity feed — style carnet d'ordres */
+  .agent-feed{ margin-top:6px; padding:0 20px 20px; }
+  .agent-row{
+    display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:6px;
+    border-left:3px solid var(--hairline); background:var(--panel-alt); margin-bottom:5px; font-size:11.5px;
+  }
+  .agent-row.validated{ border-left-color:var(--positive); }
+  .agent-row.pending{ border-left-color:var(--warning); }
+  .agent-row.quarantine{ border-left-color:var(--negative); }
+  .agent-row .a-name{ font-family:'IBM Plex Mono'; font-weight:600; flex-shrink:0; width:92px; }
+  .agent-row .a-desc{ color:var(--text-dim); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .agent-row .a-time{ color:var(--text-dim); font-family:'IBM Plex Mono'; font-size:10.5px; flex-shrink:0; }
+
+  /* Bottom dock — signature element */
+  .dock{
+    border-top:1px solid var(--hairline); background:var(--panel); padding:12px 20px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .dock-top{ display:flex; align-items:center; gap:10px; }
+  .dock-label{ font-family:'Space Grotesk'; font-weight:600; font-size:13px; color:var(--accent); white-space:nowrap; }
+  .dock-msg{ font-size:13px; color:var(--text-dim); flex:1; }
+  .dock-msg b{ color:var(--text); font-weight:600; }
+  .dock-input-row{ display:flex; gap:8px; }
+  .dock-input{
+    flex:1; background:var(--panel-alt); border:1px solid var(--hairline); border-radius:8px;
+    padding:9px 12px; color:var(--text); font-size:13px; font-family:inherit;
+  }
+  .dock-input:focus{ outline:none; border-color:var(--accent); }
+  .dock-chip{
+    font-size:12px; padding:6px 12px; border-radius:16px; background:var(--panel-alt);
+    border:1px solid var(--hairline); color:var(--text-dim); cursor:pointer; white-space:nowrap;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo">George<span>.</span></div>
+    <div class="nav">
+      <a href="#" class="active">Univers</a>
+      <a href="#">Paniers</a>
+      <a href="#">Décisions</a>
+      <a href="#">Alertes</a>
+    </div>
+    <div class="topbar-right">
+      <span><span class="dot"></span>Marché ouvert</span>
+      <span class="mono" id="clock">08:30 · Euronext Paris</span>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="sidebar">
+      <div class="group-label">Navigation</div>
+      <a href="#" class="active"><span class="icon">◆</span>Univers</a>
+      <a href="#"><span class="icon">▤</span>Paniers</a>
+      <a href="#"><span class="icon">✓</span>Décisions</a>
+      <a href="#"><span class="icon">◔</span>George Index</a>
+      <a href="#"><span class="icon">⏱</span>Historique</a>
+      <div class="group-label">Compte</div>
+      <a href="#"><span class="icon">⚙</span>Réglages</a>
+      <a href="#"><span class="icon">◉</span>Profil</a>
+    </div>
+
+    <div class="watchlist-wrap">
+      <div class="wl-header">
+        <div>
+          <div class="wl-title">Univers suivi — CAC 40</div>
+          <div class="wl-sub">20 valeurs · mis à jour à 08:30 après la collecte nocturne</div>
+        </div>
+        <div class="filters">
+          <button class="chip active">Tous</button>
+          <button class="chip">Achat</button>
+          <button class="chip">Surveiller</button>
+          <button class="chip">Alléger</button>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Valeur</th><th>Panier</th><th>Tendance</th><th>Pattern</th><th>Confiance</th><th>Décision</th>
+          </tr>
+        </thead>
+        <tbody id="wl-body"></tbody>
+      </table>
+
+      <div class="tiles-row">
+        <div class="tile">
+          <div class="tile-label">George Index</div>
+          <div class="gauge-wrap">
+            <div style="position:relative;">
+              <div class="gauge" style="--g-val:87; --g-color:var(--positive);"></div>
+              <div class="gauge-val" style="top:19px; left:14px;">87</div>
+            </div>
+            <div class="gauge-txt"><b>Aéro. / Défense</b>Tailwind budgétaire</div>
+          </div>
+        </div>
+        <div class="tile">
+          <div class="tile-label">George Index</div>
+          <div class="gauge-wrap">
+            <div style="position:relative;">
+              <div class="gauge" style="--g-val:58; --g-color:var(--warning);"></div>
+              <div class="gauge-val" style="top:19px; left:14px;">58</div>
+            </div>
+            <div class="gauge-txt"><b>Luxe ultra haut</b>Demande Chine atone</div>
+          </div>
+        </div>
+        <div class="tile macro-tile">
+          <div class="tile-label">Repères macro</div>
+          <div class="row"><span class="name">Brent (USD)</span><span class="val up">▲ 84.2</span></div>
+          <div class="row"><span class="name">EUR/USD</span><span class="val down">▼ 1.072</span></div>
+          <div class="row"><span class="name">OAT 10 ans</span><span class="val up">▲ 3.14%</span></div>
+          <div class="row"><span class="name">CAC 40</span><span class="val up">▲ 7 940</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-col">
+      <div class="detail" id="detail-panel"></div>
+      <div class="agent-feed" id="agent-feed"></div>
+    </div>
+  </div>
+
+  <div class="dock">
+    <div class="dock-top">
+      <div class="dock-label">George explique ›</div>
+      <div class="dock-msg" id="dock-msg">Sélectionnez une valeur pour voir le raisonnement complet, ou posez une question.</div>
+    </div>
+    <div class="dock-input-row">
+      <input class="dock-input" placeholder="Poser une question à George…  (ex : pourquoi Airbus est en Achat ?)" id="dock-input">
+      <button class="dock-chip" onclick="askDemo()">🎙 Commande vocale</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const data = [
+  {t:"AIR.PA", n:"Airbus", basket:"Aéronautique / Défense", pattern:"Breakout", conf:85, dec:"Achat", price:184.50,
+   trend:[10,12,11,14,16,15,18,21,23,26], tp:12, sl:-7,
+   explain:"Breakout confirmé par un volume en forte hausse. Carnet de commandes pluriannuel et cadences de production en accélération — c'est la conviction la plus forte du portefeuille."},
+  {t:"SAF.PA", n:"Safran", basket:"Aéronautique / Défense", pattern:"Bull Flag", conf:81, dec:"Achat", price:272.30,
+   trend:[8,9,9,11,10,12,13,12,14,15], tp:10, sl:-6,
+   explain:"Bull Flag soutenu par la croissance des révisions de résultats sur les moteurs civils et militaires."},
+  {t:"HO.PA", n:"Thales", basket:"Défense / Technologie", pattern:"Breakout", conf:83, dec:"Renforcer", price:221.80,
+   trend:[14,13,15,17,16,19,21,20,23,25], tp:11, sl:-6,
+   explain:"Breakout sur une ligne déjà détenue : George choisit de renforcer plutôt que d'ouvrir une nouvelle position."},
+  {t:"SU.PA", n:"Schneider Electric", basket:"Industrie / Électrification", pattern:"Asc. Triangle", conf:76, dec:"Achat", price:238.90,
+   trend:[9,10,10,11,12,11,13,14,14,15], tp:9, sl:-5,
+   explain:"Ascending Triangle avec volumes croissants, aligné avec la thèse macro sur les data centers et réseaux électriques."},
+  {t:"AI.PA", n:"Air Liquide", basket:"Industrie / Chimie", pattern:"Bull Flag", conf:72, dec:"Achat", price:167.20,
+   trend:[11,11,12,12,13,13,12,14,14,15], tp:8, sl:-5,
+   explain:"Bull Flag sur une valeur défensive aux marges régulières, en complément des paris plus cycliques."},
+  {t:"CS.PA", n:"AXA", basket:"Assurance", pattern:"Bull Flag", conf:70, dec:"Achat", price:41.85,
+   trend:[10,10,11,10,11,12,12,13,13,14], tp:8, sl:-5,
+   explain:"Bull Flag associé à une discipline tarifaire soutenue du secteur de l'assurance."},
+  {t:"MC.PA", n:"LVMH", basket:"Luxe (ultra haut de gamme)", pattern:"Double Bottom", conf:58, dec:"Surveiller", price:632.40,
+   trend:[16,15,13,12,11,12,11,12,11,12], tp:9, sl:-5,
+   explain:"Double Bottom détecté mais confiance limitée : la demande chinoise et touristique reste le facteur bloquant identifié par George."},
+  {t:"BNP.PA", n:"BNP Paribas", basket:"Finance / Banque", pattern:"Asc. Triangle", conf:66, dec:"Surveiller", price:64.20,
+   trend:[12,12,11,12,13,12,13,12,13,13], tp:7, sl:-5,
+   explain:"Ascending Triangle, mais la sensibilité du secteur bancaire à la baisse des taux BCE limite la confiance."},
+  {t:"RNO.PA", n:"Renault", basket:"Automobile", pattern:"Desc. Triangle", conf:45, dec:"Alléger", price:47.60,
+   trend:[14,13,13,12,11,11,10,9,9,8], tp:6, sl:-6,
+   explain:"Descending Triangle — un des rares patterns baissiers détectés, cohérent avec la pression concurrentielle des VE chinois."},
+];
+
+const wlBody = document.getElementById('wl-body');
+const detail = document.getElementById('detail-panel');
+const dockMsg = document.getElementById('dock-msg');
+
+function sparkline(points, color){
+  const w=90,h=28, max=Math.max(...points), min=Math.min(...points);
+  const norm = p => h - ((p-min)/(max-min||1))*h;
+  const step = w/(points.length-1);
+  const d = points.map((p,i)=>`${i*step},${norm(p)}`).join(' ');
+  return `<svg class="spark" width="${w}" height="${h}"><polyline points="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+// PRNG déterministe (seedé par ticker) pour générer des bougies OHLC stables entre deux rendus
+function seededRandom(seed){
+  let s = seed % 2147483647; if (s <= 0) s += 2147483646;
+  return function(){ s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+}
+function seedFromString(str){ let h=0; for(let i=0;i<str.length;i++){ h = (h*31 + str.charCodeAt(i)) >>> 0; } return h || 1; }
+
+function generateOHLC(trendPoints, seedKey, n=26){
+  const rnd = seededRandom(seedFromString(seedKey));
+  const base = trendPoints[trendPoints.length-1];
+  const spanFactor = (Math.max(...trendPoints) - Math.min(...trendPoints)) || 1;
+  let last = base - spanFactor*0.6;
+  const candles = [];
+  for(let i=0;i<n;i++){
+    const drift = (trendPoints[Math.min(i, trendPoints.length-1)] - trendPoints[0]) / trendPoints.length;
+    const open = last;
+    const vol = spanFactor*0.18 + spanFactor*0.12*rnd();
+    const close = open + drift*0.35 + (rnd()-0.45)*vol;
+    const high = Math.max(open,close) + rnd()*vol*0.6;
+    const low = Math.min(open,close) - rnd()*vol*0.6;
+    candles.push({open,high,low,close});
+    last = close;
+  }
+  return candles;
+}
+
+function candlestickChart(candles, patternName, tpPct, slPct, w=290, h=150){
+  const lastClose = candles[candles.length-1].close;
+  const tpLevel = lastClose * (1 + tpPct/100);
+  const slLevel = lastClose * (1 + slPct/100);
+  const allVals = candles.flatMap(c=>[c.high,c.low]).concat([tpLevel, slLevel]);
+  const max = Math.max(...allVals), min = Math.min(...allVals);
+  const pad = 14;
+  const plotW = w - 50;
+  const scaleY = v => pad + (h-2*pad) * (1 - (v-min)/((max-min)||1));
+  const step = plotW/candles.length;
+  const bodyW = Math.max(2, step*0.55);
+  const x = i => i*step + step/2;
+  const bars = candles.map((c,i)=>{
+    const up = c.close >= c.open;
+    const color = up ? 'var(--positive)' : 'var(--negative)';
+    const yOpen = scaleY(c.open), yClose = scaleY(c.close);
+    const yHigh = scaleY(c.high), yLow = scaleY(c.low);
+    const bodyTop = Math.min(yOpen,yClose), bodyH = Math.max(1, Math.abs(yClose-yOpen));
+    return `<line x1="${x(i)}" y1="${yHigh}" x2="${x(i)}" y2="${yLow}" stroke="${color}" stroke-width="1"/>
+            <rect x="${x(i)-bodyW/2}" y="${bodyTop}" width="${bodyW}" height="${bodyH}" fill="${color}"/>`;
+  }).join('');
+
+  // Superposition du pattern détecté — tracée à partir des extrêmes réels de la série générée
+  const n = candles.length;
+  const third = Math.max(1, Math.floor(n/3));
+  const firstIdx = [0, third-1], lastIdx = [n-third, n-1];
+  const argext = (idxRange, key, mode) => {
+    let best = idxRange[0];
+    for(let i=idxRange[0]; i<=idxRange[1]; i++){
+      if (mode==='max' ? candles[i][key] > candles[best][key] : candles[i][key] < candles[best][key]) best = i;
+    }
+    return best;
+  };
+  const OVERLAY = 'var(--accent)';
+  let overlay = '';
+  const isChannel = /triangle|wedge|flag/i.test(patternName);
+  if (isChannel){
+    const upA = argext(firstIdx,'high','max'), upB = argext(lastIdx,'high','max');
+    const loA = argext(firstIdx,'low','min'), loB = argext(lastIdx,'low','min');
+    overlay = `
+      <line x1="${x(upA)}" y1="${scaleY(candles[upA].high)}" x2="${x(upB)}" y2="${scaleY(candles[upB].high)}" stroke="${OVERLAY}" stroke-width="1.5" stroke-dasharray="5,4"/>
+      <line x1="${x(loA)}" y1="${scaleY(candles[loA].low)}" x2="${x(loB)}" y2="${scaleY(candles[loB].low)}" stroke="${OVERLAY}" stroke-width="1.5" stroke-dasharray="5,4"/>
+      <circle cx="${x(upA)}" cy="${scaleY(candles[upA].high)}" r="2.5" fill="${OVERLAY}"/>
+      <circle cx="${x(upB)}" cy="${scaleY(candles[upB].high)}" r="2.5" fill="${OVERLAY}"/>
+      <circle cx="${x(loA)}" cy="${scaleY(candles[loA].low)}" r="2.5" fill="${OVERLAY}"/>
+      <circle cx="${x(loB)}" cy="${scaleY(candles[loB].low)}" r="2.5" fill="${OVERLAY}"/>`;
+  } else {
+    const bearish = /top|breakdown|shoulders(?!.*inverse)/i.test(patternName) && !/inverse/i.test(patternName);
+    let level, touch1, touch2;
+    if (bearish){
+      touch1 = argext([0, Math.floor(n/2)],'high','max');
+      touch2 = argext([Math.floor(n/2), n-1],'high','max');
+      level = (candles[touch1].high + candles[touch2].high) / 2;
+    } else {
+      touch1 = argext([0, Math.floor(n/2)],'low','min');
+      touch2 = argext([Math.floor(n/2), n-1],'low','min');
+      level = (candles[touch1].low + candles[touch2].low) / 2;
+    }
+    const y = scaleY(level);
+    overlay = `
+      <line x1="0" y1="${y}" x2="${plotW}" y2="${y}" stroke="${OVERLAY}" stroke-width="1.5" stroke-dasharray="5,4"/>
+      <circle cx="${x(touch1)}" cy="${y}" r="2.5" fill="${OVERLAY}"/>
+      <circle cx="${x(touch2)}" cy="${y}" r="2.5" fill="${OVERLAY}"/>`;
+  }
+
+  return `<svg width="${w}" height="${h}" style="display:block;">
+    <line x1="0" y1="${scaleY(tpLevel)}" x2="${w-46}" y2="${scaleY(tpLevel)}" stroke="var(--positive)" stroke-width="1.3" stroke-dasharray="4,3"/>
+    <rect x="${w-45}" y="${scaleY(tpLevel)-8}" width="45" height="16" rx="3" fill="var(--positive)"/>
+    <text x="${w-22.5}" y="${scaleY(tpLevel)+4}" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono" fill="#08130d" font-weight="600">${tpLevel.toFixed(2)}</text>
+
+    <line x1="0" y1="${scaleY(slLevel)}" x2="${w-46}" y2="${scaleY(slLevel)}" stroke="var(--negative)" stroke-width="1.3" stroke-dasharray="4,3"/>
+    <rect x="${w-45}" y="${scaleY(slLevel)-8}" width="45" height="16" rx="3" fill="var(--negative)"/>
+    <text x="${w-22.5}" y="${scaleY(slLevel)+4}" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono" fill="#1a0a0a" font-weight="600">${slLevel.toFixed(2)}</text>
+
+    ${bars}${overlay}
+
+    <line x1="0" y1="${scaleY(lastClose)}" x2="${w-46}" y2="${scaleY(lastClose)}" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="2,3"/>
+    <rect x="${w-45}" y="${scaleY(lastClose)-8}" width="45" height="16" rx="3" fill="var(--panel-alt)" stroke="var(--hairline)"/>
+    <text x="${w-22.5}" y="${scaleY(lastClose)+4}" text-anchor="middle" font-size="9.5" font-family="IBM Plex Mono" fill="var(--text)" font-weight="600">${lastClose.toFixed(2)}</text>
+  </svg>`;
+}
+function decColor(dec){ return dec==="Achat"||dec==="Renforcer" ? "var(--positive)" : dec==="Surveiller" ? "var(--warning)" : "var(--negative)"; }
+function tagClass(dec){ return dec==="Achat"||dec==="Renforcer" ? "achat" : dec==="Surveiller" ? "surveiller" : "alleger"; }
+
+function renderList(){
+  wlBody.innerHTML = data.map((r,i)=>`
+    <tr data-i="${i}" class="${i===0?'selected':''}" onclick="selectRow(${i})">
+      <td><span class="ticker">${r.t}</span><br><span class="company">${r.n}</span></td>
+      <td class="company">${r.basket}</td>
+      <td>${sparkline(r.trend, decColor(r.dec))}</td>
+      <td>${r.pattern}</td>
+      <td><div style="display:flex;align-items:center;">
+            <div class="conf-bar-wrap"><div class="conf-bar" style="width:${r.conf}%;background:${decColor(r.dec)}"></div></div>
+            <span class="conf-val">${r.conf}%</span>
+          </div></td>
+      <td><span class="tag ${tagClass(r.dec)}">${r.dec}</span></td>
+    </tr>`).join('');
+}
+
+function renderDetail(r){
+  const candles = generateOHLC(r.trend, r.t);
+  detail.innerHTML = `
+    <h2>${r.n}</h2>
+    <div class="sub">${r.t} · ${r.basket}</div>
+    <div class="chart-box">${candlestickChart(candles, r.pattern, r.tp, r.sl, 290, 150)}</div>
+    <div style="display:flex; align-items:center; gap:6px; margin:-10px 0 12px; font-size:11px; color:var(--text-dim);">
+      <span style="width:14px; height:0; border-top:1.5px dashed var(--accent); display:inline-block;"></span>
+      Figure détectée par George : ${r.pattern}
+    </div>
+
+    <div class="section-label">Raisonnement de George</div>
+    <div style="font-size:13px; line-height:1.5; color:var(--text-dim);">${r.explain}</div>
+
+    <div class="section-label">Paramètres</div>
+    <div class="kv"><span>Pattern détecté</span><span>${r.pattern}</span></div>
+    <div class="kv"><span>Confiance</span><span>${r.conf}%</span></div>
+    <div class="kv"><span>Décision</span><span style="color:${decColor(r.dec)}">${r.dec}</span></div>
+
+    <div class="section-label">Niveaux proposés</div>
+    <div class="levels">
+      <div class="level-box tp"><div class="l">Take-profit</div><div class="v">+${r.tp}%</div><div class="l" style="margin-top:2px;">${(r.price*(1+r.tp/100)).toFixed(2)} €</div></div>
+      <div class="level-box sl"><div class="l">Stop-loss</div><div class="v">${r.sl}%</div><div class="l" style="margin-top:2px;">${(r.price*(1+r.sl/100)).toFixed(2)} €</div></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary">Valider les niveaux</button>
+      <button class="btn ghost">Ajuster</button>
+    </div>
+  `;
+  dockMsg.innerHTML = `<b>${r.t}</b> — ${r.explain}`;
+}
+
+function selectRow(i){
+  document.querySelectorAll('#wl-body tr').forEach(tr=>tr.classList.remove('selected'));
+  document.querySelector(`#wl-body tr[data-i="${i}"]`).classList.add('selected');
+  renderDetail(data[i]);
+}
+
+function askDemo(){
+  dockMsg.innerHTML = `<b>🎙 Écoute…</b> — "George, les événements au détroit d'Ormuz peuvent avoir des conséquences économiques et financières." Collecte d'urgence déclenchée sur le panier Énergie.`;
+}
+
+document.getElementById('dock-input').addEventListener('keydown', e=>{
+  if(e.key==='Enter' && e.target.value.trim()){
+    dockMsg.innerHTML = `<b>Vous</b> : ${e.target.value} — <span style="color:var(--text-dim)">George consulte la mémoire historique et les sous-agents pertinents…</span>`;
+    e.target.value='';
+  }
+});
+
+const agentEvents = [
+  {name:"presse energie", desc:"Notes analystes Brent — 3 sources recoupées", time:"07:58", status:"validated"},
+  {name:"macro FRED", desc:"Taux OAT 10 ans mis à jour", time:"07:59", status:"validated"},
+  {name:"resultats", desc:"Calendrier T3 — 4 valeurs du panier Finance", time:"08:02", status:"validated"},
+  {name:"presse sect.", desc:"Rumeur non confirmée — contrat export Airbus", time:"08:11", status:"quarantine"},
+  {name:"reglementaire", desc:"Filing SEC en cours d'analyse", time:"08:24", status:"pending"},
+];
+function renderAgentFeed(){
+  document.getElementById('agent-feed').innerHTML = `
+    <div class="section-label" style="margin-top:0;">Sous-agents — activité récente</div>
+    ${agentEvents.map(e=>`
+      <div class="agent-row ${e.status}">
+        <span class="a-name">${e.name}</span>
+        <span class="a-desc">${e.desc}</span>
+        <span class="a-time">${e.time}</span>
+      </div>`).join('')}
+  `;
+}
+
+renderList();
+renderDetail(data[0]);
+renderAgentFeed();
+</script>
+</body>
+</html>

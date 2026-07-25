@@ -1,0 +1,955 @@
+[
+  {
+    "country": "Afrique du Sud",
+    "language": "anglais",
+    "outlets": [
+      "News24 (continu, référence)",
+      "Mail & Guardian (investigation)",
+      "Daily Maverick (indépendant, investigation)"
+    ],
+    "sites": [
+      "news24.com",
+      "mg.co.za",
+      "dailymaverick.co.za"
+    ]
+  },
+  {
+    "country": "Algérie",
+    "language": "français / arabe",
+    "outlets": [
+      "El Watan (indépendant, francophone)",
+      "El Khabar (généraliste, arabophone)",
+      "Le Soir d'Algérie (généraliste, francophone)"
+    ],
+    "sites": [
+      "elwatan.com",
+      "elkhabar.com",
+      "lesoirdalgerie.com"
+    ]
+  },
+  {
+    "country": "Allemagne",
+    "language": "allemand",
+    "outlets": [
+      "FAZ (centre droit)",
+      "Süddeutsche Zeitung (centre gauche)",
+      "Die Welt (conservateur)",
+      "Bild (populaire)"
+    ],
+    "sites": [
+      "faz.net",
+      "sueddeutsche.de",
+      "welt.de",
+      "bild.de"
+    ]
+  },
+  {
+    "country": "Arabie saoudite",
+    "language": "arabe / anglais",
+    "outlets": [
+      "Asharq Al-Awsat (panarabe, basé à Londres)",
+      "Arab News (anglophone national)",
+      "Al Riyadh (national, arabe)"
+    ],
+    "sites": [
+      "aawsat.com",
+      "arabnews.com",
+      "alriyadh.com"
+    ]
+  },
+  {
+    "country": "Argentine",
+    "language": "espagnol",
+    "outlets": [
+      "Clarín (indépendant, grand tirage)",
+      "La Nación (centre droit)",
+      "Página/12 (centre gauche)"
+    ],
+    "sites": [
+      "clarin.com",
+      "lanacion.com.ar",
+      "pagina12.com.ar"
+    ]
+  },
+  {
+    "country": "Australie",
+    "language": "anglais",
+    "outlets": [
+      "The Australian (centre droit)",
+      "Sydney Morning Herald (centre libéral)",
+      "The Age (centre gauche)",
+      "AFR (économie)",
+      "ABC News (public)"
+    ],
+    "sites": [
+      "theaustralian.com.au",
+      "smh.com.au",
+      "theage.com.au",
+      "afr.com",
+      "abc.net.au"
+    ]
+  },
+  {
+    "country": "Bangladesh",
+    "language": "bengali / anglais",
+    "outlets": [
+      "Prothom Alo (le plus influent, bengali)",
+      "The Daily Star (anglophone)"
+    ],
+    "sites": [
+      "prothomalo.com",
+      "thedailystar.net"
+    ]
+  },
+  {
+    "country": "Belgique",
+    "language": "français / néerlandais",
+    "outlets": [
+      "Le Soir (centre gauche)",
+      "La Libre Belgique (centre droit)",
+      "De Standaard (centre droit)",
+      "De Morgen (centre gauche)",
+      "L'Écho/De Tijd (économie)"
+    ],
+    "sites": [
+      "lesoir.be",
+      "lalibre.be",
+      "standaard.be",
+      "demorgen.be",
+      "lecho.be",
+      "tijd.be"
+    ]
+  },
+  {
+    "country": "Cameroun",
+    "language": "français / anglais",
+    "outlets": [
+      "Cameroon Tribune (gouvernemental, bilingue)",
+      "EcoMatin (économie)",
+      "Investir au Cameroun (économie)"
+    ],
+    "sites": [
+      "cameroon-tribune.cm",
+      "ecomatin.net",
+      "investiraucameroun.com"
+    ]
+  },
+  {
+    "country": "Brésil",
+    "language": "portugais",
+    "outlets": [
+      "Folha de S.Paulo (centre gauche)",
+      "O Globo (centre droit)",
+      "Estadão (centre droit)"
+    ],
+    "sites": [
+      "folha.uol.com.br",
+      "oglobo.globo.com",
+      "estadao.com.br"
+    ]
+  },
+  {
+    "country": "Canada",
+    "language": "anglais / français",
+    "outlets": [
+      "The Globe and Mail (centre / libéral-modéré)",
+      "National Post (centre droit)",
+      "Toronto Star (centre gauche)",
+      "La Presse (centre / libéral, francophone)",
+      "Le Devoir (indépendant / libéral-progressiste, francophone)"
+    ],
+    "sites": [
+      "theglobeandmail.com",
+      "nationalpost.com",
+      "thestar.com",
+      "lapresse.ca",
+      "ledevoir.com"
+    ]
+  },
+  {
+    "country": "Chili",
+    "language": "espagnol",
+    "outlets": [
+      "El Mercurio (conservateur)",
+      "La Tercera (centre)"
+    ],
+    "sites": [
+      "emol.com",
+      "latercera.com"
+    ]
+  },
+  {
+    "country": "Chine (Hong Kong)",
+    "language": "anglais / chinois",
+    "outlets": [
+      "South China Morning Post (référence anglophone)",
+      "Ming Pao (sinophone, sérieux)",
+      "Hong Kong Economic Journal (finance)"
+    ],
+    "sites": [
+      "scmp.com",
+      "mingpao.com",
+      "hkej.com"
+    ]
+  },
+  {
+    "country": "Chine (officiel)",
+    "language": "anglais / chinois",
+    "outlets": [
+      "People's Daily (organe du PCC)",
+      "China Daily (officiel anglophone)",
+      "Xinhua (agence de presse d'État)",
+      "Global Times (nationaliste)",
+      "Caixin Global (économie, indépendant)"
+    ],
+    "sites": [
+      "en.people.cn",
+      "chinadaily.com.cn",
+      "english.news.cn",
+      "globaltimes.cn",
+      "caixinglobal.com"
+    ]
+  },
+  {
+    "country": "Colombie",
+    "language": "espagnol",
+    "outlets": [
+      "El Tiempo (centre droit)",
+      "El Espectador (centre gauche)"
+    ],
+    "sites": [
+      "eltiempo.com",
+      "elespectador.com"
+    ]
+  },
+  {
+    "country": "Corée du Nord",
+    "language": "coréen",
+    "outlets": [
+      "Rodong Sinmun (organe officiel du Parti)",
+      "KCNA (agence de presse d'État)",
+      "Minju Choson (Cabinet / Assemblée populaire)"
+    ],
+    "sites": [
+      "rodong.rep.kp",
+      "kcna.kp",
+      "naenara.com.kp"
+    ]
+  },
+  {
+    "country": "Corée du Sud",
+    "language": "coréen / anglais",
+    "outlets": [
+      "Chosun Ilbo (conservateur)",
+      "JoongAng Ilbo (centre droit)",
+      "Dong-A Ilbo (conservateur)",
+      "Hankyoreh (centre gauche)",
+      "Korea Herald (anglophone)"
+    ],
+    "sites": [
+      "chosun.com",
+      "joongang.co.kr",
+      "donga.com",
+      "hani.co.kr",
+      "koreaherald.com"
+    ]
+  },
+  {
+    "country": "Costa Rica",
+    "language": "espagnol",
+    "outlets": [
+      "La Nación (centre droit, référence)",
+      "CRHoy (100 % numérique)",
+      "El Financiero (économie)"
+    ],
+    "sites": [
+      "nacion.com",
+      "crhoy.com",
+      "elfinancierocr.com"
+    ]
+  },
+  {
+    "country": "Côte d'Ivoire",
+    "language": "français",
+    "outlets": [
+      "Fraternité Matin (gouvernemental)",
+      "L'Inter (indépendant)"
+    ],
+    "sites": [
+      "fratmat.info",
+      "linfodrome.com"
+    ]
+  },
+  {
+    "country": "Cuba",
+    "language": "espagnol",
+    "outlets": [
+      "Granma (officiel)",
+      "14ymedio (indépendant, dissidence)"
+    ],
+    "sites": [
+      "granma.cu",
+      "14ymedio.com"
+    ]
+  },
+  {
+    "country": "Curaçao / Aruba / Saint-Martin",
+    "language": "néerlandais / anglais",
+    "outlets": [
+      "Amigoe (référence néerlandophone)",
+      "The Daily Herald (Saint-Martin, anglophone)"
+    ],
+    "sites": [
+      "amigoe.com",
+      "thedailyherald.sx"
+    ]
+  },
+  {
+    "country": "Égypte",
+    "language": "arabe / anglais",
+    "outlets": [
+      "Al-Ahram (le plus ancien, officiel)",
+      "Al-Masry Al-Youm (indépendant, référence)",
+      "Al-Shorouk (indépendant)",
+      "Youm7 (très fort trafic)"
+    ],
+    "sites": [
+      "ahram.org.eg",
+      "english.ahram.org.eg",
+      "almasryalyoum.com",
+      "shorouknews.com",
+      "youm7.com"
+    ]
+  },
+  {
+    "country": "Émirats arabes unis",
+    "language": "anglais / arabe",
+    "outlets": [
+      "The National (référence, Abou Dabi)",
+      "Gulf News (grand public, Dubaï)",
+      "Al-Ittihad (historique, arabe)"
+    ],
+    "sites": [
+      "thenationalnews.com",
+      "gulfnews.com",
+      "alittihad.ae"
+    ]
+  },
+  {
+    "country": "Espagne",
+    "language": "espagnol",
+    "outlets": [
+      "El País (centre gauche)",
+      "El Mundo (centre droit)",
+      "ABC (conservateur)",
+      "La Vanguardia (centre)"
+    ],
+    "sites": [
+      "elpais.com",
+      "elmundo.es",
+      "abc.es",
+      "lavanguardia.com"
+    ]
+  },
+  {
+    "country": "États-Unis",
+    "language": "anglais",
+    "outlets": [
+      "NY Times (centre gauche)",
+      "WSJ (centre droit / économie)",
+      "Washington Post (centre gauche)",
+      "LA Times (centre, côte Ouest)",
+      "USA Today (centre, généraliste)"
+    ],
+    "sites": [
+      "nytimes.com",
+      "wsj.com",
+      "washingtonpost.com",
+      "latimes.com",
+      "usatoday.com"
+    ]
+  },
+  {
+    "country": "France",
+    "language": "français",
+    "outlets": [
+      "Le Monde (centre gauche)",
+      "Le Figaro (centre droit)",
+      "Les Échos (économie)",
+      "Libération (gauche)"
+    ],
+    "sites": [
+      "lemonde.fr",
+      "lefigaro.fr",
+      "lesechos.fr",
+      "liberation.fr"
+    ]
+  },
+  {
+    "country": "Guatemala",
+    "language": "espagnol",
+    "outlets": [
+      "Prensa Libre (plus grand quotidien national)",
+      "El Periódico (investigation, politique)"
+    ],
+    "sites": [
+      "prensalibre.com",
+      "elperiodico.com.gt"
+    ]
+  },
+  {
+    "country": "Inde",
+    "language": "anglais",
+    "outlets": [
+      "Times of India (grand tirage)",
+      "The Hindu (centre gauche)",
+      "Indian Express (investigation)",
+      "Economic Times (économie)"
+    ],
+    "sites": [
+      "timesofindia.indiatimes.com",
+      "thehindu.com",
+      "indianexpress.com",
+      "economictimes.indiatimes.com"
+    ]
+  },
+  {
+    "country": "Indonésie",
+    "language": "anglais / indonésien",
+    "outlets": [
+      "The Jakarta Post (indépendant, anglophone)",
+      "Kompas (plus grand tirage national)"
+    ],
+    "sites": [
+      "thejakartapost.com",
+      "kompas.id"
+    ]
+  },
+  {
+    "country": "Iran",
+    "language": "persan / anglais",
+    "outlets": [
+      "IRNA (agence officielle)",
+      "Kayhan (conservateur, proche du Guide suprême)",
+      "Hamshahri (municipal, fort tirage)",
+      "Shargh (réformiste)",
+      "Donya-e Eqtesad (économie)",
+      "Iran International (diaspora, Londres)",
+      "BBC Persian (diaspora)"
+    ],
+    "sites": [
+      "en.irna.ir",
+      "kayhan.ir",
+      "hamshahrionline.ir",
+      "sharghdaily.com",
+      "donya-e-eqtesad.com",
+      "iranintl.com",
+      "bbc.com/persian"
+    ]
+  },
+  {
+    "country": "Israël",
+    "language": "hébreu / anglais",
+    "outlets": [
+      "Haaretz (centre gauche, indépendant)",
+      "The Times of Israel (indépendant, multilingue)",
+      "The Jerusalem Post (anglophone)"
+    ],
+    "sites": [
+      "haaretz.com",
+      "timesofisrael.com",
+      "jpost.com"
+    ]
+  },
+  {
+    "country": "Italie",
+    "language": "italien",
+    "outlets": [
+      "Corriere della Sera (centre)",
+      "La Repubblica (centre gauche)",
+      "La Stampa (centre)",
+      "Il Sole 24 Ore (économie)"
+    ],
+    "sites": [
+      "corriere.it",
+      "repubblica.it",
+      "lastampa.it",
+      "ilsole24ore.com"
+    ]
+  },
+  {
+    "country": "Jamaïque",
+    "language": "anglais",
+    "outlets": [
+      "The Gleaner (historique, référence)",
+      "Jamaica Observer (généraliste majeur)"
+    ],
+    "sites": [
+      "jamaica-gleaner.com",
+      "jamaicaobserver.com"
+    ]
+  },
+  {
+    "country": "Japon",
+    "language": "japonais / anglais",
+    "outlets": [
+      "Yomiuri Shimbun (conservateur)",
+      "Asahi Shimbun (centre gauche)",
+      "Mainichi Shimbun (centre)",
+      "Nikkei (économie)",
+      "The Japan Times (anglophone)"
+    ],
+    "sites": [
+      "yomiuri.co.jp",
+      "asahi.com",
+      "mainichi.jp",
+      "nikkei.com",
+      "japantimes.co.jp"
+    ]
+  },
+  {
+    "country": "Kazakhstan",
+    "language": "kazakh / russe / anglais",
+    "outlets": [
+      "Egemen Qazaqstan (officiel, kazakh/russe)",
+      "Kazakhstanskaya Pravda (officiel, russe)",
+      "The Astana Times (anglophone)"
+    ],
+    "sites": [
+      "egemen.kz",
+      "kazpravda.kz",
+      "astanatimes.com"
+    ]
+  },
+  {
+    "country": "Kenya",
+    "language": "anglais",
+    "outlets": [
+      "Daily Nation (majeur, généraliste)",
+      "The Standard (historique)"
+    ],
+    "sites": [
+      "nation.africa",
+      "standardmedia.co.ke"
+    ]
+  },
+  {
+    "country": "Kirghizistan",
+    "language": "russe / kirghiz / anglais",
+    "outlets": [
+      "Vecherny Bishkek (généraliste, russe)",
+      "Kaktus Media (indépendant)",
+      "AKIpress (agence de presse indépendante)"
+    ],
+    "sites": [
+      "vb.kg",
+      "kaktus.media",
+      "akipress.org"
+    ]
+  },
+  {
+    "country": "Liban",
+    "language": "français / arabe",
+    "outlets": [
+      "L'Orient-Le Jour (francophone, référence régionale)",
+      "An-Nahar (historique, arabe)"
+    ],
+    "sites": [
+      "lorientlejour.com",
+      "annahar.com"
+    ]
+  },
+  {
+    "country": "Maroc",
+    "language": "français / arabe",
+    "outlets": [
+      "Le Matin (proche des institutions)",
+      "Aujourd'hui le Maroc (généraliste, français)",
+      "Hespress (1er site d'actualité, arabe/français)"
+    ],
+    "sites": [
+      "lematin.ma",
+      "aujourdhui.ma",
+      "hespress.com"
+    ]
+  },
+  {
+    "country": "Mexique",
+    "language": "espagnol",
+    "outlets": [
+      "El Universal"
+    ],
+    "sites": [
+      "eluniversal.com.mx"
+    ]
+  },
+  {
+    "country": "Nigeria",
+    "language": "anglais",
+    "outlets": [
+      "The Punch"
+    ],
+    "sites": [
+      "punchng.com"
+    ]
+  },
+  {
+    "country": "Nouvelle-Zélande",
+    "language": "anglais",
+    "outlets": [
+      "NZ Herald (principal, Auckland)",
+      "Stuff (majeur, en ligne)",
+      "Otago Daily Times (le plus ancien, indépendant)",
+      "BusinessDesk (économie)"
+    ],
+    "sites": [
+      "nzherald.co.nz",
+      "stuff.co.nz",
+      "odt.co.nz",
+      "businessdesk.co.nz"
+    ]
+  },
+  {
+    "country": "Ouzbékistan",
+    "language": "ouzbek / russe / anglais",
+    "outlets": [
+      "Xalq So'zi / Narodnoye Slovo (gouvernemental)",
+      "Gazeta.uz (indépendant, influent)",
+      "Kun.uz (portail le plus consulté)"
+    ],
+    "sites": [
+      "xs.uz",
+      "gazeta.uz",
+      "kun.uz"
+    ]
+  },
+  {
+    "country": "Pakistan",
+    "language": "anglais",
+    "outlets": [
+      "Dawn (indépendant, référence)",
+      "The News International (généraliste)"
+    ],
+    "sites": [
+      "dawn.com",
+      "thenews.com.pk"
+    ]
+  },
+  {
+    "country": "Panama",
+    "language": "espagnol",
+    "outlets": [
+      "La Prensa (indépendant, majeur)",
+      "Capital Financiero (économie)"
+    ],
+    "sites": [
+      "prensa.com",
+      "capital.com.pa"
+    ]
+  },
+  {
+    "country": "Pays-Bas",
+    "language": "néerlandais",
+    "outlets": [
+      "De Volkskrant (centre gauche)",
+      "NRC (centre)",
+      "De Telegraaf (centre droit / populiste)",
+      "Het Financieele Dagblad (économie)"
+    ],
+    "sites": [
+      "volkskrant.nl",
+      "nrc.nl",
+      "telegraaf.nl",
+      "fd.nl"
+    ]
+  },
+  {
+    "country": "Pérou",
+    "language": "espagnol",
+    "outlets": [
+      "El Comercio (centre droit)",
+      "La República (centre gauche)"
+    ],
+    "sites": [
+      "elcomercio.pe",
+      "larepublica.pe"
+    ]
+  },
+  {
+    "country": "Philippines",
+    "language": "anglais",
+    "outlets": [
+      "Philippine Daily Inquirer (influent)",
+      "Rappler (numérique, investigation)"
+    ],
+    "sites": [
+      "inquirer.net",
+      "rappler.com"
+    ]
+  },
+  {
+    "country": "Portugal",
+    "language": "portugais",
+    "outlets": [
+      "Público (centre gauche)",
+      "Diário de Notícias (centre)",
+      "Jornal de Notícias (centre droit)",
+      "Expresso (centre droit)",
+      "Jornal de Negócios (économie)"
+    ],
+    "sites": [
+      "publico.pt",
+      "dn.pt",
+      "jn.pt",
+      "expresso.pt",
+      "jornaldenegocios.pt"
+    ]
+  },
+  {
+    "country": "Pologne",
+    "language": "polonais",
+    "outlets": [
+      "Gazeta Wyborcza"
+    ],
+    "sites": [
+      "wyborcza.pl"
+    ]
+  },
+  {
+    "country": "Porto Rico",
+    "language": "espagnol",
+    "outlets": [
+      "El Nuevo Día (principal quotidien)",
+      "Primera Hora (généraliste, faits divers)"
+    ],
+    "sites": [
+      "elnuevodia.com",
+      "primerahora.com"
+    ]
+  },
+  {
+    "country": "République dominicaine",
+    "language": "espagnol",
+    "outlets": [
+      "Listín Diario (le plus ancien)",
+      "Diario Libre (gratuit, numérique)"
+    ],
+    "sites": [
+      "listindiario.com",
+      "diariolibre.com"
+    ]
+  },
+  {
+    "country": "Royaume-Uni",
+    "language": "anglais",
+    "outlets": [
+      "The Guardian (centre gauche)",
+      "The Times (centre droit)",
+      "Financial Times (centre libéral)",
+      "The Telegraph (conservateur)"
+    ],
+    "sites": [
+      "theguardian.com",
+      "thetimes.com",
+      "ft.com",
+      "telegraph.co.uk"
+    ]
+  },
+  {
+    "country": "Russie",
+    "language": "russe / anglais",
+    "outlets": [
+      "Kommersant",
+      "Rossiyskaya Gazeta (off.)",
+      "The Moscow Times (indép.)"
+    ],
+    "sites": [
+      "kommersant.ru",
+      "rg.ru",
+      "themoscowtimes.com"
+    ]
+  },
+  {
+    "country": "Salvador",
+    "language": "espagnol",
+    "outlets": [
+      "La Prensa Gráfica (généraliste)",
+      "El Faro (indépendant, investigation, référence régionale)"
+    ],
+    "sites": [
+      "laprensagrafica.com",
+      "elfaro.net"
+    ]
+  },
+  {
+    "country": "Sénégal",
+    "language": "français",
+    "outlets": [
+      "Le Soleil (national, généraliste)",
+      "EnQuête (investigation)",
+      "Walf Fadjri (indépendant)"
+    ],
+    "sites": [
+      "lesoleil.sn",
+      "enqueteplus.com",
+      "walf-groupe.com"
+    ]
+  },
+  {
+    "country": "Singapour",
+    "language": "anglais / chinois",
+    "outlets": [
+      "The Straits Times (référence)",
+      "CNA (continu, régional)",
+      "Lianhe Zaobao (sinophone)"
+    ],
+    "sites": [
+      "straitstimes.com",
+      "channelnewsasia.com",
+      "zaobao.com.sg"
+    ]
+  },
+  {
+    "country": "Sri Lanka",
+    "language": "anglais",
+    "outlets": [
+      "Daily Mirror (information générale)"
+    ],
+    "sites": [
+      "dailymirror.lk"
+    ]
+  },
+  {
+    "country": "Suisse",
+    "language": "français / allemand",
+    "outlets": [
+      "NZZ (libéral-conservateur, allemand)",
+      "Le Temps (centre, français)"
+    ],
+    "sites": [
+      "nzz.ch",
+      "letemps.ch"
+    ]
+  },
+  {
+    "country": "Tadjikistan",
+    "language": "tadjik / russe / anglais",
+    "outlets": [
+      "Asia-Plus (indépendant, principal réseau d'info)",
+      "Jumhuriyat (officiel gouvernemental)"
+    ],
+    "sites": [
+      "asiaplustj.info",
+      "jumhuriyat.tj"
+    ]
+  },
+  {
+    "country": "Taïwan",
+    "language": "anglais / chinois",
+    "outlets": [
+      "Taipei Times (anglophone)",
+      "Liberty Times (souverainiste)",
+      "China Times (favorable aux échanges avec Pékin)"
+    ],
+    "sites": [
+      "taipeitimes.com",
+      "ltn.com.tw",
+      "chinatimes.com"
+    ]
+  },
+  {
+    "country": "Thaïlande",
+    "language": "anglais",
+    "outlets": [
+      "Bangkok Post (historique, référence)",
+      "The Nation (politique / économie)"
+    ],
+    "sites": [
+      "bangkokpost.com",
+      "nationthailand.com"
+    ]
+  },
+  {
+    "country": "Tunisie",
+    "language": "français / arabe",
+    "outlets": [
+      "La Presse de Tunisie (national, français)",
+      "Assabah (historique, arabophone)",
+      "Mosaïque FM (info en continu)"
+    ],
+    "sites": [
+      "lapresse.tn",
+      "assabah.news.tn",
+      "mosaiquefm.net"
+    ]
+  },
+  {
+    "country": "Turkménistan",
+    "language": "russe / turkmène / anglais",
+    "outlets": [
+      "Neutralny Turkmenistan (officiel, russophone)",
+      "Turkmenistan.ru (portail officiel)"
+    ],
+    "sites": [
+      "neutralturkmenistan.gov.tm",
+      "turkmenistan.ru"
+    ]
+  },
+  {
+    "country": "Turquie",
+    "language": "turc / anglais",
+    "outlets": [
+      "Sabah (pro-gouvernement)",
+      "Sozcu (opposition, laïque)",
+      "Cumhuriyet (opposition, historique)",
+      "Yeni Safak (islamo-conservateur)",
+      "Hürriyet / Hürriyet Daily News (centre, éd. anglaise)",
+      "Daily Sabah (anglais, pro-gouvernement)",
+      "TRT World (public international)"
+    ],
+    "sites": [
+      "sabah.com.tr",
+      "sozcu.com.tr",
+      "cumhuriyet.com.tr",
+      "yenisafak.com",
+      "hurriyet.com.tr",
+      "hurriyetdailynews.com",
+      "dailysabah.com",
+      "trtworld.com"
+    ]
+  },
+  {
+    "country": "Ukraine",
+    "language": "ukrainien",
+    "outlets": [
+      "Ukrayinska Pravda"
+    ],
+    "sites": [
+      "pravda.com.ua"
+    ]
+  },
+  {
+    "country": "Uruguay",
+    "language": "espagnol",
+    "outlets": [
+      "El País (centre droit)",
+      "La Diaria (centre gauche)"
+    ],
+    "sites": [
+      "elpais.com.uy",
+      "ladiaria.com.uy"
+    ]
+  },
+  {
+    "country": "Vietnam",
+    "language": "vietnamien / anglais",
+    "outlets": [
+      "Tuoi Tre News (édition anglaise, grand public)",
+      "VnExpress (principal site d'info en ligne)"
+    ],
+    "sites": [
+      "tuoitrenews.vn",
+      "e.vnexpress.net"
+    ]
+  }
+]

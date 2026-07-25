@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Env
+.env
+infra/.env
+
+# Node / web (voir aussi web/.gitignore)
+web/node_modules/
+web/dist/
+
+# OS
+.DS_Store
+Thumbs.db
