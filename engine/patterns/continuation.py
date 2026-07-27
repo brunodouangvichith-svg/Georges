@@ -258,7 +258,13 @@ def _flag(df, bullish: bool) -> list[PatternMatch]:
             pattern_type="Bull Flag" if bullish else "Bear Flag",
             detected_at=df.index[-1],
             confidence=confidence_score(geometry_quality, volume_conf, trend_conf),
-            context={"pole_return": pole_return, "flag_amplitude": float(flag_amplitude)},
+            context={
+                "pole_return": pole_return,
+                "pole_amplitude": float(pole_amplitude),
+                "flag_amplitude": float(flag_amplitude),
+                "flag_low": float(flag.min()),
+                "flag_high": float(flag.max()),
+            },
         )
     ]
 

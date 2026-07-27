@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ForeignKey, Integer, Numeric, BigInteger, Text, func
+from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, BigInteger, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -55,18 +55,37 @@ class PatternDetected(Base):
 
 
 class Decision(Base):
-    """Décision proposée par George pour un titre (jamais exécutée automatiquement)."""
+    """Décision proposée par George pour un titre (jamais exécutée
+    automatiquement). `status` (Phase 6) trace son cycle de vie :
+    'proposee' (créée par `engine.propose_decisions`, niveaux non encore
+    validés) -> 'confirmee' (niveaux validés par l'investisseur) ->
+    'sortie_proposee' (le job de suivi a détecté un franchissement de
+    take-profit/stop-loss et propose un scénario de sortie, voir les
+    colonnes `exit_*`) -> 'cloturee' (sortie confirmée, résultat enregistré
+    dans `decision_outcomes`). Les décisions illustratives pré-existantes
+    (`ingestion/seed_demo.py`) sont rétroactivement 'confirmee' (elles
+    étaient déjà présentées comme définitives avant que ce cycle n'existe).
+    `pattern_id` rattache explicitement une décision à la figure qui l'a
+    motivée — avant la Phase 6, ce lien n'existait pas et devait être
+    reconstitué par heuristique (voir `agents/explainer.py:find_pattern_for_decision`,
+    conservée comme repli pour les décisions illustratives sans `pattern_id`)."""
 
     __tablename__ = "decisions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     symbol: Mapped[str] = mapped_column(ForeignKey("securities.symbol"), nullable=False)
+    pattern_id: Mapped[int | None] = mapped_column(ForeignKey("patterns_detected.id"), nullable=True)
     decision_type: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
     entry_price: Mapped[float] = mapped_column(Numeric, nullable=False)
     take_profit: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     stop_loss: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     confidence: Mapped[float] = mapped_column(Numeric, nullable=False)
     rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    exit_scenario: Mapped[str | None] = mapped_column(Text, nullable=True)
+    exit_volume_confirmed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    exit_justification: Mapped[str | None] = mapped_column(Text, nullable=True)
+    exit_proposed_at: Mapped[datetime.datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )

@@ -31,10 +31,13 @@ from ingestion.models import Decision, DecisionOutcome
 BULLISH_DECISIONS = {"Achat", "Renforcer"}
 
 
-def evaluate_decision(decision, df: pd.DataFrame) -> tuple[str, float] | None:
+def evaluate_decision(decision, df: pd.DataFrame) -> tuple[str, float, object | None] | None:
     """`decision` : ligne de `decisions` (symbol, decision_type, entry_price,
-    take_profit, stop_loss, created_at). Renvoie `(result, pnl_pct)`, ou
-    `None` si aucune séance n'est disponible depuis la création."""
+    take_profit, stop_loss, created_at). Renvoie `(result, pnl_pct, hit_at)`
+    — `hit_at` est l'horodatage de la séance de franchissement (`None` si
+    `result == "open"`), utilisé par `engine.exit_scenarios` (Phase 6) pour
+    situer la confirmation par le volume sur la bonne séance. Renvoie `None`
+    si aucune séance n'est disponible depuis la création."""
     since = df[df.index >= decision.created_at]
     if since.empty:
         return None
@@ -58,13 +61,13 @@ def evaluate_decision(decision, df: pd.DataFrame) -> tuple[str, float] | None:
     direction = 1 if bullish else -1
     if tp_hit_at is not None and (sl_hit_at is None or tp_hit_at <= sl_hit_at):
         pnl = (float(decision.take_profit) - entry) / entry * 100 * direction
-        return "take_profit_hit", pnl
+        return "take_profit_hit", pnl, tp_hit_at
     if sl_hit_at is not None:
         pnl = (float(decision.stop_loss) - entry) / entry * 100 * direction
-        return "stop_loss_hit", pnl
+        return "stop_loss_hit", pnl, sl_hit_at
 
     pnl = (last_close - entry) / entry * 100 * direction
-    return "open", pnl
+    return "open", pnl, None
 
 
 def run() -> int:
@@ -95,7 +98,7 @@ def run() -> int:
         outcome = evaluate_decision(decision, df)
         if outcome is None:
             continue
-        result, pnl_pct = outcome
+        result, pnl_pct, _hit_at = outcome
         with engine.begin() as conn:
             conn.execute(
                 DecisionOutcome.__table__.insert().values(

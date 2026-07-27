@@ -43,10 +43,11 @@ export function useGeorgeIndex(basketId) {
   });
 }
 
-export function useDecisions({ status, basketId, limit = 100 } = {}) {
+export function useDecisions({ decisionType, status, basketId, limit = 100 } = {}) {
   return useQuery({
-    queryKey: ["decisions", { status, basketId, limit }],
-    queryFn: () => apiFetch("/decisions", { status, basket_id: basketId, limit }),
+    queryKey: ["decisions", { decisionType, status, basketId, limit }],
+    queryFn: () =>
+      apiFetch("/decisions", { decision_type: decisionType, status, basket_id: basketId, limit }),
   });
 }
 

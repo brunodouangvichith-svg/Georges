@@ -1,6 +1,6 @@
 # George
 
-Agent d'analyse technique des marchés financiers. Ce dépôt suit la roadmap détaillée dans `George_Prompts_Claude_Code.md` (8 phases). Ce README couvre les **Phases 0 à 4** : fondations du projet (structure, Docker, schéma de base de données), moteur quantitatif (ingestion des prix, détection de patterns), mémoire historique/apprentissage continu (backtesting, score de confiance appris, paniers, George Index), l'API + l'interface web MVP branchée sur des données réelles, et la couche LLM conversationnelle (explication des décisions, `/chat`, rapports indexés dans pgvector, second avis de Jane).
+Agent d'analyse technique des marchés financiers. Ce dépôt suit la roadmap détaillée dans `George_Prompts_Claude_Code.md` (8 phases). Ce README couvre les **Phases 0 à 4, et 6** (la Phase 5 « application mobile » a été volontairement sautée pour l'instant — voir CLAUDE.md) : fondations du projet (structure, Docker, schéma de base de données), moteur quantitatif (ingestion des prix, détection de patterns), mémoire historique/apprentissage continu (backtesting, score de confiance appris, paniers, George Index), l'API + l'interface web MVP branchée sur des données réelles, la couche LLM conversationnelle (explication des décisions, `/chat`, rapports indexés dans pgvector, second avis de Jane), et le cycle de vie complet d'une décision (proposition automatique à partir d'une figure réelle, niveaux de sortie calculés, confirmation, suivi, clôture).
 
 ## Structure du dépôt
 
@@ -10,7 +10,7 @@ engine/      moteur de détection de patterns + scoring de confiance — Phase 1
 agents/      explainer, /chat, rapports pgvector, second avis de Jane — Phase 4, déjà en place ; sous-agents de veille (presse, macro, géopolitique...) — Phase 7 (pas encore implémenté)
 api/         API FastAPI — Phase 3, déjà en place
 web/         interface web React (Vite + Tailwind), branchée sur l'API — Phase 3, déjà en place
-mobile/      application mobile (pas encore planifié)
+mobile/      application mobile — Phase 5, volontairement sautée pour l'instant (voir CLAUDE.md)
 infra/       docker-compose.yml et configuration d'infrastructure
 tests/       tests pytest
 ```
@@ -178,3 +178,24 @@ Trois capacités, toutes en `POST` (le CORS de l'API n'autorisait que `GET` jusq
 - **`POST /reports`** (`{"basket_id": <id ou omis pour un rapport portefeuille>}`) — génère un rapport texte (`agents/reports.py`) résumant l'état d'un panier (George Index réel, décisions actives) ou de l'ensemble du portefeuille, l'indexe via un embedding `mistral-embed` dans `reports` (pgvector). `GET /reports` (paginé, filtrable par `basket_id`) et `GET /reports/search?q=...` (recherche sémantique par similarité cosinus) le relisent ensuite.
 
 Le prompt système de chaque capacité interdit explicitement au LLM d'inventer un chiffre absent du contexte structuré fourni (`agents/prompts/*.txt`) — vérifié dans `tests/test_agents.py` (constructeurs de contexte, sans DB) et `tests/test_api.py` (avec un client Mistral factice qui recopie le contexte reçu, pour vérifier qu'aucune valeur réelle n'est perdue en chemin sans dépendre d'un vrai appel réseau).
+
+## 12. Gestion du risque et cycle de vie des décisions (Phase 6)
+
+Avec l'environnement Docker démarré et les migrations appliquées :
+
+```bash
+alembic upgrade head              # migration 0005 : cycle de vie des décisions (status, pattern_id, exit_*)
+python -m engine.propose_decisions # scanne les figures actives à forte confiance -> crée des décisions "proposee"
+python -m engine.monitor_decisions # job de suivi : décisions "confirmee" ayant franchi TP/SL -> "sortie_proposee"
+```
+
+Une décision suit désormais un vrai cycle de vie, `status` en base : `proposee` (créée automatiquement à partir d'une figure réelle détectée, jamais confirmée) → `confirmee` (validée par l'investisseur, niveaux éventuellement ajustés) → `sortie_proposee` (le job de suivi a détecté un franchissement de take-profit/stop-loss et propose un scénario de sortie justifié) → `cloturee` (sortie confirmée). Endpoints, tous en `POST` sauf le premier :
+
+- **`GET /decisions?status=proposee`** (ou `confirmee`/`sortie_proposee`/`cloturee`) — filtre par statut de cycle de vie ; `decision_type` (ex. `Achat`) reste le paramètre pour filtrer par type de décision (renommé depuis `status` pour éviter la collision de noms).
+- **`POST /decisions/propose`** — déclenche `engine.propose_decisions` : une proposition par titre qualifiant (figure active, confiance ≥ 50 %, pas de décision déjà ouverte sur ce titre), avec take-profit/stop-loss calculés depuis la géométrie réelle de la figure (`engine/exit_levels.py`).
+- **`POST /decisions/{id}/propose-levels`** — recalcule les niveaux sur le prix le plus récent (tant que la décision est encore `"proposee"`).
+- **`POST /decisions/{id}/confirm`** (body optionnel `{"take_profit": ..., "stop_loss": ...}` pour ajuster avant validation) — passe la décision à `"confirmee"`.
+- **`POST /decisions/monitor`** — déclenche `engine.monitor_decisions` : pour chaque décision confirmée ayant atteint son take-profit ou franchi son stop-loss, propose un scénario de sortie (`sortie_totale`/`sortie_partielle`, avec distinction franchissement confirmé par le volume vs. bruit — `engine/exit_scenarios.py`) et sa justification textuelle (`agents/explainer.py:explain_exit_scenario`, Phase 4). Ne clôture jamais une position lui-même.
+- **`POST /decisions/{id}/confirm-exit`** — seule action qui clôture réellement une décision : enregistre le résultat dans `decision_outcomes` (pour un futur réentraînement du modèle, Phase 2) et passe la décision à `"cloturee"`.
+
+Testé de bout en bout contre la base de développement réelle (109 figures détectées sur l'univers CAC 40) : 16 propositions générées avec des niveaux cohérents ; voir `tests/test_exit_levels.py` (les 13 types de figures, sans DB), `tests/test_exit_scenarios.py`, `tests/test_reevaluate_decisions.py`, et `tests/test_api.py` pour le cycle complet propose → confirm → monitor → confirm-exit avec Docker.

@@ -71,13 +71,24 @@ class DecisionOut(BaseModel):
 
     id: int
     symbol: str
+    pattern_id: int | None
     decision_type: str
+    status: str
     entry_price: float
     take_profit: float | None
     stop_loss: float | None
     confidence: float
     rationale: str | None
+    exit_scenario: str | None
+    exit_volume_confirmed: bool | None
+    exit_justification: str | None
+    exit_proposed_at: datetime | None
     created_at: datetime
+
+
+class ConfirmDecisionRequest(BaseModel):
+    take_profit: float | None = None
+    stop_loss: float | None = None
 
 
 class AgentEventOut(BaseModel):

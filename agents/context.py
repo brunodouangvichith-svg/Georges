@@ -76,6 +76,33 @@ def security_snapshot(
     return snapshot
 
 
+def exit_scenario_context(
+    decision: Decision,
+    security: Security,
+    result: str,
+    pnl_pct: float,
+    scenario: str,
+    volume_confirmed: bool | None,
+) -> dict:
+    """Contexte pour `agents/explainer.py:explain_exit_scenario` (Phase 6,
+    tâche 4) — `result`/`scenario`/`volume_confirmed` viennent déjà décidés
+    par `engine.exit_scenarios.classify_exit`, jamais recalculés ici ou par
+    le LLM : ce module ne fait que les mettre en mots."""
+    return {
+        "titre": {"symbole": security.symbol, "nom": security.name},
+        "decision": {
+            "type": decision.decision_type,
+            "prix_entree": float(decision.entry_price),
+            "take_profit": float(decision.take_profit) if decision.take_profit is not None else None,
+            "stop_loss": float(decision.stop_loss) if decision.stop_loss is not None else None,
+        },
+        "resultat": result,
+        "pnl_pct": round(pnl_pct, 2),
+        "scenario_propose": scenario,
+        "confirme_par_volume": volume_confirmed,
+    }
+
+
 def basket_report_context(
     basket: Basket | None,
     george_index: float | None,

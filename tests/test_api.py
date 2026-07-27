@@ -12,13 +12,22 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 import agents.mistral_client as mistral_client
 import api.deps as deps
 from api.main import app
-from ingestion.models import AgentEvent, Basket, BasketSecurity, Decision, PatternDetected, PriceOHLCV, Security
+from ingestion.models import (
+    AgentEvent,
+    Basket,
+    BasketSecurity,
+    Decision,
+    DecisionOutcome,
+    PatternDetected,
+    PriceOHLCV,
+    Security,
+)
 
 
 def _fake_complete(system_prompt, user_message, model=None, temperature=0.3, max_retries=3):
@@ -218,13 +227,21 @@ def test_george_index_basket_not_found_returns_404(client):
     assert resp.status_code == 404
 
 
-def test_list_decisions_filtered_by_status(client):
-    resp = client.get("/decisions", params={"status": "Achat"})
+def test_list_decisions_filtered_by_decision_type(client):
+    resp = client.get("/decisions", params={"decision_type": "Achat"})
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["decision_type"] == "Achat"
 
-    resp = client.get("/decisions", params={"status": "Alléger"})
+    resp = client.get("/decisions", params={"decision_type": "Alléger"})
+    assert resp.json()["total"] == 0
+
+
+def test_list_decisions_filtered_by_lifecycle_status(client):
+    resp = client.get("/decisions", params={"status": "confirmee"})
+    assert resp.json()["total"] == 1  # la décision de la fixture, rétroactivement "confirmee" (migration 0005)
+
+    resp = client.get("/decisions", params={"status": "proposee"})
     assert resp.json()["total"] == 0
 
 
@@ -369,3 +386,159 @@ def test_mistral_unavailable_returns_503_with_cors_headers(client, monkeypatch):
     resp = client.post("/chat", json={"question": "Alpha SA ?"}, headers={"Origin": "http://localhost:5173"})
     assert resp.status_code == 503
     assert resp.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+
+def test_propose_confirm_and_propose_levels_flow(client):
+    """Couvre les tâches 1-3 de la Phase 6 : `engine.propose_decisions` crée
+    une proposition à partir d'une figure réelle (pas juste `seed_demo.py`),
+    ses niveaux sont recalculables avant confirmation, et la confirmation
+    fige le statut (l'investisseur peut ajuster les niveaux au passage)."""
+    detected_at = pd.Timestamp.now(tz="UTC")
+    with deps.engine.begin() as conn:
+        conn.execute(
+            Security.__table__.insert(),
+            [{"symbol": "XXX.PA", "name": "Xylo SA", "country": "FR", "currency": "EUR", "sector": "Tech", "theme": None}],
+        )
+        conn.execute(
+            PriceOHLCV.__table__.insert(),
+            [
+                {
+                    "symbol": "XXX.PA",
+                    "ts": detected_at,
+                    "open": 114.0,
+                    "high": 116.0,
+                    "low": 113.0,
+                    "close": 115.0,
+                    "volume": 1_000_000,
+                }
+            ],
+        )
+        conn.execute(
+            PatternDetected.__table__.insert(),
+            [
+                {
+                    "symbol": "XXX.PA",
+                    "pattern_type": "Bull Flag",
+                    "detected_at": detected_at,
+                    "confidence": 80.0,
+                    "context": {
+                        "pole_return": 0.1,
+                        "pole_amplitude": 10.0,
+                        "flag_amplitude": 5.0,
+                        "flag_low": 108.0,
+                        "flag_high": 113.0,
+                    },
+                }
+            ],
+        )
+
+    resp = client.post("/decisions/propose")
+    assert resp.status_code == 200
+    created = [d for d in resp.json() if d["symbol"] == "XXX.PA"]
+    assert len(created) == 1
+    decision = created[0]
+    assert decision["status"] == "proposee"
+    assert decision["decision_type"] == "Achat"  # Bull Flag est une figure haussière
+    assert decision["entry_price"] == 115.0
+    assert decision["take_profit"] == 125.0  # 115 + pole_amplitude (10.0)
+    assert decision["stop_loss"] == pytest.approx(107.78, abs=0.01)  # flag_low (108) * (1 - BREAKOUT_BUFFER)
+    decision_id = decision["id"]
+
+    # Une deuxième invocation ne recrée pas de proposition : XXX.PA a déjà
+    # une décision ouverte (idempotence de select_candidates).
+    resp = client.post("/decisions/propose")
+    assert all(d["symbol"] != "XXX.PA" for d in resp.json())
+
+    resp = client.post(f"/decisions/{decision_id}/propose-levels")
+    assert resp.status_code == 200
+    assert resp.json()["take_profit"] == 125.0
+
+    resp = client.post(f"/decisions/{decision_id}/confirm", json={"stop_loss": 106.0})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "confirmee"
+    assert body["stop_loss"] == 106.0
+    assert body["take_profit"] == 125.0  # non fourni dans la requête -> inchangé
+
+    # Ni propose-levels ni confirm ne s'appliquent plus une fois confirmée.
+    assert client.post(f"/decisions/{decision_id}/propose-levels").status_code == 409
+    assert client.post(f"/decisions/{decision_id}/confirm", json={}).status_code == 409
+
+
+def test_monitor_and_confirm_exit_flow(client, mock_llm):
+    """Couvre les tâches 4-5 de la Phase 6 : le job de suivi détecte un
+    stop-loss franchi avec un volume confirmé, propose une sortie totale
+    avec justification (Phase 4), et la confirmation clôture réellement la
+    décision dans `decision_outcomes`."""
+    old_ts = pd.Timestamp("2020-01-01", tz="UTC")
+    with deps.engine.begin() as conn:
+        conn.execute(
+            Security.__table__.insert(),
+            [{"symbol": "YYY.PA", "name": "Yotta SA", "country": "FR", "currency": "EUR", "sector": "Tech", "theme": None}],
+        )
+        price_rows = [
+            {
+                "symbol": "YYY.PA",
+                "ts": old_ts + pd.Timedelta(days=i),
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.0,
+                "volume": 1_000_000,
+            }
+            for i in range(20)
+        ]
+        # Dernière séance : franchissement du stop-loss (90) avec un volume
+        # 3x supérieur à la moyenne des 20 séances précédentes -> confirmé.
+        price_rows.append(
+            {
+                "symbol": "YYY.PA",
+                "ts": old_ts + pd.Timedelta(days=20),
+                "open": 99.0,
+                "high": 99.5,
+                "low": 85.0,
+                "close": 86.0,
+                "volume": 3_000_000,
+            }
+        )
+        conn.execute(PriceOHLCV.__table__.insert(), price_rows)
+        decision_id = conn.execute(
+            Decision.__table__.insert()
+            .values(
+                symbol="YYY.PA",
+                decision_type="Achat",
+                status="confirmee",
+                entry_price=100.0,
+                take_profit=200.0,
+                stop_loss=90.0,
+                confidence=70.0,
+                created_at=old_ts,
+            )
+            .returning(Decision.id)
+        ).scalar_one()
+
+    resp = client.post("/decisions/monitor")
+    assert resp.status_code == 200
+    proposed = [d for d in resp.json() if d["id"] == decision_id]
+    assert len(proposed) == 1
+    body = proposed[0]
+    assert body["status"] == "sortie_proposee"
+    assert body["exit_scenario"] == "sortie_totale"
+    assert body["exit_volume_confirmed"] is True
+    assert "90.0" in body["exit_justification"]  # contexte réel transmis au LLM (factice) et recopié
+
+    resp = client.post(f"/decisions/{decision_id}/confirm-exit")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "cloturee"
+
+    with deps.engine.begin() as conn:
+        outcome = conn.execute(
+            select(DecisionOutcome).where(DecisionOutcome.decision_id == decision_id)
+        ).first()
+    assert outcome is not None
+    assert outcome.result == "stop_loss_hit"
+    assert outcome.pnl_pct == pytest.approx(-10.0)
+
+    # Rien à confirmer une deuxième fois.
+    assert client.post(f"/decisions/{decision_id}/confirm-exit").status_code == 409
