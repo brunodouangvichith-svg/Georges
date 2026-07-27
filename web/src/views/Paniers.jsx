@@ -7,10 +7,18 @@ import { decisionColor, scoreColor } from "../data";
 const PIE_COLORS = ["#ffb020", "#3ddc84", "#5aa9ff", "#ff5c5c", "#c58aff", "#4fd6c5", "#e0975a", "#8b95a1", "#e85d9a", "#7fd6ff"];
 const DECISION_TYPES = ["Achat", "Renforcer", "Surveiller", "Alléger"];
 const CONFIDENCE_PRESETS = [0, 50, 60, 70, 75];
+const DECISION_STATUSES = ["proposee", "confirmee", "sortie_proposee", "cloturee"];
+const STATUS_LABELS = {
+  proposee: "Proposée",
+  confirmee: "Confirmée",
+  sortie_proposee: "Sortie proposée",
+  cloturee: "Clôturée",
+};
 
 const DECISION_COLUMNS = [
   { key: "symbol", label: "Ticker", defaultDir: "asc" },
   { key: "decision_type", label: "Décision", defaultDir: "asc" },
+  { key: "status", label: "Statut", defaultDir: "asc" },
   { key: "entry_price", label: "Entrée", defaultDir: "desc" },
   { key: "take_profit", label: "Take-profit", defaultDir: "desc" },
   { key: "stop_loss", label: "Stop-loss", defaultDir: "desc" },
@@ -112,6 +120,7 @@ export default function Paniers() {
 
   const [minConfidence, setMinConfidence] = useState(0);
   const [decisionTypeFilter, setDecisionTypeFilter] = useState("Toutes");
+  const [statusFilter, setStatusFilter] = useState("Toutes");
   const [sortKey, setSortKey] = useState("created_at");
   const [sortDir, setSortDir] = useState("desc");
 
@@ -126,7 +135,10 @@ export default function Paniers() {
 
   const visibleDecisions = useMemo(() => {
     const filtered = decisions.filter(
-      (d) => d.confidence >= minConfidence && (decisionTypeFilter === "Toutes" || d.decision_type === decisionTypeFilter)
+      (d) =>
+        d.confidence >= minConfidence &&
+        (decisionTypeFilter === "Toutes" || d.decision_type === decisionTypeFilter) &&
+        (statusFilter === "Toutes" || d.status === statusFilter)
     );
     const sign = sortDir === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => {
@@ -138,7 +150,7 @@ export default function Paniers() {
       if (typeof va === "string") return sign * va.localeCompare(vb);
       return sign * (va - vb);
     });
-  }, [decisions, minConfidence, decisionTypeFilter, sortKey, sortDir]);
+  }, [decisions, minConfidence, decisionTypeFilter, statusFilter, sortKey, sortDir]);
 
   return (
     <div className="h-full overflow-y-auto gd-scrollbar px-5 py-6">
@@ -176,6 +188,136 @@ export default function Paniers() {
             style={{ borderColor: "var(--negative)", color: "var(--negative)" }}
           >
             Impossible de contacter l'API — vérifiez qu'elle tourne (<code>uvicorn api.main:app --reload</code>).
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
+          <div className="text-xs tracking-wider" style={{ color: "var(--warning)" }}>
+            DÉCISIONS RÉCENTES
+          </div>
+          <div className="flex flex-wrap items-center gap-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span style={{ color: "var(--text-dim)" }}>Décision</span>
+              {["Toutes", ...DECISION_TYPES].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setDecisionTypeFilter(t)}
+                  className="px-2.5 py-1 rounded-full border"
+                  style={{
+                    background: decisionTypeFilter === t ? "var(--accent)" : "transparent",
+                    borderColor: decisionTypeFilter === t ? "var(--accent)" : "var(--hairline)",
+                    color: decisionTypeFilter === t ? "#fff" : "var(--text-dim)",
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span style={{ color: "var(--text-dim)" }}>Confiance ≥</span>
+              {CONFIDENCE_PRESETS.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setMinConfidence(p)}
+                  className="px-2.5 py-1 rounded-full border"
+                  style={{
+                    background: minConfidence === p ? "var(--accent)" : "transparent",
+                    borderColor: minConfidence === p ? "var(--accent)" : "var(--hairline)",
+                    color: minConfidence === p ? "#fff" : "var(--text-dim)",
+                  }}
+                >
+                  {p === 0 ? "Toutes" : `≥ ${p}%`}
+                </button>
+              ))}
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={minConfidence}
+                onChange={(e) => setMinConfidence(Number(e.target.value) || 0)}
+                className="w-16 px-2 py-1 rounded-lg border"
+                style={{ background: "var(--panel-alt)", borderColor: "var(--hairline)", color: "var(--text)" }}
+              />
+              <span style={{ color: "var(--text-dim)" }}>%</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span style={{ color: "var(--text-dim)" }}>Statut</span>
+              {["Toutes", ...DECISION_STATUSES].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className="px-2.5 py-1 rounded-full border"
+                  style={{
+                    background: statusFilter === s ? "var(--accent)" : "transparent",
+                    borderColor: statusFilter === s ? "var(--accent)" : "var(--hairline)",
+                    color: statusFilter === s ? "#fff" : "var(--text-dim)",
+                  }}
+                >
+                  {s === "Toutes" ? "Toutes" : STATUS_LABELS[s]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        {decisions.length === 0 ? (
+          <div className="text-xs mb-6" style={{ color: "var(--text-dim)" }}>
+            Aucune décision enregistrée. Lancez <code>python -m engine.propose_decisions</code> ou <code>python -m ingestion.seed_demo</code>.
+          </div>
+        ) : visibleDecisions.length === 0 ? (
+          <div className="text-xs mb-6" style={{ color: "var(--text-dim)" }}>
+            Aucune décision avec une confiance ≥ {minConfidence}%.
+          </div>
+        ) : (
+          <div className="rounded-lg overflow-hidden border mb-6" style={{ borderColor: "var(--hairline)" }}>
+            <div className="overflow-x-auto gd-scrollbar">
+              <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 680 }}>
+                <thead>
+                  <tr style={{ background: "var(--panel-alt)", color: "var(--text-dim)" }}>
+                    {DECISION_COLUMNS.map((c) => (
+                      <th key={c.key} className="text-left px-3 py-2 font-normal border-b" style={{ borderColor: "var(--hairline)" }}>
+                        <button
+                          className="flex items-center gap-1"
+                          style={{ color: sortKey === c.key ? "var(--text)" : "var(--text-dim)" }}
+                          onClick={() => toggleSort(c.key)}
+                        >
+                          {c.label}
+                          {sortKey === c.key && <span>{sortDir === "asc" ? "▲" : "▼"}</span>}
+                        </button>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleDecisions.map((d, i) => (
+                    <tr
+                      key={d.id}
+                      onClick={() => openDecisionPopup(d)}
+                      className="cursor-pointer"
+                      style={{ background: i % 2 === 0 ? "var(--bg)" : "var(--panel)" }}
+                    >
+                      <td className="px-3 py-2 font-bold">{d.symbol}</td>
+                      <td className="px-3 py-2">
+                        <span className="font-bold" style={{ color: decisionColor(d.decision_type) }}>
+                          {d.decision_type}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2" style={{ color: "var(--text-dim)" }}>
+                        {STATUS_LABELS[d.status] ?? d.status}
+                      </td>
+                      <td className="px-3 py-2">{d.entry_price.toFixed(2)} €</td>
+                      <td className="px-3 py-2">{d.take_profit != null ? `${d.take_profit.toFixed(2)} €` : "—"}</td>
+                      <td className="px-3 py-2">{d.stop_loss != null ? `${d.stop_loss.toFixed(2)} €` : "—"}</td>
+                      <td className="px-3 py-2 font-bold" style={{ color: scoreColor(d.confidence) }}>
+                        {Math.round(d.confidence)}%
+                      </td>
+                      <td className="px-3 py-2" style={{ color: "var(--text-dim)" }}>
+                        {new Date(d.created_at).toLocaleDateString("fr-FR")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -251,116 +393,6 @@ export default function Paniers() {
             )}
           </div>
         </div>
-
-        <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
-          <div className="text-xs tracking-wider" style={{ color: "var(--warning)" }}>
-            DÉCISIONS RÉCENTES
-          </div>
-          <div className="flex flex-wrap items-center gap-4 text-xs">
-            <div className="flex items-center gap-1.5">
-              <span style={{ color: "var(--text-dim)" }}>Décision</span>
-              {["Toutes", ...DECISION_TYPES].map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setDecisionTypeFilter(t)}
-                  className="px-2.5 py-1 rounded-full border"
-                  style={{
-                    background: decisionTypeFilter === t ? "var(--accent)" : "transparent",
-                    borderColor: decisionTypeFilter === t ? "var(--accent)" : "var(--hairline)",
-                    color: decisionTypeFilter === t ? "#fff" : "var(--text-dim)",
-                  }}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span style={{ color: "var(--text-dim)" }}>Confiance ≥</span>
-              {CONFIDENCE_PRESETS.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setMinConfidence(p)}
-                  className="px-2.5 py-1 rounded-full border"
-                  style={{
-                    background: minConfidence === p ? "var(--accent)" : "transparent",
-                    borderColor: minConfidence === p ? "var(--accent)" : "var(--hairline)",
-                    color: minConfidence === p ? "#fff" : "var(--text-dim)",
-                  }}
-                >
-                  {p === 0 ? "Toutes" : `≥ ${p}%`}
-                </button>
-              ))}
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={minConfidence}
-                onChange={(e) => setMinConfidence(Number(e.target.value) || 0)}
-                className="w-16 px-2 py-1 rounded-lg border"
-                style={{ background: "var(--panel-alt)", borderColor: "var(--hairline)", color: "var(--text)" }}
-              />
-              <span style={{ color: "var(--text-dim)" }}>%</span>
-            </div>
-          </div>
-        </div>
-        {decisions.length === 0 ? (
-          <div className="text-xs" style={{ color: "var(--text-dim)" }}>
-            Aucune décision enregistrée. Lancez <code>python -m engine.propose_decisions</code> ou <code>python -m ingestion.seed_demo</code>.
-          </div>
-        ) : visibleDecisions.length === 0 ? (
-          <div className="text-xs" style={{ color: "var(--text-dim)" }}>
-            Aucune décision avec une confiance ≥ {minConfidence}%.
-          </div>
-        ) : (
-          <div className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--hairline)" }}>
-            <div className="overflow-x-auto gd-scrollbar">
-              <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 680 }}>
-                <thead>
-                  <tr style={{ background: "var(--panel-alt)", color: "var(--text-dim)" }}>
-                    {DECISION_COLUMNS.map((c) => (
-                      <th key={c.key} className="text-left px-3 py-2 font-normal border-b" style={{ borderColor: "var(--hairline)" }}>
-                        <button
-                          className="flex items-center gap-1"
-                          style={{ color: sortKey === c.key ? "var(--text)" : "var(--text-dim)" }}
-                          onClick={() => toggleSort(c.key)}
-                        >
-                          {c.label}
-                          {sortKey === c.key && <span>{sortDir === "asc" ? "▲" : "▼"}</span>}
-                        </button>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleDecisions.map((d, i) => (
-                    <tr
-                      key={d.id}
-                      onClick={() => openDecisionPopup(d)}
-                      className="cursor-pointer"
-                      style={{ background: i % 2 === 0 ? "var(--bg)" : "var(--panel)" }}
-                    >
-                      <td className="px-3 py-2 font-bold">{d.symbol}</td>
-                      <td className="px-3 py-2">
-                        <span className="font-bold" style={{ color: decisionColor(d.decision_type) }}>
-                          {d.decision_type}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">{d.entry_price.toFixed(2)} €</td>
-                      <td className="px-3 py-2">{d.take_profit != null ? `${d.take_profit.toFixed(2)} €` : "—"}</td>
-                      <td className="px-3 py-2">{d.stop_loss != null ? `${d.stop_loss.toFixed(2)} €` : "—"}</td>
-                      <td className="px-3 py-2 font-bold" style={{ color: scoreColor(d.confidence) }}>
-                        {Math.round(d.confidence)}%
-                      </td>
-                      <td className="px-3 py-2" style={{ color: "var(--text-dim)" }}>
-                        {new Date(d.created_at).toLocaleDateString("fr-FR")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
 
         <div className="text-xs mt-5 pb-6" style={{ color: "var(--text-dim)" }}>
           Données réelles issues de l'API — la plupart des décisions ci-dessus viennent de figures chartistes réellement

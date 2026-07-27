@@ -53,9 +53,9 @@ describe("Paniers", () => {
     useDecisions.mockReturnValue({
       data: {
         items: [
-          { id: 1, symbol: "AAA.PA", decision_type: "Achat", entry_price: 100, take_profit: 110, stop_loss: 95, confidence: 55, created_at: "2026-07-20T10:00:00Z" },
-          { id: 2, symbol: "BBB.PA", decision_type: "Achat", entry_price: 50, take_profit: 55, stop_loss: 45, confidence: 85, created_at: "2026-07-25T10:00:00Z" },
-          { id: 3, symbol: "CCC.PA", decision_type: "Alléger", entry_price: 30, take_profit: 25, stop_loss: 35, confidence: 65, created_at: "2026-07-22T10:00:00Z" },
+          { id: 1, symbol: "AAA.PA", decision_type: "Achat", status: "proposee", entry_price: 100, take_profit: 110, stop_loss: 95, confidence: 55, created_at: "2026-07-20T10:00:00Z" },
+          { id: 2, symbol: "BBB.PA", decision_type: "Achat", status: "confirmee", entry_price: 50, take_profit: 55, stop_loss: 45, confidence: 85, created_at: "2026-07-25T10:00:00Z" },
+          { id: 3, symbol: "CCC.PA", decision_type: "Alléger", status: "proposee", entry_price: 30, take_profit: 25, stop_loss: 35, confidence: 65, created_at: "2026-07-22T10:00:00Z" },
         ],
       },
       isError: false,
@@ -86,6 +86,18 @@ describe("Paniers", () => {
     expect(screen.getByText("BBB.PA")).toBeInTheDocument(); // Achat, 85%
     expect(screen.queryByText("AAA.PA")).not.toBeInTheDocument(); // Achat mais 55% < 70%
     expect(screen.queryByText("CCC.PA")).not.toBeInTheDocument(); // 65% >= ... mais Alléger, pas Achat
+  });
+
+  it("filters the decisions table by lifecycle status", () => {
+    mockEmptyApi();
+    mockDecisions();
+    render(<Paniers />);
+    expect(screen.getByText("AAA.PA")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmée" }));
+    expect(screen.getByText("BBB.PA")).toBeInTheDocument(); // confirmee
+    expect(screen.queryByText("AAA.PA")).not.toBeInTheDocument(); // proposee
+    expect(screen.queryByText("CCC.PA")).not.toBeInTheDocument(); // proposee
   });
 
   it("sorts the decisions table by clicking a column header", () => {
