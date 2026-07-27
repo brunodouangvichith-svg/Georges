@@ -62,13 +62,13 @@ Ceci crée les 9 tables du schéma : `securities`, `prices_ohlcv` (hypertable Ti
 
 Par défaut, la connexion utilisée est `postgresql+psycopg://george:george@localhost:5432/george` (voir `ingestion/db.py`). Pour la surcharger, définir la variable d'environnement `DATABASE_URL` avant d'exécuter `alembic` (ou tout autre script Python du dépôt).
 
-## 4. Charger l'univers de départ (CAC 40)
+## 4. Charger l'univers de départ (CAC 40 + CAC Mid 60)
 
 ```bash
 python -m ingestion.seed
 ```
 
-Charge les 40 valeurs du CAC 40 (ticker, nom, secteur — voir `ingestion/cac40.py`) dans `securities`. Idempotent : peut être relancé sans créer de doublons.
+Charge les 40 valeurs du CAC 40 (voir `ingestion/cac40.py`) et les 62 valeurs du CAC Mid 60 (voir `ingestion/cac_mid60.py` — l'indice actuel le plus proche du "second marché" historique) dans `securities`, avec `theme` distinguant les deux univers. Idempotent : peut être relancé sans créer de doublons.
 
 ## 5. Lancer les tests
 
