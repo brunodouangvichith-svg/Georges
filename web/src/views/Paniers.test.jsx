@@ -72,6 +72,20 @@ describe("Paniers", () => {
     expect(screen.getByText("CCC.PA")).toBeInTheDocument();
   });
 
+  it("combines the decision-type filter with a custom confidence threshold", () => {
+    mockEmptyApi();
+    mockDecisions();
+    render(<Paniers />);
+
+    // "je voudrais la décision d'achat pour une confiance supérieure à 70%"
+    fireEvent.click(screen.getByRole("button", { name: "Achat" }));
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "70" } });
+
+    expect(screen.getByText("BBB.PA")).toBeInTheDocument(); // Achat, 85%
+    expect(screen.queryByText("AAA.PA")).not.toBeInTheDocument(); // Achat mais 55% < 70%
+    expect(screen.queryByText("CCC.PA")).not.toBeInTheDocument(); // 65% >= ... mais Alléger, pas Achat
+  });
+
   it("sorts the decisions table by clicking a column header", () => {
     mockEmptyApi();
     mockDecisions();

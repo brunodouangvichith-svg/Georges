@@ -5,7 +5,7 @@ import { decisionColor, scoreColor } from "../data";
 
 const PIE_COLORS = ["#ffb020", "#3ddc84", "#5aa9ff", "#ff5c5c", "#c58aff", "#4fd6c5", "#e0975a", "#8b95a1", "#e85d9a", "#7fd6ff"];
 const DECISION_TYPES = ["Achat", "Renforcer", "Surveiller", "Alléger"];
-const CONFIDENCE_PRESETS = [0, 50, 60, 75];
+const CONFIDENCE_PRESETS = [0, 50, 60, 70, 75];
 
 const DECISION_COLUMNS = [
   { key: "symbol", label: "Ticker", defaultDir: "asc" },
@@ -83,6 +83,7 @@ export default function Paniers() {
   }, [decisions]);
 
   const [minConfidence, setMinConfidence] = useState(0);
+  const [decisionTypeFilter, setDecisionTypeFilter] = useState("Toutes");
   const [sortKey, setSortKey] = useState("created_at");
   const [sortDir, setSortDir] = useState("desc");
 
@@ -96,7 +97,9 @@ export default function Paniers() {
   }
 
   const visibleDecisions = useMemo(() => {
-    const filtered = decisions.filter((d) => d.confidence >= minConfidence);
+    const filtered = decisions.filter(
+      (d) => d.confidence >= minConfidence && (decisionTypeFilter === "Toutes" || d.decision_type === decisionTypeFilter)
+    );
     const sign = sortDir === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => {
       const va = a[sortKey];
@@ -107,7 +110,7 @@ export default function Paniers() {
       if (typeof va === "string") return sign * va.localeCompare(vb);
       return sign * (va - vb);
     });
-  }, [decisions, minConfidence, sortKey, sortDir]);
+  }, [decisions, minConfidence, decisionTypeFilter, sortKey, sortDir]);
 
   return (
     <div className="h-full overflow-y-auto gd-scrollbar px-5 py-6">
@@ -220,26 +223,55 @@ export default function Paniers() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
           <div className="text-xs tracking-wider" style={{ color: "var(--warning)" }}>
             DÉCISIONS RÉCENTES
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span style={{ color: "var(--text-dim)" }}>Confiance minimale</span>
-            {CONFIDENCE_PRESETS.map((p) => (
-              <button
-                key={p}
-                onClick={() => setMinConfidence(p)}
-                className="px-2.5 py-1 rounded-full border"
-                style={{
-                  background: minConfidence === p ? "var(--accent)" : "transparent",
-                  borderColor: minConfidence === p ? "var(--accent)" : "var(--hairline)",
-                  color: minConfidence === p ? "#fff" : "var(--text-dim)",
-                }}
-              >
-                {p === 0 ? "Toutes" : `≥ ${p}%`}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span style={{ color: "var(--text-dim)" }}>Décision</span>
+              {["Toutes", ...DECISION_TYPES].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setDecisionTypeFilter(t)}
+                  className="px-2.5 py-1 rounded-full border"
+                  style={{
+                    background: decisionTypeFilter === t ? "var(--accent)" : "transparent",
+                    borderColor: decisionTypeFilter === t ? "var(--accent)" : "var(--hairline)",
+                    color: decisionTypeFilter === t ? "#fff" : "var(--text-dim)",
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span style={{ color: "var(--text-dim)" }}>Confiance ≥</span>
+              {CONFIDENCE_PRESETS.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setMinConfidence(p)}
+                  className="px-2.5 py-1 rounded-full border"
+                  style={{
+                    background: minConfidence === p ? "var(--accent)" : "transparent",
+                    borderColor: minConfidence === p ? "var(--accent)" : "var(--hairline)",
+                    color: minConfidence === p ? "#fff" : "var(--text-dim)",
+                  }}
+                >
+                  {p === 0 ? "Toutes" : `≥ ${p}%`}
+                </button>
+              ))}
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={minConfidence}
+                onChange={(e) => setMinConfidence(Number(e.target.value) || 0)}
+                className="w-16 px-2 py-1 rounded-lg border"
+                style={{ background: "var(--panel-alt)", borderColor: "var(--hairline)", color: "var(--text)" }}
+              />
+              <span style={{ color: "var(--text-dim)" }}>%</span>
+            </div>
           </div>
         </div>
         {decisions.length === 0 ? (
