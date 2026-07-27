@@ -1,9 +1,15 @@
 import { useMemo, useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import ResponsePopup from "../components/ResponsePopup";
-import { useBaskets, useDecisions, useExplainDecision, useGeorgeIndex, useSecurities } from "../api/queries";
+import {
+  useBaskets,
+  useCreatePortfolio,
+  useDecisions,
+  useExplainDecision,
+  useGeorgeIndex,
+  useSecurities,
+} from "../api/queries";
 import { decisionColor, scoreColor } from "../data";
-import { usePortfolioSelection } from "../hooks/usePortfolioSelection";
 
 const PIE_COLORS = ["#ffb020", "#3ddc84", "#5aa9ff", "#ff5c5c", "#c58aff", "#4fd6c5", "#e0975a", "#8b95a1", "#e85d9a", "#7fd6ff"];
 const DECISION_TYPES = ["Achat", "Renforcer", "Surveiller", "Alléger"];
@@ -94,7 +100,41 @@ export default function Paniers() {
 
   const [popup, setPopup] = useState(null);
   const explainMutation = useExplainDecision();
-  const portfolioSelection = usePortfolioSelection();
+
+  // Sélection en attente de confirmation ("cocher" une ligne ne l'ajoute pas
+  // tout de suite à un portefeuille) — vidée après enregistrement ou annulation.
+  const [checkedIds, setCheckedIds] = useState(() => new Set());
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [portfolioName, setPortfolioName] = useState("");
+  const createPortfolioMutation = useCreatePortfolio();
+
+  function toggleChecked(id) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function cancelCreatePortfolio() {
+    setCreateModalOpen(false);
+    setPortfolioName("");
+  }
+
+  function saveCreatePortfolio() {
+    const name = portfolioName.trim();
+    if (!name || checkedIds.size === 0) return;
+    createPortfolioMutation.mutate(
+      { name, decisionIds: [...checkedIds] },
+      {
+        onSuccess: () => {
+          setCheckedIds(new Set());
+          cancelCreatePortfolio();
+        },
+      }
+    );
+  }
 
   function openDecisionPopup(decision) {
     const title = `${decision.symbol} — ${decision.decision_type}`;
@@ -157,6 +197,60 @@ export default function Paniers() {
   return (
     <div className="h-full overflow-y-auto gd-scrollbar px-5 py-6">
       <ResponsePopup popup={popup} onClose={() => setPopup(null)} />
+      {createModalOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 px-6"
+          style={{ background: "rgba(0,0,0,0.55)" }}
+          onClick={cancelCreatePortfolio}
+        >
+          <div
+            className="max-w-sm w-full rounded-xl p-5 border"
+            style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="display font-semibold text-[14px] mb-3" style={{ color: "var(--accent)" }}>
+              Créer un portefeuille
+            </div>
+            <label className="text-[11px] uppercase tracking-wider" style={{ color: "var(--text-dim)" }}>
+              Nom du portefeuille
+            </label>
+            <input
+              autoFocus
+              value={portfolioName}
+              onChange={(e) => setPortfolioName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && saveCreatePortfolio()}
+              placeholder="ex. Portefeuille croissance"
+              className="w-full mt-1.5 mb-2 px-3 py-2 rounded-lg border text-[13px]"
+              style={{ background: "var(--panel-alt)", borderColor: "var(--hairline)", color: "var(--text)" }}
+            />
+            <div className="text-[11px] mb-4" style={{ color: "var(--text-dim)" }}>
+              {checkedIds.size} décision{checkedIds.size > 1 ? "s" : ""} sélectionnée{checkedIds.size > 1 ? "s" : ""}
+            </div>
+            {createPortfolioMutation.isError && (
+              <div className="text-[11.5px] mb-3" style={{ color: "var(--negative)" }}>
+                {createPortfolioMutation.error.message}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={cancelCreatePortfolio}
+                className="flex-1 py-2 rounded-lg border text-[13px] font-medium"
+                style={{ borderColor: "var(--hairline)", color: "var(--text-dim)" }}
+              >
+                ❌ Annuler
+              </button>
+              <button
+                onClick={saveCreatePortfolio}
+                disabled={!portfolioName.trim() || createPortfolioMutation.isPending}
+                className="flex-1 py-2 rounded-lg font-semibold text-[13px]"
+                style={{ background: "var(--accent)", color: "#fff", opacity: portfolioName.trim() ? 1 : 0.5 }}
+              >
+                {createPortfolioMutation.isPending ? "…" : "✅ Enregistrer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
           <div>
@@ -194,8 +288,19 @@ export default function Paniers() {
         )}
 
         <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
-          <div className="text-xs tracking-wider" style={{ color: "var(--warning)" }}>
-            DÉCISIONS RÉCENTES
+          <div className="flex items-center gap-3">
+            <div className="text-xs tracking-wider" style={{ color: "var(--warning)" }}>
+              DÉCISIONS RÉCENTES
+            </div>
+            {checkedIds.size > 0 && (
+              <button
+                onClick={() => setCreateModalOpen(true)}
+                className="text-[11.5px] px-3 py-1.5 rounded-full font-semibold"
+                style={{ background: "var(--accent)", color: "#fff" }}
+              >
+                Créer un portefeuille ({checkedIds.size})
+              </button>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-4 text-xs">
             <div className="flex items-center gap-1.5">
@@ -330,8 +435,8 @@ export default function Paniers() {
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
-                          checked={portfolioSelection.isSelected(d.id)}
-                          onChange={() => portfolioSelection.toggle(d.id)}
+                          checked={checkedIds.has(d.id)}
+                          onChange={() => toggleChecked(d.id)}
                           className="w-3.5 h-3.5 cursor-pointer"
                         />
                       </td>

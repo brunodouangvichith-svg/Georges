@@ -177,3 +177,32 @@ class AgentEvent(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
     context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+
+class Portfolio(Base):
+    """Portefeuille nommé, choisi manuellement par l'investisseur à partir
+    d'un sous-ensemble de `decisions` (web/, écran « Mon Portefeuille ») —
+    distinct du `Report` de portée `"portfolio"` (Phase 4), qui désigne lui
+    l'ensemble du parc suivi, pas une sélection personnelle. Persisté côté
+    base plutôt qu'en localStorage pour survivre au-delà du navigateur qui
+    l'a créé (aucun système de comptes n'existe encore, voir Phase 9 — ce
+    n'est donc pas *le* portefeuille d'un utilisateur identifié, juste une
+    liste nommée partagée par tous les clients de l'API à ce stade)."""
+
+    __tablename__ = "portfolios"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class PortfolioDecision(Base):
+    """Table de liaison portefeuille <-> décision (plusieurs portefeuilles
+    peuvent contenir la même décision)."""
+
+    __tablename__ = "portfolio_decisions"
+
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id", ondelete="CASCADE"), primary_key=True)
+    decision_id: Mapped[int] = mapped_column(ForeignKey("decisions.id", ondelete="CASCADE"), primary_key=True)

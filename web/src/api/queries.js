@@ -1,5 +1,5 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiFetch, apiPost } from "./client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiDelete, apiFetch, apiPost } from "./client";
 
 // Chaque hook correspond à un endpoint de l'API George (Phase 3, voir
 // api/routers/). Pas d'endpoint de lot pour "pattern/prix par titre" côté
@@ -72,5 +72,36 @@ export function useExplainDecision() {
   return useMutation({
     mutationFn: ({ decisionId, includeSecondOpinion = false }) =>
       apiPost(`/decisions/${decisionId}/explanation`, { include_second_opinion: includeSecondOpinion }),
+  });
+}
+
+// Portefeuilles nommés (écran Mon Portefeuille) — persistés côté base
+// (api/routers/portfolios.py), pas en localStorage : ils doivent survivre
+// au navigateur qui les a créés.
+export function usePortfolios() {
+  return useQuery({ queryKey: ["portfolios"], queryFn: () => apiFetch("/portfolios") });
+}
+
+export function useCreatePortfolio() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, decisionIds }) => apiPost("/portfolios", { name, decision_ids: decisionIds }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
+  });
+}
+
+export function useDeletePortfolio() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (portfolioId) => apiDelete(`/portfolios/${portfolioId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
+  });
+}
+
+export function useRemoveDecisionFromPortfolio() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ portfolioId, decisionId }) => apiDelete(`/portfolios/${portfolioId}/decisions/${decisionId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
   });
 }

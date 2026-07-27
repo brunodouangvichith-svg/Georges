@@ -1,6 +1,6 @@
 # George
 
-Agent d'analyse technique des marchés financiers. Ce dépôt suit la roadmap détaillée dans `George_Prompts_Claude_Code.md` (8 phases). Ce README couvre les **Phases 0 à 4, et 6** (la Phase 5 « application mobile » a été volontairement sautée pour l'instant — voir CLAUDE.md) : fondations du projet (structure, Docker, schéma de base de données), moteur quantitatif (ingestion des prix, détection de patterns), mémoire historique/apprentissage continu (backtesting, score de confiance appris, paniers, George Index), l'API + l'interface web MVP branchée sur des données réelles, la couche LLM conversationnelle (explication des décisions, `/chat`, rapports indexés dans pgvector, second avis de Jane), et le cycle de vie complet d'une décision (proposition automatique à partir d'une figure réelle, niveaux de sortie calculés, confirmation, suivi, clôture).
+Agent d'analyse technique des marchés financiers. Ce dépôt suit la roadmap détaillée dans `George_Prompts_Claude_Code.md` (8 phases). Ce README couvre les **Phases 0 à 4, et 6** (la Phase 5 « application mobile » a été volontairement sautée pour l'instant — voir CLAUDE.md) : fondations du projet (structure, Docker, schéma de base de données), moteur quantitatif (ingestion des prix, détection de patterns), mémoire historique/apprentissage continu (backtesting, score de confiance appris, paniers, George Index), l'API + l'interface web MVP branchée sur des données réelles, la couche LLM conversationnelle (explication des décisions, `/chat`, rapports indexés dans pgvector, second avis de Jane), le cycle de vie complet d'une décision (proposition automatique à partir d'une figure réelle, niveaux de sortie calculés, confirmation, suivi, clôture), et des portefeuilles nommés persistés en base (hors roadmap, demandés directement par l'utilisateur).
 
 ## Structure du dépôt
 
@@ -199,3 +199,16 @@ Une décision suit désormais un vrai cycle de vie, `status` en base : `proposee
 - **`POST /decisions/{id}/confirm-exit`** — seule action qui clôture réellement une décision : enregistre le résultat dans `decision_outcomes` (pour un futur réentraînement du modèle, Phase 2) et passe la décision à `"cloturee"`.
 
 Testé de bout en bout contre la base de développement réelle (109 figures détectées sur l'univers CAC 40) : 16 propositions générées avec des niveaux cohérents ; voir `tests/test_exit_levels.py` (les 13 types de figures, sans DB), `tests/test_exit_scenarios.py`, `tests/test_reevaluate_decisions.py`, et `tests/test_api.py` pour le cycle complet propose → confirm → monitor → confirm-exit avec Docker.
+
+## 13. Portefeuilles nommés (hors roadmap)
+
+Fonctionnalité demandée directement par l'utilisateur, pas dans `George_Prompts_Claude_Code.md` — persistée en base (`portfolios`/`portfolio_decisions`, migration `0006`), pas en localStorage, pour survivre au navigateur qui l'a créée.
+
+- **`POST /portfolios`** (`{"name": "...", "decision_ids": [...]}`) — crée un portefeuille nommé à partir de décisions existantes.
+- **`GET /portfolios`** — liste tous les portefeuilles, chacun avec ses décisions complètes.
+- **`DELETE /portfolios/{id}`** — supprime un portefeuille entier.
+- **`DELETE /portfolios/{id}/decisions/{decision_id}`** — retire une seule décision d'un portefeuille.
+
+Sur l'écran **Paniers** : une colonne « Portefeuille » (case à cocher) entre Confiance et Créée le. Cocher des lignes ne les envoie pas tout de suite à l'API — un bouton « Créer un portefeuille (N) » apparaît, ouvrant un popup (nom + ❌ Annuler / ✅ Enregistrer) qui appelle `POST /portfolios` seulement à la confirmation. Le nouvel écran **Mon Portefeuille** (onglet dédié) liste chaque portefeuille sauvegardé avec ses décisions, et permet de retirer une décision ou de supprimer un portefeuille entier.
+
+Les onglets « Décisions » et « Alertes » (`Placeholder` jamais implémentés depuis la Phase 3) ont été retirés de la navigation à cette occasion.

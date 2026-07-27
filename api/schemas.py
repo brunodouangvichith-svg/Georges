@@ -135,3 +135,17 @@ class ReportOut(BaseModel):
     basket_id: int | None
     content: str
     created_at: datetime
+
+
+class PortfolioCreateRequest(BaseModel):
+    name: str
+    decision_ids: list[int]
+
+
+class PortfolioOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    created_at: datetime
+    decisions: list[DecisionOut]

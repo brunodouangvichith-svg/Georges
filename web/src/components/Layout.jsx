@@ -1,8 +1,6 @@
 const NAV = [
   { key: "univers", label: "Univers", icon: "◆" },
   { key: "paniers", label: "Paniers", icon: "▤" },
-  { key: "decisions", label: "Décisions", icon: "✓" },
-  { key: "alertes", label: "Alertes", icon: "⚑" },
   { key: "portefeuille", label: "Mon Portefeuille", icon: "★" },
 ];
 

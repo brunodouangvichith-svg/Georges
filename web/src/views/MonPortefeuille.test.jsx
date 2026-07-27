@@ -1,39 +1,71 @@
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import MonPortefeuille from "./MonPortefeuille";
 
 vi.mock("../api/queries", () => ({
-  useDecisions: vi.fn(),
+  usePortfolios: vi.fn(),
+  useDeletePortfolio: vi.fn(),
+  useRemoveDecisionFromPortfolio: vi.fn(),
 }));
 
-import { useDecisions } from "../api/queries";
+import { useDeletePortfolio, usePortfolios, useRemoveDecisionFromPortfolio } from "../api/queries";
 
-const DECISIONS = [
-  { id: 1, symbol: "AAA.PA", decision_type: "Achat", entry_price: 100, take_profit: 110, stop_loss: 95, confidence: 55 },
-  { id: 2, symbol: "BBB.PA", decision_type: "Alléger", entry_price: 50, take_profit: 45, stop_loss: 55, confidence: 85 },
-];
+function mockEmptyApi() {
+  usePortfolios.mockReturnValue({ data: [], isError: false });
+  useDeletePortfolio.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  useRemoveDecisionFromPortfolio.mockReturnValue({ mutate: vi.fn(), isPending: false });
+}
+
+const PORTFOLIO = {
+  id: 1,
+  name: "Mes achats",
+  created_at: "2026-07-27T10:00:00Z",
+  decisions: [
+    { id: 2, symbol: "BBB.PA", decision_type: "Achat", entry_price: 50, take_profit: 55, stop_loss: 45, confidence: 85 },
+  ],
+};
 
 describe("MonPortefeuille", () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-    useDecisions.mockReturnValue({ data: { items: DECISIONS }, isError: false });
-  });
-
-  it("shows an empty-state message when nothing has been selected yet", () => {
+  it("shows an empty-state message when no portfolio has been created yet", () => {
+    mockEmptyApi();
     render(<MonPortefeuille />);
-    expect(screen.getByText(/aucune action sélectionnée/i)).toBeInTheDocument();
-  });
-
-  it("shows only the decisions previously selected via usePortfolioSelection's storage key", () => {
-    window.localStorage.setItem("george.portfolio.decisionIds", JSON.stringify([2]));
-    render(<MonPortefeuille />);
-    expect(screen.getByText("BBB.PA")).toBeInTheDocument();
-    expect(screen.queryByText("AAA.PA")).not.toBeInTheDocument();
+    expect(screen.getByText(/aucun portefeuille/i)).toBeInTheDocument();
   });
 
   it("shows a connection error banner when the API is unreachable", () => {
-    useDecisions.mockReturnValue({ data: undefined, isError: true });
+    mockEmptyApi();
+    usePortfolios.mockReturnValue({ data: undefined, isError: true });
     render(<MonPortefeuille />);
     expect(screen.getByText(/impossible de contacter l'api/i)).toBeInTheDocument();
+  });
+
+  it("lists each saved portfolio's name and decisions", () => {
+    mockEmptyApi();
+    usePortfolios.mockReturnValue({ data: [PORTFOLIO], isError: false });
+    render(<MonPortefeuille />);
+    expect(screen.getByText("Mes achats")).toBeInTheDocument();
+    expect(screen.getByText("BBB.PA")).toBeInTheDocument();
+  });
+
+  it("removes a single decision from a portfolio via the API", () => {
+    mockEmptyApi();
+    usePortfolios.mockReturnValue({ data: [PORTFOLIO], isError: false });
+    const mutate = vi.fn();
+    useRemoveDecisionFromPortfolio.mockReturnValue({ mutate, isPending: false });
+    render(<MonPortefeuille />);
+
+    fireEvent.click(screen.getByText("Retirer"));
+    expect(mutate).toHaveBeenCalledWith({ portfolioId: 1, decisionId: 2 });
+  });
+
+  it("deletes an entire portfolio via the API", () => {
+    mockEmptyApi();
+    usePortfolios.mockReturnValue({ data: [PORTFOLIO], isError: false });
+    const mutate = vi.fn();
+    useDeletePortfolio.mockReturnValue({ mutate, isPending: false });
+    render(<MonPortefeuille />);
+
+    fireEvent.click(screen.getByText("Supprimer le portefeuille"));
+    expect(mutate).toHaveBeenCalledWith(1);
   });
 });

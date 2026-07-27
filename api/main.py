@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from agents.mistral_client import MistralUnavailableError
-from api.routers import agents, baskets, chat, decisions, reports, securities
+from api.routers import agents, baskets, chat, decisions, portfolios, reports, securities
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +27,12 @@ app = FastAPI(
 
 # Pas d'authentification à ce stade (voir Phase 9) — CORS limité au serveur
 # de dev Vite en local ; à restreindre/remplacer avant tout déploiement partagé.
-# POST ajouté en Phase 4 pour /chat, /decisions/{id}/explanation, /reports.
+# POST ajouté en Phase 4 pour /chat, /decisions/{id}/explanation, /reports ;
+# DELETE ajouté pour /portfolios (suppression d'un portefeuille/d'une ligne).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -67,6 +68,7 @@ app.include_router(decisions.router)
 app.include_router(agents.router)
 app.include_router(chat.router)
 app.include_router(reports.router)
+app.include_router(portfolios.router)
 
 
 @app.get("/health", tags=["meta"])

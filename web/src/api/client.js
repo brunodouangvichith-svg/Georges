@@ -28,3 +28,12 @@ export async function apiPost(path, body) {
   }
   return response.json();
 }
+
+export async function apiDelete(path) {
+  const url = new URL(path, API_BASE_URL);
+  const response = await fetch(url, { method: "DELETE" });
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText} sur ${path}`);
+  }
+  return response.status === 204 ? null : response.json();
+}

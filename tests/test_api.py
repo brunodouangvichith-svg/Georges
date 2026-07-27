@@ -595,3 +595,54 @@ def test_monitor_and_confirm_exit_flow(client, mock_llm):
 
     # Rien à confirmer une deuxième fois.
     assert client.post(f"/decisions/{decision_id}/confirm-exit").status_code == 409
+
+
+def test_create_and_list_portfolio(client):
+    decision_id = _get_decision_id(client)
+
+    resp = client.post("/portfolios", json={"name": "Mon premier portefeuille", "decision_ids": [decision_id]})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "Mon premier portefeuille"
+    assert [d["id"] for d in body["decisions"]] == [decision_id]
+    portfolio_id = body["id"]
+
+    resp = client.get("/portfolios")
+    assert resp.status_code == 200
+    portfolios = resp.json()
+    assert any(p["id"] == portfolio_id for p in portfolios)
+
+
+def test_create_portfolio_rejects_empty_name_or_no_decisions(client):
+    decision_id = _get_decision_id(client)
+    assert client.post("/portfolios", json={"name": "  ", "decision_ids": [decision_id]}).status_code == 400
+    assert client.post("/portfolios", json={"name": "Vide", "decision_ids": []}).status_code == 400
+
+
+def test_create_portfolio_rejects_unknown_decision_id(client):
+    resp = client.post("/portfolios", json={"name": "Test", "decision_ids": [999999]})
+    assert resp.status_code == 404
+
+
+def test_remove_decision_from_portfolio(client):
+    decision_id = _get_decision_id(client)
+    portfolio_id = client.post(
+        "/portfolios", json={"name": "À vider", "decision_ids": [decision_id]}
+    ).json()["id"]
+
+    resp = client.delete(f"/portfolios/{portfolio_id}/decisions/{decision_id}")
+    assert resp.status_code == 200
+    assert resp.json()["decisions"] == []
+
+    assert client.delete(f"/portfolios/{portfolio_id}/decisions/{decision_id}").status_code == 404
+
+
+def test_delete_portfolio(client):
+    decision_id = _get_decision_id(client)
+    portfolio_id = client.post(
+        "/portfolios", json={"name": "À supprimer", "decision_ids": [decision_id]}
+    ).json()["id"]
+
+    assert client.delete(f"/portfolios/{portfolio_id}").status_code == 204
+    assert all(p["id"] != portfolio_id for p in client.get("/portfolios").json())
+    assert client.delete(f"/portfolios/{portfolio_id}").status_code == 404

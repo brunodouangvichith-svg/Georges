@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import Paniers from "./Paniers";
 
 vi.mock("../api/queries", () => ({
@@ -8,9 +8,17 @@ vi.mock("../api/queries", () => ({
   useDecisions: vi.fn(),
   useGeorgeIndex: vi.fn(),
   useExplainDecision: vi.fn(),
+  useCreatePortfolio: vi.fn(),
 }));
 
-import { useBaskets, useDecisions, useExplainDecision, useGeorgeIndex, useSecurities } from "../api/queries";
+import {
+  useBaskets,
+  useCreatePortfolio,
+  useDecisions,
+  useExplainDecision,
+  useGeorgeIndex,
+  useSecurities,
+} from "../api/queries";
 
 function mockEmptyApi() {
   useBaskets.mockReturnValue({ data: [], isLoading: false, isError: false });
@@ -18,13 +26,10 @@ function mockEmptyApi() {
   useDecisions.mockReturnValue({ data: { items: [] }, isError: false });
   useGeorgeIndex.mockReturnValue({ data: null, isLoading: false });
   useExplainDecision.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  useCreatePortfolio.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false });
 }
 
 describe("Paniers", () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-  });
-
   it("shows empty-state messages when the database has no data yet", () => {
     mockEmptyApi();
     render(<Paniers />);
@@ -145,8 +150,42 @@ describe("Paniers", () => {
     fireEvent.click(checkbox);
     expect(checkbox.checked).toBe(true);
     expect(screen.queryByText("Demander l'explication complète à George")).not.toBeInTheDocument();
+  });
 
-    // Persisté dans localStorage, relu par usePortfolioSelection (Mon Portefeuille).
-    expect(JSON.parse(window.localStorage.getItem("george.portfolio.decisionIds"))).toContain(2); // id de BBB.PA
+  it("opens the create-portfolio popup once a decision is checked, and saves via the API on Enregistrer", () => {
+    mockEmptyApi();
+    mockDecisions();
+    const mutate = vi.fn();
+    useCreatePortfolio.mockReturnValue({ mutate, isPending: false, isError: false });
+    render(<Paniers />);
+
+    expect(screen.queryByText(/Créer un portefeuille/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("BBB.PA").closest("tr").querySelector('input[type="checkbox"]'));
+    const openButton = screen.getByRole("button", { name: /Créer un portefeuille \(1\)/ });
+    fireEvent.click(openButton);
+
+    expect(screen.getByText("Créer un portefeuille")).toBeInTheDocument(); // titre du popup
+    fireEvent.change(screen.getByPlaceholderText("ex. Portefeuille croissance"), {
+      target: { value: "Mes achats" },
+    });
+    fireEvent.click(screen.getByText("✅ Enregistrer"));
+
+    expect(mutate).toHaveBeenCalledWith({ name: "Mes achats", decisionIds: [2] }, expect.anything());
+  });
+
+  it("cancels the create-portfolio popup without calling the API", () => {
+    mockEmptyApi();
+    mockDecisions();
+    const mutate = vi.fn();
+    useCreatePortfolio.mockReturnValue({ mutate, isPending: false, isError: false });
+    render(<Paniers />);
+
+    fireEvent.click(screen.getByText("BBB.PA").closest("tr").querySelector('input[type="checkbox"]'));
+    fireEvent.click(screen.getByRole("button", { name: /Créer un portefeuille \(1\)/ }));
+    fireEvent.click(screen.getByText("❌ Annuler"));
+
+    expect(screen.queryByText("Créer un portefeuille")).not.toBeInTheDocument();
+    expect(mutate).not.toHaveBeenCalled();
   });
 });
