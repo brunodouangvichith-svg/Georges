@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import Paniers from "./Paniers";
 
 vi.mock("../api/queries", () => ({
@@ -21,6 +21,10 @@ function mockEmptyApi() {
 }
 
 describe("Paniers", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it("shows empty-state messages when the database has no data yet", () => {
     mockEmptyApi();
     render(<Paniers />);
@@ -128,5 +132,21 @@ describe("Paniers", () => {
 
     fireEvent.click(screen.getByText("Demander l'explication complète à George"));
     expect(mutate).toHaveBeenCalledWith({ decisionId: 1 }, expect.anything());
+  });
+
+  it("toggles the Portefeuille checkbox without opening the explanation popup", () => {
+    mockEmptyApi();
+    mockDecisions();
+    render(<Paniers />);
+
+    const checkbox = screen.getByText("BBB.PA").closest("tr").querySelector('input[type="checkbox"]');
+    expect(checkbox.checked).toBe(false);
+
+    fireEvent.click(checkbox);
+    expect(checkbox.checked).toBe(true);
+    expect(screen.queryByText("Demander l'explication complète à George")).not.toBeInTheDocument();
+
+    // Persisté dans localStorage, relu par usePortfolioSelection (Mon Portefeuille).
+    expect(JSON.parse(window.localStorage.getItem("george.portfolio.decisionIds"))).toContain(2); // id de BBB.PA
   });
 });

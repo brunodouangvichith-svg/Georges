@@ -3,6 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import ResponsePopup from "../components/ResponsePopup";
 import { useBaskets, useDecisions, useExplainDecision, useGeorgeIndex, useSecurities } from "../api/queries";
 import { decisionColor, scoreColor } from "../data";
+import { usePortfolioSelection } from "../hooks/usePortfolioSelection";
 
 const PIE_COLORS = ["#ffb020", "#3ddc84", "#5aa9ff", "#ff5c5c", "#c58aff", "#4fd6c5", "#e0975a", "#8b95a1", "#e85d9a", "#7fd6ff"];
 const DECISION_TYPES = ["Achat", "Renforcer", "Surveiller", "Alléger"];
@@ -93,6 +94,7 @@ export default function Paniers() {
 
   const [popup, setPopup] = useState(null);
   const explainMutation = useExplainDecision();
+  const portfolioSelection = usePortfolioSelection();
 
   function openDecisionPopup(decision) {
     const title = `${decision.symbol} — ${decision.decision_type}`;
@@ -273,7 +275,22 @@ export default function Paniers() {
               <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 680 }}>
                 <thead>
                   <tr style={{ background: "var(--panel-alt)", color: "var(--text-dim)" }}>
-                    {DECISION_COLUMNS.map((c) => (
+                    {DECISION_COLUMNS.slice(0, 7).map((c) => (
+                      <th key={c.key} className="text-left px-3 py-2 font-normal border-b" style={{ borderColor: "var(--hairline)" }}>
+                        <button
+                          className="flex items-center gap-1"
+                          style={{ color: sortKey === c.key ? "var(--text)" : "var(--text-dim)" }}
+                          onClick={() => toggleSort(c.key)}
+                        >
+                          {c.label}
+                          {sortKey === c.key && <span>{sortDir === "asc" ? "▲" : "▼"}</span>}
+                        </button>
+                      </th>
+                    ))}
+                    <th className="text-left px-3 py-2 font-normal border-b" style={{ borderColor: "var(--hairline)" }}>
+                      Portefeuille
+                    </th>
+                    {DECISION_COLUMNS.slice(7).map((c) => (
                       <th key={c.key} className="text-left px-3 py-2 font-normal border-b" style={{ borderColor: "var(--hairline)" }}>
                         <button
                           className="flex items-center gap-1"
@@ -309,6 +326,14 @@ export default function Paniers() {
                       <td className="px-3 py-2">{d.stop_loss != null ? `${d.stop_loss.toFixed(2)} €` : "—"}</td>
                       <td className="px-3 py-2 font-bold" style={{ color: scoreColor(d.confidence) }}>
                         {Math.round(d.confidence)}%
+                      </td>
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={portfolioSelection.isSelected(d.id)}
+                          onChange={() => portfolioSelection.toggle(d.id)}
+                          className="w-3.5 h-3.5 cursor-pointer"
+                        />
                       </td>
                       <td className="px-3 py-2" style={{ color: "var(--text-dim)" }}>
                         {new Date(d.created_at).toLocaleDateString("fr-FR")}

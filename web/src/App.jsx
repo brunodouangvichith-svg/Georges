@@ -2,6 +2,7 @@ import { useState } from "react";
 import Layout from "./components/Layout";
 import Univers from "./views/Univers";
 import Paniers from "./views/Paniers";
+import MonPortefeuille from "./views/MonPortefeuille";
 
 function Placeholder({ label }) {
   return (
@@ -20,6 +21,7 @@ export default function App() {
       {view === "paniers" && <Paniers />}
       {view === "decisions" && <Placeholder label="Décisions" />}
       {view === "alertes" && <Placeholder label="Alertes" />}
+      {view === "portefeuille" && <MonPortefeuille />}
     </Layout>
   );
 }

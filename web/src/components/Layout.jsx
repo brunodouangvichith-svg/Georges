@@ -3,6 +3,7 @@ const NAV = [
   { key: "paniers", label: "Paniers", icon: "▤" },
   { key: "decisions", label: "Décisions", icon: "✓" },
   { key: "alertes", label: "Alertes", icon: "⚑" },
+  { key: "portefeuille", label: "Mon Portefeuille", icon: "★" },
 ];
 
 export default function Layout({ view, setView, children }) {
