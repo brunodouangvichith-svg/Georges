@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import CandlestickChart from "../components/CandlestickChart";
 import GeorgeIndexTile from "../components/GeorgeIndexTile";
 import WatchlistRow from "../components/WatchlistRow";
@@ -15,6 +15,17 @@ import {
 } from "../api/queries";
 
 const FILTERS = ["Tous", "Achat", "Surveiller", "Alléger"];
+
+// La reconnaissance vocale de Chrome/Edge n'est pas locale : l'audio est
+// envoyé aux serveurs de Google pour être transcrit, d'où un code "network"
+// (pas un vrai problème de connexion Internet en général) si un bloqueur de
+// pub/VPN/pare-feu d'entreprise empêche cette requête sortante.
+const VOICE_ERROR_MESSAGES = {
+  network: "Le micro n'a pas pu joindre le service de reconnaissance vocale de Google (utilisé par Chrome/Edge). Vérifiez un éventuel bloqueur de pub/extension de confidentialité, VPN, ou pare-feu d'entreprise qui bloquerait ce trafic sortant, puis réessayez.",
+  "not-allowed": "Accès au micro refusé — autorisez-le dans les paramètres du navigateur pour ce site puis réessayez.",
+  "no-speech": "Aucune parole détectée avant la fin de l'écoute — réessayez en parlant un peu plus fort ou plus vite après avoir cliqué.",
+  "audio-capture": "Aucun micro détecté sur cet appareil.",
+};
 
 const SIDEBAR_NAV = [
   { icon: "◆", label: "Univers", active: true },
@@ -36,9 +47,71 @@ export default function Univers() {
   const [filter, setFilter] = useState("Tous");
   const [selected, setSelected] = useState(null);
   const [dockMsg, setDockMsg] = useState(null);
-  const [popup, setPopup] = useState(null); // { title, status: "loading"|"done"|"error", text }
+  const [popup, setPopup] = useState(null); // { title, status: "listening"|"loading"|"done"|"error", text }
   const chatMutation = useChat();
   const explainMutation = useExplainDecision();
+  const recognitionRef = useRef(null);
+
+  function closePopup() {
+    // Coupe le micro si une écoute est en cours — sinon le navigateur
+    // continue d'enregistrer alors que le popup est fermé.
+    recognitionRef.current?.abort();
+    recognitionRef.current = null;
+    setPopup(null);
+  }
+
+  function startVoiceCapture() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setPopup({
+        title: "Commande vocale",
+        status: "error",
+        text: "La reconnaissance vocale n'est pas prise en charge par ce navigateur — essayez Chrome ou Edge.",
+      });
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "fr-FR";
+    recognition.continuous = false; // s'arrête d'elle-même dès qu'un silence est détecté
+    recognition.interimResults = true;
+    recognitionRef.current = recognition;
+
+    setPopup({ title: "Commande vocale", status: "listening", text: "" });
+
+    recognition.onresult = (event) => {
+      let transcript = "";
+      for (let i = 0; i < event.results.length; i++) transcript += event.results[i][0].transcript;
+      setPopup((prev) => (prev?.status === "listening" ? { ...prev, text: transcript } : prev));
+    };
+
+    recognition.onerror = (event) => {
+      recognitionRef.current = null;
+      setPopup({ title: "Commande vocale", status: "error", text: VOICE_ERROR_MESSAGES[event.error] ?? `Erreur micro : ${event.error}` });
+    };
+
+    // Se déclenche automatiquement dès que la reconnaissance détecte un
+    // silence (recognition.continuous = false) — pas besoin de minuterie
+    // manuelle pour "terminer sur silence".
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setPopup((prev) => {
+        if (prev?.status !== "listening") return prev;
+        const question = prev.text?.trim();
+        if (!question) {
+          return { title: "Commande vocale", status: "error", text: "Aucune parole détectée — réessayez." };
+        }
+        const title = `Commande vocale — « ${question} »`;
+        chatMutation.mutate(question, {
+          onSuccess: (data) => setPopup({ title, status: "done", text: data.answer }),
+          onError: (err) => setPopup({ title, status: "error", text: err.message }),
+        });
+        return { title, status: "loading", text: null };
+      });
+    };
+
+    recognition.start();
+  }
 
   const { data: securitiesPage, isLoading: securitiesLoading, isError: securitiesError } = useSecurities({ limit: 100 });
   const { data: decisionsPage } = useDecisions({ limit: 200 });
@@ -87,7 +160,7 @@ export default function Univers() {
       <div
         className="fixed inset-0 flex items-center justify-center z-50 px-6"
         style={{ background: "rgba(0,0,0,0.55)" }}
-        onClick={() => setPopup(null)}
+        onClick={closePopup}
       >
         <div
           className="max-w-lg w-full rounded-xl p-5 border"
@@ -98,16 +171,38 @@ export default function Univers() {
             <div className="display font-semibold text-[14px]" style={{ color: "var(--accent)" }}>
               {popup.title}
             </div>
-            <button onClick={() => setPopup(null)} style={{ color: "var(--text-dim)" }}>
+            <button onClick={closePopup} style={{ color: "var(--text-dim)" }}>
               ✕
             </button>
           </div>
-          <div
-            className="text-[13px] leading-relaxed whitespace-pre-wrap max-h-[60vh] overflow-y-auto"
-            style={{ color: popup.status === "error" ? "var(--negative)" : "var(--text)" }}
-          >
-            {popup.status === "loading" ? "George réfléchit…" : popup.text}
-          </div>
+          {popup.status === "listening" ? (
+            <div className="flex flex-col items-center gap-4 py-4">
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center text-[26px] gd-mic-pulse"
+                style={{ background: "var(--accent-dim)", color: "var(--accent)" }}
+              >
+                🎙
+              </div>
+              <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+                Je vous écoute… (s'arrête seul au silence)
+              </div>
+              <div className="text-[14px] text-center min-h-[20px]">{popup.text}</div>
+              <button
+                className="text-[11.5px] px-3 py-1.5 rounded-full border"
+                style={{ borderColor: "var(--hairline)", color: "var(--text-dim)" }}
+                onClick={() => recognitionRef.current?.stop()}
+              >
+                Arrêter l'écoute
+              </button>
+            </div>
+          ) : (
+            <div
+              className="text-[13px] leading-relaxed whitespace-pre-wrap max-h-[60vh] overflow-y-auto"
+              style={{ color: popup.status === "error" ? "var(--negative)" : "var(--text)" }}
+            >
+              {popup.status === "loading" ? "George réfléchit…" : popup.text}
+            </div>
+          )}
         </div>
       </div>
     )}
@@ -423,7 +518,7 @@ export default function Univers() {
           <button
             className="text-xs px-3 py-1.5 rounded-full border whitespace-nowrap"
             style={{ background: "var(--panel-alt)", borderColor: "var(--hairline)", color: "var(--text-dim)" }}
-            onClick={() => setDockMsg("La commande vocale arrive en Phase 8.")}
+            onClick={startVoiceCapture}
           >
             🎙 Commande vocale
           </button>

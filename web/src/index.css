@@ -53,3 +53,14 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ticker-track { animation: none; }
 }
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-dim); }
+  50% { box-shadow: 0 0 0 10px var(--accent-dim); }
+}
+.gd-mic-pulse {
+  animation: mic-pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gd-mic-pulse { animation: none; }
+}
