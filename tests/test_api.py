@@ -61,13 +61,23 @@ def client(database_url, monkeypatch):
         conn.execute(
             PatternDetected.__table__.insert(),
             [
+                # Même `detected_at` que la ligne suivante, confiance plus
+                # basse : régression sur le tri de list_security_patterns
+                # (voir test_list_security_patterns_prefers_higher_confidence_on_tie).
+                {
+                    "symbol": "AAA.PA",
+                    "pattern_type": "Double Bottom",
+                    "detected_at": price_rows[-1]["ts"],
+                    "confidence": 20.0,
+                    "context": {},
+                },
                 {
                     "symbol": "AAA.PA",
                     "pattern_type": "Bull Flag",
                     "detected_at": price_rows[-1]["ts"],
                     "confidence": 77.0,
                     "context": {},
-                }
+                },
             ],
         )
         conn.execute(
@@ -141,8 +151,21 @@ def test_security_not_found_returns_404(client):
 def test_list_security_patterns(client):
     resp = client.get("/securities/AAA.PA/patterns")
     body = resp.json()
-    assert body["total"] == 1
+    assert body["total"] == 2
     assert body["items"][0]["pattern_type"] == "Bull Flag"
+
+
+def test_list_security_patterns_prefers_higher_confidence_on_tie(client):
+    """`AAA.PA` a deux figures avec le même `detected_at` (voir la fixture
+    `client`) — sans tri secondaire par confiance, Postgres peut renvoyer
+    n'importe laquelle en premier pour `limit=1` (constaté contre une vraie
+    base : systématiquement la moins confiante). La plus confiante doit
+    gagner de façon déterministe."""
+    resp = client.get("/securities/AAA.PA/patterns", params={"limit": 1})
+    body = resp.json()
+    assert len(body["items"]) == 1
+    assert body["items"][0]["pattern_type"] == "Bull Flag"
+    assert body["items"][0]["confidence"] == 77.0
 
 
 def test_list_security_prices_chronological_order(client):

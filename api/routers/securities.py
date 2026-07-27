@@ -53,8 +53,20 @@ def list_security_patterns(
     _get_security_or_404(symbol, db)
     stmt = select(PatternDetected).where(PatternDetected.symbol == symbol)
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
+    # Un même run de détection confirme souvent plusieurs figures pour un
+    # même titre avec le même `detected_at` (toutes sur la dernière séance) —
+    # sans second critère de tri, l'ordre entre ces ex-aequo n'est pas
+    # garanti et peut renvoyer n'importe laquelle en `limit=1` (constaté :
+    # la figure la moins confiante systématiquement première). La confiance
+    # décroissante départage de façon significative plutôt qu'arbitraire.
     rows = (
-        db.execute(stmt.order_by(PatternDetected.detected_at.desc()).limit(limit).offset(offset)).scalars().all()
+        db.execute(
+            stmt.order_by(PatternDetected.detected_at.desc(), PatternDetected.confidence.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        .scalars()
+        .all()
     )
     return Page(items=rows, total=total or 0, limit=limit, offset=offset)
 

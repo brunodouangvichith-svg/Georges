@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from api.deps import engine, get_db
+from api import deps
+from api.deps import get_db
 from api.schemas import BasketOut, GeorgeIndexOut
 from engine.compute_george_index import load_patterns
 from engine.george_index import compute_george_index
@@ -34,8 +35,12 @@ def get_basket_george_index(basket_id: int, db: Session = Depends(get_db)):
     links = db.execute(select(BasketSecurity).where(BasketSecurity.basket_id == basket_id)).scalars().all()
     basket_symbols = [(link.symbol, float(link.weight) if link.weight is not None else 1.0) for link in links]
 
-    patterns = load_patterns(engine)
-    price_frames = {symbol: load_prices(engine, symbol) for symbol, _ in basket_symbols}
+    # `deps.engine`, pas un `engine` importé nommément à la volée : ce
+    # dernier fige la référence au moment de l'import et ne verrait jamais
+    # un `monkeypatch.setattr(deps, "engine", ...)` fait après coup (piège
+    # rencontré en testant contre une vraie base — voir tests/test_api.py).
+    patterns = load_patterns(deps.engine)
+    price_frames = {symbol: load_prices(deps.engine, symbol) for symbol, _ in basket_symbols}
     price_frames = {symbol: df for symbol, df in price_frames.items() if not df.empty}
 
     index = compute_george_index(basket_symbols, patterns, price_frames, datetime.now(timezone.utc))

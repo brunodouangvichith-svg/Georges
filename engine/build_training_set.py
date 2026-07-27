@@ -11,7 +11,7 @@ import os
 import pandas as pd
 from sqlalchemy import select
 
-from engine.backtest import build_sample, build_training_set, compute_market_trend
+from engine.backtest import TRAINING_HORIZON, build_sample, build_training_set, compute_market_trend
 from engine.run_detection import load_prices
 from ingestion.db import get_engine
 from ingestion.models import PatternDetected, Security
@@ -48,6 +48,15 @@ def run(output_path: str = OUTPUT_PATH) -> pd.DataFrame:
         samples.append(build_sample(df, at_idx, row.pattern_type, row.sector, market_trend))
 
     dataset = build_training_set(samples)
+    if dataset.empty:
+        # Ne pas écrire un fichier vide (sans même les colonnes attendues) :
+        # le notebook d'entraînement ne teste que l'existence du fichier
+        # pour décider d'utiliser les données réelles plutôt que la
+        # génération synthétique, et planterait sur un DataFrame vide. Un
+        # pattern ne devient backtestable qu'une fois `TRAINING_HORIZON`
+        # séances passées depuis sa détection (voir `engine/backtest.py`) —
+        # juste après une première détection, ce cas est normal.
+        return dataset
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     dataset.to_parquet(output_path, index=False)
     return dataset
@@ -55,4 +64,10 @@ def run(output_path: str = OUTPUT_PATH) -> pd.DataFrame:
 
 if __name__ == "__main__":
     ds = run()
-    print(f"{len(ds)} exemples écrits dans {OUTPUT_PATH}")
+    if ds.empty:
+        print(
+            "0 exemple backtestable pour l'instant (aucun pattern détecté n'a encore "
+            f"{TRAINING_HORIZON} séances de recul) — {OUTPUT_PATH} non écrit."
+        )
+    else:
+        print(f"{len(ds)} exemples écrits dans {OUTPUT_PATH}")
