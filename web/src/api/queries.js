@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "./client";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiFetch, apiPost } from "./client";
 
 // Chaque hook correspond à un endpoint de l'API George (Phase 3, voir
 // api/routers/). Pas d'endpoint de lot pour "pattern/prix par titre" côté
@@ -55,5 +55,22 @@ export function useAgentActivity({ status, limit = 20 } = {}) {
   return useQuery({
     queryKey: ["agent-activity", { status, limit }],
     queryFn: () => apiFetch("/agents/activity", { status, limit }),
+  });
+}
+
+// Couche LLM (Phase 4) — mutations, pas des useQuery : chaque appel déclenche
+// un vrai appel Mistral côté serveur (coût/latence), on ne veut donc jamais
+// les déclencher automatiquement au montage ou au changement de sélection,
+// seulement sur une action explicite de l'utilisateur.
+export function useChat() {
+  return useMutation({
+    mutationFn: (question) => apiPost("/chat", { question }),
+  });
+}
+
+export function useExplainDecision() {
+  return useMutation({
+    mutationFn: ({ decisionId, includeSecondOpinion = false }) =>
+      apiPost(`/decisions/${decisionId}/explanation`, { include_second_opinion: includeSecondOpinion }),
   });
 }

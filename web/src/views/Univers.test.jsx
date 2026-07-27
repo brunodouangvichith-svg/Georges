@@ -10,12 +10,16 @@ vi.mock("../api/queries", () => ({
   useGeorgeIndex: vi.fn(),
   useDecisions: vi.fn(),
   useAgentActivity: vi.fn(),
+  useChat: vi.fn(),
+  useExplainDecision: vi.fn(),
 }));
 
 import {
   useAgentActivity,
   useBaskets,
+  useChat,
   useDecisions,
+  useExplainDecision,
   useGeorgeIndex,
   useSecurities,
   useSecurityPatterns,
@@ -30,6 +34,8 @@ function mockEmptyApi() {
   useSecurityPatterns.mockReturnValue({ data: { items: [] } });
   useSecurityPrices.mockReturnValue({ data: { items: [], total: 0 } });
   useGeorgeIndex.mockReturnValue({ data: null, isLoading: false });
+  useChat.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  useExplainDecision.mockReturnValue({ mutate: vi.fn(), isPending: false });
 }
 
 describe("Univers", () => {
@@ -62,13 +68,13 @@ describe("Univers", () => {
     expect(screen.getAllByText("Airbus").length).toBeGreaterThan(0);
   });
 
-  it("explains that George's narrative explanation is not wired in yet", () => {
+  it("invites the user to ask George when no decision exists for the selected security", () => {
     useSecurities.mockReturnValue({
       data: { items: [{ symbol: "AIR.PA", name: "Airbus", sector: "Aéronautique" }], total: 1 },
       isLoading: false,
       isError: false,
     });
     render(<Univers />);
-    expect(screen.getByText(/arrivera en phase 4/i)).toBeInTheDocument();
+    expect(screen.getByText(/posez une question à george/i)).toBeInTheDocument();
   });
 });

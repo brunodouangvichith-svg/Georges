@@ -3,7 +3,16 @@ import CandlestickChart from "../components/CandlestickChart";
 import GeorgeIndexTile from "../components/GeorgeIndexTile";
 import WatchlistRow from "../components/WatchlistRow";
 import { decisionColor, macro } from "../data";
-import { useAgentActivity, useBaskets, useDecisions, useSecurities, useSecurityPatterns, useSecurityPrices } from "../api/queries";
+import {
+  useAgentActivity,
+  useBaskets,
+  useChat,
+  useDecisions,
+  useExplainDecision,
+  useSecurities,
+  useSecurityPatterns,
+  useSecurityPrices,
+} from "../api/queries";
 
 const FILTERS = ["Tous", "Achat", "Surveiller", "Alléger"];
 
@@ -27,6 +36,9 @@ export default function Univers() {
   const [filter, setFilter] = useState("Tous");
   const [selected, setSelected] = useState(null);
   const [dockMsg, setDockMsg] = useState(null);
+  const [popup, setPopup] = useState(null); // { title, status: "loading"|"done"|"error", text }
+  const chatMutation = useChat();
+  const explainMutation = useExplainDecision();
 
   const { data: securitiesPage, isLoading: securitiesLoading, isError: securitiesError } = useSecurities({ limit: 100 });
   const { data: decisionsPage } = useDecisions({ limit: 200 });
@@ -70,6 +82,35 @@ export default function Univers() {
   const agentEvents = agentPage?.items ?? [];
 
   return (
+    <>
+    {popup && (
+      <div
+        className="fixed inset-0 flex items-center justify-center z-50 px-6"
+        style={{ background: "rgba(0,0,0,0.55)" }}
+        onClick={() => setPopup(null)}
+      >
+        <div
+          className="max-w-lg w-full rounded-xl p-5 border"
+          style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="display font-semibold text-[14px]" style={{ color: "var(--accent)" }}>
+              {popup.title}
+            </div>
+            <button onClick={() => setPopup(null)} style={{ color: "var(--text-dim)" }}>
+              ✕
+            </button>
+          </div>
+          <div
+            className="text-[13px] leading-relaxed whitespace-pre-wrap max-h-[60vh] overflow-y-auto"
+            style={{ color: popup.status === "error" ? "var(--negative)" : "var(--text)" }}
+          >
+            {popup.status === "loading" ? "George réfléchit…" : popup.text}
+          </div>
+        </div>
+      </div>
+    )}
     <div className="grid h-full" style={{ gridTemplateRows: "1fr 84px" }}>
       <div className="grid h-full overflow-hidden" style={{ gridTemplateColumns: "190px 1fr 340px" }}>
         {/* Sidebar */}
@@ -234,8 +275,30 @@ export default function Univers() {
                 </div>
                 <div className="text-[13px] leading-relaxed" style={{ color: "var(--text-dim)" }}>
                   {selectedDecision?.rationale ??
-                    "Aucune décision enregistrée pour ce titre — l'explication en langage naturel de George arrivera en Phase 4."}
+                    (selectedDecision
+                      ? "Aucune note courte pour cette décision — demandez l'explication complète à George."
+                      : "Aucune décision enregistrée pour ce titre — posez une question à George dans la barre en bas si vous voulez son avis.")}
                 </div>
+                {selectedDecision && (
+                  <button
+                    className="mt-2 text-[11.5px] px-3 py-1.5 rounded-full border"
+                    style={{ borderColor: "var(--hairline)", color: "var(--text-dim)" }}
+                    disabled={explainMutation.isPending}
+                    onClick={() => {
+                      const title = `George explique — ${selectedSymbol}`;
+                      setPopup({ title, status: "loading", text: null });
+                      explainMutation.mutate(
+                        { decisionId: selectedDecision.id },
+                        {
+                          onSuccess: (data) => setPopup({ title, status: "done", text: data.explanation }),
+                          onError: (err) => setPopup({ title, status: "error", text: err.message }),
+                        }
+                      );
+                    }}
+                  >
+                    {explainMutation.isPending ? "George réfléchit…" : "Demander l'explication complète à George"}
+                  </button>
+                )}
 
                 <div className="text-[11px] uppercase tracking-wider mt-4 mb-2" style={{ color: "var(--text-dim)" }}>
                   Paramètres
@@ -343,11 +406,17 @@ export default function Univers() {
           <input
             className="flex-1 rounded-lg px-3 py-2.5 text-[13px] border"
             style={{ background: "var(--panel-alt)", borderColor: "var(--hairline)", color: "var(--text)" }}
-            placeholder="Poser une question à George…  (arrive en Phase 4)"
+            placeholder="Poser une question à George…"
+            disabled={chatMutation.isPending}
             onKeyDown={(e) => {
               if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                setDockMsg("La conversation en langage naturel avec George arrive en Phase 4.");
+                const question = e.currentTarget.value.trim();
                 e.currentTarget.value = "";
+                setPopup({ title: "George répond", status: "loading", text: null });
+                chatMutation.mutate(question, {
+                  onSuccess: (data) => setPopup({ title: "George répond", status: "done", text: data.answer }),
+                  onError: (err) => setPopup({ title: "George répond", status: "error", text: err.message }),
+                });
               }
             }}
           />
@@ -361,5 +430,6 @@ export default function Univers() {
         </div>
       </div>
     </div>
+    </>
   );
 }

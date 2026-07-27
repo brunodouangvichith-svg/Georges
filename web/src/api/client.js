@@ -15,3 +15,16 @@ export async function apiFetch(path, params) {
   }
   return response.json();
 }
+
+export async function apiPost(path, body) {
+  const url = new URL(path, API_BASE_URL);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+  });
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText} sur ${path}`);
+  }
+  return response.json();
+}

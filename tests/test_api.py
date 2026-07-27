@@ -306,6 +306,54 @@ def test_chat_with_no_recognized_security_says_so_via_empty_context(client, mock
     assert '"titres_reconnus": []' in answer
 
 
+def test_chat_does_not_false_positive_match_short_symbol_roots_inside_words(client, mock_llm):
+    """Régression : `find_relevant_securities` comparait la racine du symbole
+    à la question par simple sous-chaîne — une racine courte comme "AC"
+    (Accor) apparaît aussi à l'intérieur d'un mot français ordinaire ("ac"
+    dans "achat"), reconnaissant à tort un titre sans rapport avec la
+    question. Avec la comparaison par frontière de mot (`\\b`), "achat" ne
+    doit plus reconnaître "AC.PA", mais "Accor" (le nom complet) le doit
+    toujours."""
+    with deps.engine.begin() as conn:
+        conn.execute(
+            Security.__table__.insert(),
+            [{"symbol": "AC.PA", "name": "Accor", "country": "FR", "currency": "EUR", "sector": "Tourisme", "theme": None}],
+        )
+
+    # "Quelles sont les opportunités d'achat ?" bascule sur le rendu
+    # déterministe (aucun titre nommé, type "Achat" détecté) — AC.PA n'y
+    # figure que s'il a une décision "Achat" ouverte, jamais parce que son
+    # symbole apparaîtrait (à tort) dans le mot "achat".
+    resp = client.post("/chat", json={"question": "Quelles sont les opportunités d'achat ?"})
+    assert "AC.PA" not in resp.json()["answer"]
+
+    resp = client.post("/chat", json={"question": "Que penses-tu d'Accor ?"})
+    assert "AC.PA" in resp.json()["answer"]
+
+
+def test_chat_general_opportunity_question_uses_deterministic_rendering(client, mock_llm):
+    """Une question générale sur un type de décision (aucun titre nommé)
+    contourne l'appel LLM : `mistral-small-latest` s'est montré peu fiable
+    pour énumérer une liste de plusieurs dizaines d'entrées structurées
+    (vérifié contre la vraie base — il en omettait la quasi-totalité malgré
+    des instructions explicites) — un rendu déterministe en Python élimine
+    ce risque plutôt que d'espérer un meilleur prompt."""
+    resp = client.post("/chat", json={"question": "Quelles sont les opportunités d'achat en ce moment ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert "AAA.PA" in answer
+    assert "77.0" in answer
+    assert "confirmee" in answer
+    # Rendu déterministe, pas un JSON recopié par le LLM factice.
+    assert "titres_reconnus" not in answer
+
+
+def test_chat_general_opportunity_question_with_no_match_says_so(client, mock_llm):
+    resp = client.post("/chat", json={"question": "Quelles décisions faut-il surveiller ?"})
+    assert resp.status_code == 200
+    assert "aucune décision" in resp.json()["answer"].lower()
+
+
 def _get_decision_id(client) -> int:
     resp = client.get("/decisions")
     return resp.json()["items"][0]["id"]

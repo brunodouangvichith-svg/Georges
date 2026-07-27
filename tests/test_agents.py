@@ -6,6 +6,7 @@ moitié — que la réponse du LLM les cite bien — est testée dans
 `tests/test_api.py` avec un client Mistral factice)."""
 import datetime
 
+from agents.chat import _format_opportunities, _requested_decision_type
 from agents.context import basket_report_context, decision_context, security_snapshot
 from ingestion.models import Basket, Decision, PatternDetected, Security
 
@@ -83,3 +84,26 @@ def test_basket_report_context_basket_scope_carries_george_index():
     context = basket_report_context(basket, 64.2, [], 3)
     assert context["perimetre"] == {"type": "panier", "nom": "Tech FR"}
     assert context["george_index"] == 64.2
+
+
+def test_requested_decision_type_recognizes_keywords():
+    assert _requested_decision_type("Quelles sont les opportunités d'achat ?") == "Achat"
+    assert _requested_decision_type("Que dois-je surveiller ?") == "Surveiller"
+    assert _requested_decision_type("Quel est le temps à Paris ?") is None
+
+
+def test_format_opportunities_lists_every_entry_with_real_numbers():
+    decisions = [
+        {"symbole": "AAA.PA", "type": "Achat", "statut": "proposee", "confiance": 85.0, "prix_entree": 100.0, "take_profit": 110.0, "stop_loss": 95.0},
+        {"symbole": "BBB.PA", "type": "Achat", "statut": "confirmee", "confiance": 70.0, "prix_entree": 50.0, "take_profit": None, "stop_loss": None},
+    ]
+    text = _format_opportunities(decisions, "Achat")
+    assert "AAA.PA" in text and "BBB.PA" in text  # aucune entrée omise
+    assert "85.0" in text and "70.0" in text
+    assert "110.00" in text and "95.00" in text
+
+
+def test_format_opportunities_empty_says_so_without_inventing():
+    text = _format_opportunities([], "Renforcer")
+    assert "renforcer" in text.lower()
+    assert "aucune décision" in text.lower()
