@@ -1,10 +1,21 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { useBaskets, useDecisions, useGeorgeIndex, useSecurities } from "../api/queries";
 import { decisionColor, scoreColor } from "../data";
 
 const PIE_COLORS = ["#ffb020", "#3ddc84", "#5aa9ff", "#ff5c5c", "#c58aff", "#4fd6c5", "#e0975a", "#8b95a1", "#e85d9a", "#7fd6ff"];
 const DECISION_TYPES = ["Achat", "Renforcer", "Surveiller", "Alléger"];
+const CONFIDENCE_PRESETS = [0, 50, 60, 75];
+
+const DECISION_COLUMNS = [
+  { key: "symbol", label: "Ticker", defaultDir: "asc" },
+  { key: "decision_type", label: "Décision", defaultDir: "asc" },
+  { key: "entry_price", label: "Entrée", defaultDir: "desc" },
+  { key: "take_profit", label: "Take-profit", defaultDir: "desc" },
+  { key: "stop_loss", label: "Stop-loss", defaultDir: "desc" },
+  { key: "confidence", label: "Confiance", defaultDir: "desc" },
+  { key: "created_at", label: "Créée le", defaultDir: "desc" },
+];
 
 function PerformanceBadge({ label, value }) {
   return (
@@ -70,6 +81,33 @@ export default function Paniers() {
     for (const d of decisions) counts[d.decision_type] = (counts[d.decision_type] || 0) + 1;
     return counts;
   }, [decisions]);
+
+  const [minConfidence, setMinConfidence] = useState(0);
+  const [sortKey, setSortKey] = useState("created_at");
+  const [sortDir, setSortDir] = useState("desc");
+
+  function toggleSort(key) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(DECISION_COLUMNS.find((c) => c.key === key).defaultDir);
+    }
+  }
+
+  const visibleDecisions = useMemo(() => {
+    const filtered = decisions.filter((d) => d.confidence >= minConfidence);
+    const sign = sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const va = a[sortKey];
+      const vb = b[sortKey];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (typeof va === "string") return sign * va.localeCompare(vb);
+      return sign * (va - vb);
+    });
+  }, [decisions, minConfidence, sortKey, sortDir]);
 
   return (
     <div className="h-full overflow-y-auto gd-scrollbar px-5 py-6">
@@ -182,12 +220,35 @@ export default function Paniers() {
           </div>
         </div>
 
-        <div className="text-xs mb-3 tracking-wider" style={{ color: "var(--warning)" }}>
-          DÉCISIONS RÉCENTES
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div className="text-xs tracking-wider" style={{ color: "var(--warning)" }}>
+            DÉCISIONS RÉCENTES
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span style={{ color: "var(--text-dim)" }}>Confiance minimale</span>
+            {CONFIDENCE_PRESETS.map((p) => (
+              <button
+                key={p}
+                onClick={() => setMinConfidence(p)}
+                className="px-2.5 py-1 rounded-full border"
+                style={{
+                  background: minConfidence === p ? "var(--accent)" : "transparent",
+                  borderColor: minConfidence === p ? "var(--accent)" : "var(--hairline)",
+                  color: minConfidence === p ? "#fff" : "var(--text-dim)",
+                }}
+              >
+                {p === 0 ? "Toutes" : `≥ ${p}%`}
+              </button>
+            ))}
+          </div>
         </div>
         {decisions.length === 0 ? (
           <div className="text-xs" style={{ color: "var(--text-dim)" }}>
-            Aucune décision enregistrée. Lancez <code>python -m ingestion.seed_demo</code>.
+            Aucune décision enregistrée. Lancez <code>python -m engine.propose_decisions</code> ou <code>python -m ingestion.seed_demo</code>.
+          </div>
+        ) : visibleDecisions.length === 0 ? (
+          <div className="text-xs" style={{ color: "var(--text-dim)" }}>
+            Aucune décision avec une confiance ≥ {minConfidence}%.
           </div>
         ) : (
           <div className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--hairline)" }}>
@@ -195,15 +256,22 @@ export default function Paniers() {
               <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 680 }}>
                 <thead>
                   <tr style={{ background: "var(--panel-alt)", color: "var(--text-dim)" }}>
-                    {["Ticker", "Décision", "Entrée", "Take-profit", "Stop-loss", "Confiance", "Créée le"].map((h) => (
-                      <th key={h} className="text-left px-3 py-2 font-normal border-b" style={{ borderColor: "var(--hairline)" }}>
-                        {h}
+                    {DECISION_COLUMNS.map((c) => (
+                      <th key={c.key} className="text-left px-3 py-2 font-normal border-b" style={{ borderColor: "var(--hairline)" }}>
+                        <button
+                          className="flex items-center gap-1"
+                          style={{ color: sortKey === c.key ? "var(--text)" : "var(--text-dim)" }}
+                          onClick={() => toggleSort(c.key)}
+                        >
+                          {c.label}
+                          {sortKey === c.key && <span>{sortDir === "asc" ? "▲" : "▼"}</span>}
+                        </button>
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {decisions.map((d, i) => (
+                  {visibleDecisions.map((d, i) => (
                     <tr key={d.id} style={{ background: i % 2 === 0 ? "var(--bg)" : "var(--panel)" }}>
                       <td className="px-3 py-2 font-bold">{d.symbol}</td>
                       <td className="px-3 py-2">
@@ -229,8 +297,9 @@ export default function Paniers() {
         )}
 
         <div className="text-xs mt-5 pb-6" style={{ color: "var(--text-dim)" }}>
-          Données réelles issues de l'API — les décisions affichées ici sont pour l'instant un jeu de démonstration illustratif
-          (<code>ingestion/seed_demo.py</code>) tant que les Phases 6/7 (gestion du risque, sous-agents) ne les génèrent pas elles-mêmes.
+          Données réelles issues de l'API — la plupart des décisions ci-dessus viennent de figures chartistes réellement
+          détectées (<code>engine.propose_decisions</code>, Phase 6) ; quelques-unes plus anciennes restent un jeu de
+          démonstration illustratif (<code>ingestion/seed_demo.py</code>).
         </div>
       </div>
     </div>

@@ -113,7 +113,7 @@ export default function Univers() {
     recognition.start();
   }
 
-  const { data: securitiesPage, isLoading: securitiesLoading, isError: securitiesError } = useSecurities({ limit: 100 });
+  const { data: securitiesPage, isLoading: securitiesLoading, isError: securitiesError } = useSecurities({ limit: 200 });
   const { data: decisionsPage } = useDecisions({ limit: 200 });
   const { data: basketsPage } = useBaskets();
   const { data: agentPage } = useAgentActivity({ limit: 6 });
@@ -235,7 +235,7 @@ export default function Univers() {
         <div className="overflow-y-auto px-4.5 py-4 gd-scrollbar">
           <div className="flex items-center justify-between mb-3.5">
             <div>
-              <div className="display text-[16px] font-semibold">Univers suivi — CAC 40 &amp; big caps</div>
+              <div className="display text-[16px] font-semibold">Univers suivi — CAC 40 &amp; CAC Mid 60</div>
               <div className="text-xs mt-0.5" style={{ color: "var(--text-dim)" }}>
                 {securitiesLoading ? "Chargement…" : `${securities.length} valeurs`}
               </div>

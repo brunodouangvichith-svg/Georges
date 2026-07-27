@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import Paniers from "./Paniers";
 
@@ -45,5 +45,45 @@ describe("Paniers", () => {
     expect(screen.getByText("+0.5%")).toBeInTheDocument();
     expect(screen.getByText("-2.3%")).toBeInTheDocument();
     expect(screen.getByText("+8.1%")).toBeInTheDocument();
+  });
+
+  function mockDecisions() {
+    useDecisions.mockReturnValue({
+      data: {
+        items: [
+          { id: 1, symbol: "AAA.PA", decision_type: "Achat", entry_price: 100, take_profit: 110, stop_loss: 95, confidence: 55, created_at: "2026-07-20T10:00:00Z" },
+          { id: 2, symbol: "BBB.PA", decision_type: "Achat", entry_price: 50, take_profit: 55, stop_loss: 45, confidence: 85, created_at: "2026-07-25T10:00:00Z" },
+          { id: 3, symbol: "CCC.PA", decision_type: "Alléger", entry_price: 30, take_profit: 25, stop_loss: 35, confidence: 65, created_at: "2026-07-22T10:00:00Z" },
+        ],
+      },
+      isError: false,
+    });
+  }
+
+  it("filters the decisions table by a minimum-confidence preset", () => {
+    mockEmptyApi();
+    mockDecisions();
+    render(<Paniers />);
+    expect(screen.getByText("AAA.PA")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "≥ 60%" }));
+    expect(screen.queryByText("AAA.PA")).not.toBeInTheDocument(); // confiance 55 < 60
+    expect(screen.getByText("BBB.PA")).toBeInTheDocument();
+    expect(screen.getByText("CCC.PA")).toBeInTheDocument();
+  });
+
+  it("sorts the decisions table by clicking a column header", () => {
+    mockEmptyApi();
+    mockDecisions();
+    render(<Paniers />);
+
+    const rowsInOrder = () => screen.getAllByRole("row").slice(1).map((r) => r.cells[0].textContent);
+    expect(rowsInOrder()).toEqual(["BBB.PA", "CCC.PA", "AAA.PA"]); // tri initial : créée le, plus récent d'abord
+
+    fireEvent.click(screen.getByRole("button", { name: /Confiance/ }));
+    expect(rowsInOrder()).toEqual(["BBB.PA", "CCC.PA", "AAA.PA"]); // confiance déjà décroissante dans ce jeu
+
+    fireEvent.click(screen.getByRole("button", { name: /Confiance/ })); // re-clic -> inverse
+    expect(rowsInOrder()).toEqual(["AAA.PA", "CCC.PA", "BBB.PA"]);
   });
 });
