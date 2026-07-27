@@ -14,7 +14,7 @@ from api import deps
 from api.deps import get_db
 from api.schemas import BasketOut, GeorgeIndexOut
 from engine.compute_george_index import load_patterns
-from engine.george_index import compute_george_index
+from engine.george_index import basket_performance, compute_george_index
 from engine.run_detection import load_prices
 from ingestion.models import Basket, BasketSecurity
 
@@ -44,4 +44,12 @@ def get_basket_george_index(basket_id: int, db: Session = Depends(get_db)):
     price_frames = {symbol: df for symbol, df in price_frames.items() if not df.empty}
 
     index = compute_george_index(basket_symbols, patterns, price_frames, datetime.now(timezone.utc))
-    return GeorgeIndexOut(basket_id=basket.id, basket_name=basket.name, george_index=index)
+    perf = basket_performance(basket_symbols, price_frames)
+    return GeorgeIndexOut(
+        basket_id=basket.id,
+        basket_name=basket.name,
+        george_index=index,
+        performance_1j=perf["1j"],
+        performance_1s=perf["1s"],
+        performance_1m=perf["1m"],
+    )

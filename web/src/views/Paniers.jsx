@@ -6,6 +6,20 @@ import { decisionColor, scoreColor } from "../data";
 const PIE_COLORS = ["#ffb020", "#3ddc84", "#5aa9ff", "#ff5c5c", "#c58aff", "#4fd6c5", "#e0975a", "#8b95a1", "#e85d9a", "#7fd6ff"];
 const DECISION_TYPES = ["Achat", "Renforcer", "Surveiller", "Alléger"];
 
+function PerformanceBadge({ label, value }) {
+  return (
+    <span className="inline-flex items-baseline gap-0.5">
+      <span style={{ color: "var(--text-dim)" }}>{label}</span>
+      <span
+        className="font-bold"
+        style={{ color: value == null ? "var(--text-dim)" : value >= 0 ? "var(--positive)" : "var(--negative)" }}
+      >
+        {value == null ? "—" : `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`}
+      </span>
+    </span>
+  );
+}
+
 function BasketIndexRow({ basketId, basketName }) {
   const { data, isLoading } = useGeorgeIndex(basketId);
   const score = data?.george_index ?? null;
@@ -24,6 +38,13 @@ function BasketIndexRow({ basketId, basketName }) {
           style={{ width: `${score ?? 0}%`, background: score != null ? scoreColor(score) : "var(--hairline)" }}
         />
       </div>
+      {!isLoading && (
+        <div className="flex gap-3 mt-1.5 text-[11px] mono">
+          <PerformanceBadge label="1j" value={data?.performance_1j} />
+          <PerformanceBadge label="1s" value={data?.performance_1s} />
+          <PerformanceBadge label="1m" value={data?.performance_1m} />
+        </div>
+      )}
     </div>
   );
 }

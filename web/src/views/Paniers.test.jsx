@@ -33,4 +33,17 @@ describe("Paniers", () => {
     render(<Paniers />);
     expect(screen.getByText(/impossible de contacter l'api/i)).toBeInTheDocument();
   });
+
+  it("shows the basket's performance over 1j/1s/1m alongside its George Index", () => {
+    mockEmptyApi();
+    useBaskets.mockReturnValue({ data: [{ id: 1, name: "Tech FR", type: "secteur" }], isLoading: false, isError: false });
+    useGeorgeIndex.mockReturnValue({
+      data: { basket_id: 1, basket_name: "Tech FR", george_index: 70, performance_1j: 0.5, performance_1s: -2.3, performance_1m: 8.1 },
+      isLoading: false,
+    });
+    render(<Paniers />);
+    expect(screen.getByText("+0.5%")).toBeInTheDocument();
+    expect(screen.getByText("-2.3%")).toBeInTheDocument();
+    expect(screen.getByText("+8.1%")).toBeInTheDocument();
+  });
 });

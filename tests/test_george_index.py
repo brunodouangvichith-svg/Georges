@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from engine.george_index import compute_george_index, momentum_pct, most_recent_active_confidence
+from engine.george_index import basket_performance, compute_george_index, momentum_pct, most_recent_active_confidence
 from tests.test_patterns import make_df, ramp
 
 
@@ -88,3 +88,26 @@ def test_compute_george_index_clipped_to_0_100():
     patterns = _patterns([("AAA", as_of, 100.0)])
     index = compute_george_index([("AAA", 1.0)], patterns, {"AAA": flat}, as_of)
     assert index <= 100.0
+
+
+def test_basket_performance_weighted_average_per_horizon():
+    rising = make_df(ramp(100, 130, 25))  # +30% sur 24 pas
+    flat = make_df([100.0] * 25)
+    price_frames = {"AAA": rising, "BBB": flat}
+
+    perf = basket_performance([("AAA", 1.0), ("BBB", 1.0)], price_frames)
+    assert set(perf) == {"1j", "1s", "1m"}
+    assert perf["1m"] == pytest.approx((momentum_pct(rising, 20) + 0.0) / 2)
+    assert perf["1m"] > 0
+
+
+def test_basket_performance_ignores_symbols_with_insufficient_history():
+    short = make_df(ramp(100, 105, 10))  # pas assez pour la fenêtre "1m" (20 séances)
+    perf = basket_performance([("AAA", 1.0)], {"AAA": short})
+    assert perf["1m"] is None
+    assert perf["1j"] is not None  # 1 séance reste calculable
+
+
+def test_basket_performance_none_when_no_price_history_at_all():
+    perf = basket_performance([("AAA", 1.0)], {})
+    assert perf == {"1j": None, "1s": None, "1m": None}

@@ -220,6 +220,11 @@ def test_george_index_for_basket_with_active_pattern(client):
     body = resp.json()
     assert body["basket_name"] == "Tech FR"
     assert body["george_index"] is not None
+    # AAA.PA (fixture) monte en continu sur 30 séances -> performance positive
+    # sur les trois horizons.
+    assert body["performance_1j"] > 0
+    assert body["performance_1s"] > 0
+    assert body["performance_1m"] > 0
 
 
 def test_george_index_basket_not_found_returns_404(client):

@@ -57,6 +57,35 @@ def momentum_pct(df: pd.DataFrame, window: int = MOMENTUM_WINDOW_SESSIONS) -> fl
     return float((df["close"].iloc[-1] - base) / base * 100)
 
 
+PERFORMANCE_WINDOWS_SESSIONS = {"1j": 1, "1s": 5, "1m": MOMENTUM_WINDOW_SESSIONS}
+
+
+def basket_performance(
+    basket_symbols: list[tuple[str, float]], price_frames: dict[str, pd.DataFrame]
+) -> dict[str, float | None]:
+    """Rendement (%) du panier sur 1 séance, 1 semaine (5 séances) et 1 mois
+    (20 séances) — moyenne pondérée (mêmes poids que `compute_george_index`)
+    du rendement de chaque titre disposant d'assez d'historique pour la
+    fenêtre considérée, `None` si aucun n'en a. C'est le même calcul brut
+    (non plafonné) que le momentum interne du George Index (`momentum_i`),
+    exposé ici tel quel comme une mesure de performance à part entière,
+    plutôt que seulement comme multiplicateur interne — voir
+    `engine/george_index.md`, qui documente le rôle de `momentum_panier`
+    dans l'index composite, distinct de cet usage."""
+    return {
+        label: _weighted_average(
+            [
+                (m, weight)
+                for symbol, weight in basket_symbols
+                if (df := price_frames.get(symbol)) is not None
+                and not df.empty
+                and (m := momentum_pct(df, window)) is not None
+            ]
+        )
+        for label, window in PERFORMANCE_WINDOWS_SESSIONS.items()
+    }
+
+
 def compute_george_index(
     basket_symbols: list[tuple[str, float]],
     patterns: pd.DataFrame,

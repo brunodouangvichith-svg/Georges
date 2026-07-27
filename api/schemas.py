@@ -64,6 +64,9 @@ class GeorgeIndexOut(BaseModel):
     basket_id: int
     basket_name: str
     george_index: float | None
+    performance_1j: float | None
+    performance_1s: float | None
+    performance_1m: float | None
 
 
 class DecisionOut(BaseModel):
