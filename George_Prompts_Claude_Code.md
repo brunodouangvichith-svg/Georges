@@ -100,7 +100,7 @@ Contrainte : sépare clairement le code d'entraînement (offline, notebook) du
 code d'inférence (module Python appelable en production). Sauvegarde le modèle
 entraîné avec joblib et versionne-le (nom de fichier avec date). Prévois une
 table `pattern_candidates` distincte de `patterns_detected` : c'est là que
-les nouvelles figures proposées par l'agent de veille méthodologique (Phase 7)
+les nouvelles figures proposées par Jane, l'agent de veille méthodologique (Phase 7)
 seront backtestées avant toute promotion éventuelle vers le catalogue actif.
 ```
 
@@ -170,8 +170,8 @@ mono pour les chiffres).
 ```
 Contexte : l'API FastAPI et les données structurées (patterns, decisions,
 george_index) existent déjà.
-Stack : Python, API LLM (au choix : Claude, ou modèle open source auto-hébergé
-type Llama 3 / Mistral pour cette phase de prototypage), pgvector.
+Stack : Python, API Mistral (« La Plateforme », gratuite avec quota — choisie pour
+le MVP, sera remplacée par Claude en production pour la qualité d'explication), pgvector.
 
 Objectif : permettre à George d'expliquer ses décisions en langage naturel.
 
@@ -198,7 +198,12 @@ Tâches :
 
 Contrainte : prompts système versionnés dans /agents/prompts/ (fichiers texte,
 pas hardcodés dans le code Python), pour pouvoir les faire évoluer sans
-redéployer.
+redéployer. Utilise ce pattern de référence pour le client Mistral (backoff
+exponentiel sur le rate limit du tier gratuit, prompt système chargé depuis
+un fichier, fonction d'appel isolée pour faciliter une future migration vers
+Claude) :
+
+[colle ici le contenu de mistral_client.py]
 ```
 
 ---
@@ -322,12 +327,35 @@ Tâches :
      centrales, INSEE/Eurostat) ;
    - agent fondamentaux d'entreprise (API SEC EDGAR, taxonomie US-GAAP,
      rate limit 10 req/s) ;
-   - agent veille méthodologique (Investopedia et sources de référence pour
-     les définitions ; TradingView pour les indicateurs et idées de trading
-     communautaires ; ProRealTime et NanoTrader pour les méthodologies
-     d'analyse technique active et de backtesting) — les candidats identifiés
-     ici alimentent une file de "nouveaux patterns à évaluer", jamais ajoutés
-     directement à la détection en production (voir contrainte ci-dessous) ;
+   - agent veille méthodologique, baptisé Jane (Investopedia, BabyPips et sources de
+     référence pour les définitions ; TradingView pour les indicateurs et
+     idées de trading communautaires ; ProRealTime et NanoTrader pour les
+     méthodologies d'analyse technique active et de backtesting) — les
+     candidats identifiés ici alimentent une file de "nouveaux patterns à
+     évaluer", jamais ajoutés directement à la détection en production (voir
+     contrainte ci-dessous). Pour cette partie de son rôle, Jane ne fonctionne
+     que sur le mode veille continue autonome, en tâche de fond à faible
+     priorité (queue/worker séparé, priorité basse) : elle ne doit jamais
+     retarder les modes réactifs (urgence, manque identifié) ni consommer des
+     ressources prioritaires. Utilise l'API Mistral (même client que la
+     Phase 4) mais avec le modèle mistral-large-latest plutôt que
+     mistral-small-latest : la qualité d'extraction prime ici sur la latence.
+     En plus de cette veille, Jane a un second rôle, synchrone celui-là :
+     avant que George publie une décision (achat/renforcer/surveiller/
+     alléger), Jane relit le dossier complet (pattern, contexte macro,
+     données des sous-agents) et produit une note d'analyse contradictoire
+     (cohérence des signaux, éléments manquants, scénarios alternatifs) —
+     implémente ça comme un second appel LLM distinct, appelé juste avant la
+     génération de l'explication finale par George (Phase 4/6). Jane ne
+     détecte aucun pattern et ne décide jamais : c'est George qui arbitre
+     entre sa propre analyse et celle de Jane. Pour son second avis, charge
+     aussi dans son prompt système un corpus de gestion de portefeuille et
+     finance de marché (théorie de Markowitz/MEDAF/APT, mesures de
+     performance Sharpe/Treynor/Jensen, efficience des marchés, assurance
+     de portefeuille CPPI/OBPI/Stop-Loss — voir Jane_Synthese_Connaissances.md
+     fourni séparément) et la méthode Fujimoto (règle mécanique de
+     pyramidage à la baisse / prise de profit par paliers) comme référence
+     alternative pour les niveaux de sortie du pilier 8 ;
    - agent synthèse (appelle un LLM pour résumer un document long en
      indicateurs exploitables).
 4. Implémente le module de validation : recoupement multi-sources (au moins
@@ -342,13 +370,13 @@ Tâches :
    performance par sous-agent.
 7. Tests : simule des sources contradictoires et vérifie que l'information est
    bien mise en quarantaine plutôt qu'intégrée ; vérifie qu'un candidat de
-   l'agent "veille méthodologique" n'est jamais utilisé en détection sans
+   Jane (l'agent "veille méthodologique") n'est jamais utilisé en détection sans
    passer par le pipeline de backtesting de la Phase 2.
 
 Contrainte forte : le scraping ne cible que des sources publiques
 explicitement whitelistées dans un fichier de configuration — jamais de
 scraping de flux de marché propriétaires (cours, carnets d'ordres). Un
-nouveau pattern candidat identifié par l'agent de veille méthodologique doit
+nouveau pattern candidat identifié par Jane doit
 être backtesté sur l'historique de George (Phase 2) et n'intègre le catalogue
 actif que si sa performance mesurée le justifie.
 ```

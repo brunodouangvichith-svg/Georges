@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import ForeignKey, Integer, Numeric, BigInteger, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+EMBEDDING_DIM = 1024  # dimension de sortie du modèle mistral-embed (Phase 4)
 
 
 class Base(DeclarativeBase):
@@ -118,6 +121,24 @@ class PatternCandidate(Base):
     detected_at: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     confidence: Mapped[float] = mapped_column(Numeric, nullable=False)
     context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+
+class Report(Base):
+    """Rapport texte généré automatiquement (portefeuille ou panier, Phase 4)
+    — voir `agents/reports.py`. `embedding` indexe le contenu via pgvector
+    pour la recherche sémantique (tâche 4 de la Phase 4), en complément des
+    requêtes SQL directes utilisées par `/chat`."""
+
+    __tablename__ = "reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    scope: Mapped[str] = mapped_column(Text, nullable=False)  # "portfolio" ou "basket:<id>"
+    basket_id: Mapped[int | None] = mapped_column(ForeignKey("baskets.id"), nullable=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 class AgentEvent(Base):

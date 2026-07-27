@@ -15,9 +15,32 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import agents.mistral_client as mistral_client
 import api.deps as deps
 from api.main import app
 from ingestion.models import AgentEvent, Basket, BasketSecurity, Decision, PatternDetected, PriceOHLCV, Security
+
+
+def _fake_complete(system_prompt, user_message, model=None, temperature=0.3, max_retries=3):
+    """Remplace `agents.mistral_client.complete` dans les tests : renvoie le
+    contexte JSON reçu tel quel plutôt qu'un vrai texte généré, pour vérifier
+    (tâche 6 de la Phase 4) que les valeurs numériques réelles transmises en
+    contexte se retrouvent bien dans la réponse — sans appel réseau ni clé
+    API. Aucun de ces tests n'invente un chiffre : ils vérifient qu'aucun
+    n'est perdu en chemin."""
+    return f"[{model}] {user_message}"
+
+
+def _fake_embed(texts, model=None):
+    from ingestion.models import EMBEDDING_DIM
+
+    return [[0.0] * EMBEDDING_DIM for _ in texts]
+
+
+@pytest.fixture()
+def mock_llm(monkeypatch):
+    monkeypatch.setattr(mistral_client, "complete", _fake_complete)
+    monkeypatch.setattr(mistral_client, "embed", _fake_embed)
 
 
 @pytest.fixture()
@@ -243,5 +266,106 @@ def test_db_unreachable_returns_503_with_cors_headers(monkeypatch):
     with TestClient(app) as broken_client:
         resp = broken_client.get("/baskets", headers={"Origin": "http://localhost:5173"})
 
+    assert resp.status_code == 503
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+
+def test_chat_answers_cite_real_data(client, mock_llm):
+    resp = client.post("/chat", json={"question": "Que penses-tu de Alpha SA ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    # Le titre reconnu ("Alpha SA") doit apparaître dans le contexte transmis
+    # au LLM, avec sa dernière décision/figure réelle — pas des chiffres
+    # inventés (tâche 6 de la Phase 4).
+    assert "AAA.PA" in answer
+    assert "129.0" in answer
+    assert "77.0" in answer
+
+
+def test_chat_with_no_recognized_security_says_so_via_empty_context(client, mock_llm):
+    resp = client.post("/chat", json={"question": "Quelle est la météo à Paris ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert '"titres_reconnus": []' in answer
+
+
+def _get_decision_id(client) -> int:
+    resp = client.get("/decisions")
+    return resp.json()["items"][0]["id"]
+
+
+def test_decision_explanation_cites_real_numbers(client, mock_llm):
+    decision_id = _get_decision_id(client)
+    resp = client.post(f"/decisions/{decision_id}/explanation", json={"include_second_opinion": False})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["second_opinion"] is None
+    assert "129.0" in body["explanation"]
+    assert "140.0" in body["explanation"]
+    assert "77.0" in body["explanation"]
+    # Sur l'égalité de `detected_at` entre Double Bottom et Bull Flag, c'est
+    # la figure la plus confiante qui doit être rattachée à la décision (même
+    # règle de départage qu'en Phase 3, voir list_security_patterns).
+    assert "Bull Flag" in body["explanation"]
+
+
+def test_decision_explanation_with_second_opinion_calls_jane_first(client, mock_llm):
+    decision_id = _get_decision_id(client)
+    resp = client.post(f"/decisions/{decision_id}/explanation", json={"include_second_opinion": True})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["second_opinion"] is not None
+    assert "mistral-large-latest" in body["second_opinion"]  # appel LLM distinct, modèle de Jane
+    # George arbitre : sa propre explication (mistral-small-latest) doit
+    # recevoir la note de Jane dans son contexte, pas seulement Jane
+    # elle-même produire une note isolée.
+    assert "mistral-small-latest" in body["explanation"]
+    assert "mistral-large-latest" in body["explanation"]
+
+
+def test_decision_explanation_unknown_decision_returns_404(client, mock_llm):
+    resp = client.post("/decisions/999999/explanation", json={"include_second_opinion": False})
+    assert resp.status_code == 404
+
+
+def test_create_report_for_basket_cites_real_data(client, mock_llm):
+    resp = client.post("/reports", json={"basket_id": 1})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["scope"] == "basket:1"
+    assert "Tech FR" in body["content"]
+    assert "77.0" in body["content"]  # confiance de la décision active du panier
+
+    listed = client.get("/reports", params={"basket_id": 1}).json()
+    assert listed["total"] == 1
+
+    found = client.get("/reports/search", params={"q": "Tech FR"}).json()
+    assert len(found) == 1
+
+
+def test_create_report_portfolio_wide(client, mock_llm):
+    resp = client.post("/reports", json={})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["scope"] == "portfolio"
+    assert body["basket_id"] is None
+
+
+def test_create_report_unknown_basket_returns_404(client, mock_llm):
+    resp = client.post("/reports", json={"basket_id": 999})
+    assert resp.status_code == 404
+
+
+def test_mistral_unavailable_returns_503_with_cors_headers(client, monkeypatch):
+    """Même piège Starlette que `test_db_unreachable_returns_503_with_cors_headers`,
+    pour la classe d'erreur dédiée `MistralUnavailableError` (clé API
+    manquante ou quota épuisé) — voir `api/main.py:mistral_exception_handler`."""
+
+    def _raise(*args, **kwargs):
+        raise mistral_client.MistralUnavailableError("clé API manquante")
+
+    monkeypatch.setattr(mistral_client, "complete", _raise)
+
+    resp = client.post("/chat", json={"question": "Alpha SA ?"}, headers={"Origin": "http://localhost:5173"})
     assert resp.status_code == 503
     assert resp.headers.get("access-control-allow-origin") == "http://localhost:5173"

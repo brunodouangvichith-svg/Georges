@@ -167,8 +167,8 @@ local (Vite suffit, pas besoin d'un gros build).
 
 ```
 Voici la structure des données disponibles (patterns, decisions,
-george_index) [décris-la ou colle le schéma]. Stack : Python, API LLM
-(Claude via l'API Anthropic), pgvector.
+george_index) [décris-la ou colle le schéma]. Stack : Python, API Mistral
+(« La Plateforme », gratuite avec quota), pgvector.
 
 Objectif : permettre à George d'expliquer ses décisions en langage naturel.
 
@@ -194,7 +194,11 @@ Merci de me fournir le code complet pour :
    bien les chiffres réels fournis, sans en inventer.
 
 Contrainte : les prompts système doivent être dans des fichiers texte
-séparés du code Python, pour pouvoir les modifier sans redéployer.
+séparés du code Python, pour pouvoir les modifier sans redéployer. Voici un
+exemple de client Mistral déjà fonctionnel dont tu peux t'inspirer (backoff
+sur le rate limit, prompt système chargé depuis un fichier séparé) :
+
+[colle ici le contenu de mistral_client.py]
 ```
 
 ---
@@ -302,11 +306,30 @@ Merci de me fournir le code complet, ou de le découper clairement, pour :
    - agent données macro (FRED, TIC du Trésor US, INSEE/Eurostat) ;
    - agent fondamentaux d'entreprise (SEC EDGAR, en respectant la limite de
      10 requêtes/seconde et le User-Agent obligatoire) ;
-   - agent veille méthodologique (Investopedia pour les définitions,
-     TradingView pour les indicateurs communautaires, ProRealTime et
-     NanoTrader pour les méthodologies de backtesting) — précise bien que
-     les candidats identifiés ici doivent être backtestés avant toute
-     utilisation réelle ;
+   - agent veille méthodologique, baptisé Jane (Investopedia et BabyPips pour les
+     définitions, TradingView pour les indicateurs communautaires,
+     ProRealTime et NanoTrader pour les méthodologies de backtesting) —
+     précise bien que les candidats identifiés par Jane doivent être backtestés
+     avant toute utilisation réelle, et que cette partie de son rôle tourne
+     uniquement en tâche de fond à faible priorité, sans jamais retarder les
+     collectes réactives (urgence, manque identifié). Utilise l'API Mistral
+     (même principe que la Phase 4) avec le modèle mistral-large-latest
+     plutôt que le modèle rapide utilisé ailleurs, car la qualité
+     d'extraction prime ici sur la vitesse. Jane a aussi un second rôle,
+     synchrone : avant que George publie une décision, elle relit le dossier
+     complet et produit une note d'analyse contradictoire (cohérence des
+     signaux macro/micro/techniques, éléments manquants, scénarios
+     alternatifs) — donne-moi un exemple de fonction séparée pour ce second
+     appel LLM, appelé juste avant la génération de l'explication finale.
+     Jane ne détecte aucun pattern et ne décide jamais : c'est George qui
+     arbitre entre sa propre analyse et celle de Jane. Pour ce second avis,
+     inclus dans son prompt système un corpus de gestion de portefeuille et
+     finance de marché (Markowitz/MEDAF/APT, mesures de performance
+     Sharpe/Treynor/Jensen, efficience des marchés, assurance de
+     portefeuille CPPI/OBPI/Stop-Loss — je te fournirai le contenu de
+     Jane_Synthese_Connaissances.md à coller si besoin) ainsi que la méthode
+     Fujimoto (règle mécanique de pyramidage/prise de profit par paliers)
+     comme référence alternative pour les niveaux de sortie ;
    - agent synthèse (résumé de documents longs via un LLM).
 4. Le module de validation : recoupement d'au moins 2 sources indépendantes,
    score de fiabilité, mise en quarantaine en cas de contradiction non

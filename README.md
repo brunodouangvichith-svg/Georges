@@ -1,13 +1,13 @@
 # George
 
-Agent d'analyse technique des marchés financiers. Ce dépôt suit la roadmap détaillée dans `George_Prompts_Claude_Code.md` (8 phases). Ce README couvre les **Phases 0 à 3** : fondations du projet (structure, Docker, schéma de base de données), moteur quantitatif (ingestion des prix, détection de patterns), mémoire historique/apprentissage continu (backtesting, score de confiance appris, paniers, George Index), et l'API + l'interface web MVP branchée sur des données réelles.
+Agent d'analyse technique des marchés financiers. Ce dépôt suit la roadmap détaillée dans `George_Prompts_Claude_Code.md` (8 phases). Ce README couvre les **Phases 0 à 4** : fondations du projet (structure, Docker, schéma de base de données), moteur quantitatif (ingestion des prix, détection de patterns), mémoire historique/apprentissage continu (backtesting, score de confiance appris, paniers, George Index), l'API + l'interface web MVP branchée sur des données réelles, et la couche LLM conversationnelle (explication des décisions, `/chat`, rapports indexés dans pgvector, second avis de Jane).
 
 ## Structure du dépôt
 
 ```
 ingestion/   ingestion de données (yfinance) + schéma DB (migrations Alembic) — Phase 0/1
 engine/      moteur de détection de patterns + scoring de confiance — Phase 1/2, déjà en place
-agents/      sous-agents de veille (presse, macro, géopolitique...) — Phase 7 (pas encore implémenté)
+agents/      explainer, /chat, rapports pgvector, second avis de Jane — Phase 4, déjà en place ; sous-agents de veille (presse, macro, géopolitique...) — Phase 7 (pas encore implémenté)
 api/         API FastAPI — Phase 3, déjà en place
 web/         interface web React (Vite + Tailwind), branchée sur l'API — Phase 3, déjà en place
 mobile/      application mobile (pas encore planifié)
@@ -19,8 +19,9 @@ tests/       tests pytest
 
 - [Docker](https://www.docker.com/) (avec Docker Compose v2) — pour lancer PostgreSQL/TimescaleDB, Redis, MinIO, Adminer.
 - Python 3.11+.
+- Une clé API [Mistral](https://console.mistral.ai/) (offre gratuite avec quota) pour la Phase 4 — voir section 11. Pas nécessaire pour les Phases 0-3.
 
-Aucun de ces deux logiciels n'est requis pour lire le code, seulement pour l'exécuter.
+Aucun de ces logiciels n'est requis pour lire le code, seulement pour l'exécuter.
 
 ## 1. Lancer l'environnement
 
@@ -154,3 +155,26 @@ npm run build   # build de production
 npm run lint     # oxlint
 npm run test     # Vitest + React Testing Library — aucune dépendance à Docker ni à l'API réelle (hooks mockés)
 ```
+
+## 11. Couche LLM conversationnelle (Phase 4)
+
+Nécessite une clé API Mistral, exportée avant de lancer `uvicorn` (ou tout script appelant `agents.mistral_client`) :
+
+```bash
+export MISTRAL_API_KEY="ta_cle_ici"       # macOS/Linux
+$env:MISTRAL_API_KEY = "ta_cle_ici"       # PowerShell
+```
+
+Sans clé configurée, les endpoints LLM répondent `503` proprement (pas de crash — voir `api/main.py:mistral_exception_handler`) plutôt que d'échouer silencieusement ; le reste de l'API (Phases 0-3) fonctionne normalement.
+
+```bash
+alembic upgrade head   # migration 0004 : active l'extension pgvector + table reports
+```
+
+Trois capacités, toutes en `POST` (le CORS de l'API n'autorisait que `GET` jusqu'à la Phase 3) :
+
+- **`POST /decisions/{id}/explanation`** — génère l'explication en français d'une décision existante (figure détectée, confiance, confirmations, risques — voir `agents/explainer.py` et `agents/prompts/explainer_system.txt`), avec `mistral-small-latest`. Body optionnel `{"include_second_opinion": true}` pour appeler d'abord **Jane** (`agents/jane.py`, `mistral-large-latest`, prompt système `agents/prompts/jane_second_opinion_system.txt` — corpus de gestion de portefeuille détaillé dans `Jane_Synthese_Connaissances.md`) : sa note contradictoire est alors passée en contexte à l'explication finale de George, qui l'arbitre. C'est un second appel LLM distinct et explicite, pas un simple paramètre du premier — conformément à la roadmap. Jane ne détecte jamais de pattern et ne décide jamais.
+- **`POST /chat`** — question libre (`{"question": "..."}`), routée par RAG SQL simple (`agents/chat.py` : reconnaissance de titres par symbole/nom dans la question, données réelles assemblées en contexte) avant l'appel LLM — pas de recherche vectorielle ici, réservée aux rapports.
+- **`POST /reports`** (`{"basket_id": <id ou omis pour un rapport portefeuille>}`) — génère un rapport texte (`agents/reports.py`) résumant l'état d'un panier (George Index réel, décisions actives) ou de l'ensemble du portefeuille, l'indexe via un embedding `mistral-embed` dans `reports` (pgvector). `GET /reports` (paginé, filtrable par `basket_id`) et `GET /reports/search?q=...` (recherche sémantique par similarité cosinus) le relisent ensuite.
+
+Le prompt système de chaque capacité interdit explicitement au LLM d'inventer un chiffre absent du contexte structuré fourni (`agents/prompts/*.txt`) — vérifié dans `tests/test_agents.py` (constructeurs de contexte, sans DB) et `tests/test_api.py` (avec un client Mistral factice qui recopie le contexte reçu, pour vérifier qu'aucune valeur réelle n'est perdue en chemin sans dépendre d'un vrai appel réseau).

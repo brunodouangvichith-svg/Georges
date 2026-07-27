@@ -90,3 +90,34 @@ class AgentEventOut(BaseModel):
     symbol: str | None
     created_at: datetime
     context: dict
+
+
+class ChatRequest(BaseModel):
+    question: str
+
+
+class ChatResponse(BaseModel):
+    answer: str
+
+
+class ExplanationRequest(BaseModel):
+    include_second_opinion: bool = False
+
+
+class ExplanationResponse(BaseModel):
+    explanation: str
+    second_opinion: str | None = None
+
+
+class ReportRequest(BaseModel):
+    basket_id: int | None = None
+
+
+class ReportOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    scope: str
+    basket_id: int | None
+    content: str
+    created_at: datetime
