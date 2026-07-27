@@ -646,3 +646,33 @@ def test_delete_portfolio(client):
     assert client.delete(f"/portfolios/{portfolio_id}").status_code == 204
     assert all(p["id"] != portfolio_id for p in client.get("/portfolios").json())
     assert client.delete(f"/portfolios/{portfolio_id}").status_code == 404
+
+
+def test_allocate_budget_sets_quantities_and_returns_a_deterministic_summary(client):
+    decision_id = _get_decision_id(client)
+    portfolio_id = client.post("/portfolios", json={"name": "Alloc", "decision_ids": [decision_id]}).json()["id"]
+
+    resp = client.post(f"/portfolios/{portfolio_id}/allocate", json={"budget": 1000.0})
+    assert resp.status_code == 200
+    body = resp.json()
+    decision = body["portfolio"]["decisions"][0]
+    # AAA.PA (fixture) entry_price=129.0 -> 1000 // 129.0 = 7 actions.
+    assert decision["quantity"] == 7
+    assert "AAA.PA" in body["summary"]
+    assert "7" in body["summary"]
+
+    # Persisté : une relecture du portefeuille voit la même quantité.
+    reread = client.get("/portfolios").json()
+    saved = next(p for p in reread if p["id"] == portfolio_id)
+    assert saved["decisions"][0]["quantity"] == 7
+
+
+def test_allocate_budget_rejects_non_positive_budget(client):
+    decision_id = _get_decision_id(client)
+    portfolio_id = client.post("/portfolios", json={"name": "Alloc2", "decision_ids": [decision_id]}).json()["id"]
+    assert client.post(f"/portfolios/{portfolio_id}/allocate", json={"budget": 0}).status_code == 400
+    assert client.post(f"/portfolios/{portfolio_id}/allocate", json={"budget": -100}).status_code == 400
+
+
+def test_allocate_budget_unknown_portfolio_returns_404(client):
+    assert client.post("/portfolios/999999/allocate", json={"budget": 1000.0}).status_code == 404

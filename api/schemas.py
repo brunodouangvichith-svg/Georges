@@ -142,10 +142,28 @@ class PortfolioCreateRequest(BaseModel):
     decision_ids: list[int]
 
 
+class PortfolioDecisionOut(DecisionOut):
+    """`DecisionOut` + `quantity` — le nombre d'actions détenu dans *ce*
+    portefeuille (colonne de la table de liaison `portfolio_decisions`, pas
+    de `decisions` elle-même : une même décision peut avoir des quantités
+    différentes dans deux portefeuilles distincts)."""
+
+    quantity: int | None = None
+
+
 class PortfolioOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str
     created_at: datetime
-    decisions: list[DecisionOut]
+    decisions: list[PortfolioDecisionOut]
+
+
+class AllocateBudgetRequest(BaseModel):
+    budget: float
+
+
+class AllocateBudgetResponse(BaseModel):
+    portfolio: PortfolioOut
+    summary: str

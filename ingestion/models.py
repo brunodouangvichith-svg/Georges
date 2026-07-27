@@ -200,9 +200,13 @@ class Portfolio(Base):
 
 class PortfolioDecision(Base):
     """Table de liaison portefeuille <-> décision (plusieurs portefeuilles
-    peuvent contenir la même décision)."""
+    peuvent contenir la même décision). `quantity` (nombre entier d'actions)
+    n'est pas renseigné à la création — rempli soit à la main, soit par
+    `POST /portfolios/{id}/allocate` (répartition d'un budget, voir
+    `engine/portfolio_allocation.py`)."""
 
     __tablename__ = "portfolio_decisions"
 
     portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id", ondelete="CASCADE"), primary_key=True)
     decision_id: Mapped[int] = mapped_column(ForeignKey("decisions.id", ondelete="CASCADE"), primary_key=True)
+    quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)

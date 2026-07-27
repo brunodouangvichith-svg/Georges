@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import CandlestickChart from "../components/CandlestickChart";
 import GeorgeIndexTile from "../components/GeorgeIndexTile";
 import ResponsePopup from "../components/ResponsePopup";
 import WatchlistRow from "../components/WatchlistRow";
 import { decisionColor, macro } from "../data";
+import { useVoiceCapture } from "../hooks/useVoiceCapture";
 import {
   useAgentActivity,
   useBaskets,
@@ -16,17 +17,6 @@ import {
 } from "../api/queries";
 
 const FILTERS = ["Tous", "Achat", "Surveiller", "Alléger"];
-
-// La reconnaissance vocale de Chrome/Edge n'est pas locale : l'audio est
-// envoyé aux serveurs de Google pour être transcrit, d'où un code "network"
-// (pas un vrai problème de connexion Internet en général) si un bloqueur de
-// pub/VPN/pare-feu d'entreprise empêche cette requête sortante.
-const VOICE_ERROR_MESSAGES = {
-  network: "Le micro n'a pas pu joindre le service de reconnaissance vocale de Google (utilisé par Chrome/Edge). Vérifiez un éventuel bloqueur de pub/extension de confidentialité, VPN, ou pare-feu d'entreprise qui bloquerait ce trafic sortant, puis réessayez.",
-  "not-allowed": "Accès au micro refusé — autorisez-le dans les paramètres du navigateur pour ce site puis réessayez.",
-  "no-speech": "Aucune parole détectée avant la fin de l'écoute — réessayez en parlant un peu plus fort ou plus vite après avoir cliqué.",
-  "audio-capture": "Aucun micro détecté sur cet appareil.",
-};
 
 const SIDEBAR_NAV = [
   { icon: "◆", label: "Univers", active: true },
@@ -51,67 +41,30 @@ export default function Univers() {
   const [popup, setPopup] = useState(null); // { title, status: "listening"|"loading"|"done"|"error", text }
   const chatMutation = useChat();
   const explainMutation = useExplainDecision();
-  const recognitionRef = useRef(null);
+
+  const voice = useVoiceCapture({
+    onListening: () => setPopup({ title: "Commande vocale", status: "listening", text: "" }),
+    onInterim: (text) => setPopup((prev) => (prev?.status === "listening" ? { ...prev, text } : prev)),
+    onError: (message) => setPopup({ title: "Commande vocale", status: "error", text: message }),
+    onFinal: (question) => {
+      if (!question) {
+        setPopup({ title: "Commande vocale", status: "error", text: "Aucune parole détectée — réessayez." });
+        return;
+      }
+      const title = `Commande vocale — « ${question} »`;
+      setPopup({ title, status: "loading", text: null });
+      chatMutation.mutate(question, {
+        onSuccess: (data) => setPopup({ title, status: "done", text: data.answer }),
+        onError: (err) => setPopup({ title, status: "error", text: err.message }),
+      });
+    },
+  });
 
   function closePopup() {
     // Coupe le micro si une écoute est en cours — sinon le navigateur
     // continue d'enregistrer alors que le popup est fermé.
-    recognitionRef.current?.abort();
-    recognitionRef.current = null;
+    voice.abort();
     setPopup(null);
-  }
-
-  function startVoiceCapture() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setPopup({
-        title: "Commande vocale",
-        status: "error",
-        text: "La reconnaissance vocale n'est pas prise en charge par ce navigateur — essayez Chrome ou Edge.",
-      });
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = "fr-FR";
-    recognition.continuous = false; // s'arrête d'elle-même dès qu'un silence est détecté
-    recognition.interimResults = true;
-    recognitionRef.current = recognition;
-
-    setPopup({ title: "Commande vocale", status: "listening", text: "" });
-
-    recognition.onresult = (event) => {
-      let transcript = "";
-      for (let i = 0; i < event.results.length; i++) transcript += event.results[i][0].transcript;
-      setPopup((prev) => (prev?.status === "listening" ? { ...prev, text: transcript } : prev));
-    };
-
-    recognition.onerror = (event) => {
-      recognitionRef.current = null;
-      setPopup({ title: "Commande vocale", status: "error", text: VOICE_ERROR_MESSAGES[event.error] ?? `Erreur micro : ${event.error}` });
-    };
-
-    // Se déclenche automatiquement dès que la reconnaissance détecte un
-    // silence (recognition.continuous = false) — pas besoin de minuterie
-    // manuelle pour "terminer sur silence".
-    recognition.onend = () => {
-      recognitionRef.current = null;
-      setPopup((prev) => {
-        if (prev?.status !== "listening") return prev;
-        const question = prev.text?.trim();
-        if (!question) {
-          return { title: "Commande vocale", status: "error", text: "Aucune parole détectée — réessayez." };
-        }
-        const title = `Commande vocale — « ${question} »`;
-        chatMutation.mutate(question, {
-          onSuccess: (data) => setPopup({ title, status: "done", text: data.answer }),
-          onError: (err) => setPopup({ title, status: "error", text: err.message }),
-        });
-        return { title, status: "loading", text: null };
-      });
-    };
-
-    recognition.start();
   }
 
   const { data: securitiesPage, isLoading: securitiesLoading, isError: securitiesError } = useSecurities({ limit: 200 });
@@ -157,7 +110,7 @@ export default function Univers() {
 
   return (
     <>
-    <ResponsePopup popup={popup} onClose={closePopup} onStopListening={() => recognitionRef.current?.stop()} />
+    <ResponsePopup popup={popup} onClose={closePopup} onStopListening={voice.stop} />
     <div className="grid h-full" style={{ gridTemplateRows: "1fr 84px" }}>
       <div className="grid h-full overflow-hidden" style={{ gridTemplateColumns: "190px 1fr 340px" }}>
         {/* Sidebar */}
@@ -470,7 +423,7 @@ export default function Univers() {
           <button
             className="text-xs px-3 py-1.5 rounded-full border whitespace-nowrap"
             style={{ background: "var(--panel-alt)", borderColor: "var(--hairline)", color: "var(--text-dim)" }}
-            onClick={startVoiceCapture}
+            onClick={voice.start}
           >
             🎙 Commande vocale
           </button>

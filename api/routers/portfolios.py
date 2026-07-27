@@ -8,23 +8,37 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.deps import get_db
-from api.schemas import PortfolioCreateRequest, PortfolioOut
+from api.schemas import (
+    AllocateBudgetRequest,
+    AllocateBudgetResponse,
+    PortfolioCreateRequest,
+    PortfolioDecisionOut,
+    PortfolioOut,
+)
+from engine.portfolio_allocation import allocate_budget, format_allocation_summary
 from ingestion.models import Decision, Portfolio, PortfolioDecision
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
 
 
-def _portfolio_out(db: Session, portfolio: Portfolio) -> PortfolioOut:
-    decisions = (
+def _portfolio_decisions(db: Session, portfolio_id: int) -> list[tuple[Decision, int | None]]:
+    return (
         db.execute(
-            select(Decision)
+            select(Decision, PortfolioDecision.quantity)
             .join(PortfolioDecision, PortfolioDecision.decision_id == Decision.id)
-            .where(PortfolioDecision.portfolio_id == portfolio.id)
+            .where(PortfolioDecision.portfolio_id == portfolio_id)
             .order_by(Decision.created_at.desc())
         )
-        .scalars()
         .all()
     )
+
+
+def _portfolio_out(db: Session, portfolio: Portfolio) -> PortfolioOut:
+    rows = _portfolio_decisions(db, portfolio.id)
+    decisions = [
+        PortfolioDecisionOut.model_validate(decision, from_attributes=True).model_copy(update={"quantity": quantity})
+        for decision, quantity in rows
+    ]
     return PortfolioOut(id=portfolio.id, name=portfolio.name, created_at=portfolio.created_at, decisions=decisions)
 
 
@@ -77,3 +91,42 @@ def remove_decision_from_portfolio(portfolio_id: int, decision_id: int, db: Sess
     db.delete(link)
     db.commit()
     return _portfolio_out(db, portfolio)
+
+
+@router.post("/{portfolio_id}/allocate", response_model=AllocateBudgetResponse)
+def allocate_portfolio_budget(portfolio_id: int, request: AllocateBudgetRequest, db: Session = Depends(get_db)):
+    """Répartit un budget entre les décisions du portefeuille — action
+    « Demander à George » de `web/` (ex. "répartis un budget de 100 000
+    euros entre ces actions en fonction du risque et des profits"). Le
+    calcul est entièrement déterministe (`engine/portfolio_allocation.py`) ;
+    aucun appel LLM ici, voir le docstring de ce module pour le raisonnement."""
+    portfolio = db.get(Portfolio, portfolio_id)
+    if portfolio is None:
+        raise HTTPException(status_code=404, detail=f"Portefeuille inconnu : {portfolio_id}")
+    if request.budget <= 0:
+        raise HTTPException(status_code=400, detail="Le budget doit être positif.")
+
+    rows = _portfolio_decisions(db, portfolio_id)
+    if not rows:
+        raise HTTPException(status_code=400, detail="Ce portefeuille est vide, rien à répartir.")
+
+    decisions_for_alloc = [
+        {
+            "decision_id": decision.id,
+            "symbol": decision.symbol,
+            "entry_price": float(decision.entry_price),
+            "stop_loss": float(decision.stop_loss) if decision.stop_loss is not None else None,
+            "take_profit": float(decision.take_profit) if decision.take_profit is not None else None,
+            "confidence": float(decision.confidence),
+        }
+        for decision, _quantity in rows
+    ]
+    allocations = allocate_budget(decisions_for_alloc, request.budget)
+
+    for alloc in allocations:
+        link = db.get(PortfolioDecision, {"portfolio_id": portfolio_id, "decision_id": alloc["decision_id"]})
+        link.quantity = alloc["quantity"]
+    db.commit()
+
+    summary = format_allocation_summary(decisions_for_alloc, allocations, request.budget)
+    return AllocateBudgetResponse(portfolio=_portfolio_out(db, portfolio), summary=summary)

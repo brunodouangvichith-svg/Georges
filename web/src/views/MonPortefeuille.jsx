@@ -1,13 +1,81 @@
-import { useDeletePortfolio, usePortfolios, useRemoveDecisionFromPortfolio } from "../api/queries";
+import { useRef, useState } from "react";
+import ResponsePopup from "../components/ResponsePopup";
+import { useVoiceCapture } from "../hooks/useVoiceCapture";
+import {
+  useAllocateBudget,
+  useDeletePortfolio,
+  usePortfolios,
+  useRemoveDecisionFromPortfolio,
+} from "../api/queries";
 import { decisionColor, scoreColor } from "../data";
+
+// Extrait un montant en euros d'une phrase transcrite ("répartis un budget
+// de 100 000 euros entre ces actions" -> 100000) — la reconnaissance vocale
+// transcrit déjà les nombres en chiffres, donc une expression régulière
+// suffit ici : pas besoin d'un appel LLM pour cette extraction.
+function parseBudgetFromText(text) {
+  const match = text.match(/(\d[\d\s.,]*)\s*(?:€|euros?)/i);
+  if (!match) return null;
+  const normalized = match[1].replace(/[\s.]/g, "").replace(",", ".");
+  const value = parseFloat(normalized);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
 
 export default function MonPortefeuille() {
   const { data: portfolios, isError } = usePortfolios();
   const deletePortfolioMutation = useDeletePortfolio();
   const removeDecisionMutation = useRemoveDecisionFromPortfolio();
+  const allocateBudgetMutation = useAllocateBudget();
+
+  const [popup, setPopup] = useState(null);
+  // Quel portefeuille a déclenché l'écoute — une ref, pas un state : lue de
+  // façon synchrone au clic (avant le rendu suivant), contrairement à un
+  // state dont la mise à jour n'est pas encore visible dans le même geste.
+  const activePortfolioIdRef = useRef(null);
+
+  const voice = useVoiceCapture({
+    onListening: () => setPopup({ title: "Demander à George", status: "listening", text: "" }),
+    onInterim: (text) => setPopup((prev) => (prev?.status === "listening" ? { ...prev, text } : prev)),
+    onError: (message) => setPopup({ title: "Demander à George", status: "error", text: message }),
+    onFinal: (question) => {
+      if (!question) {
+        setPopup({ title: "Demander à George", status: "error", text: "Aucune parole détectée — réessayez." });
+        return;
+      }
+      const budget = parseBudgetFromText(question);
+      if (budget == null) {
+        setPopup({
+          title: "Demander à George",
+          status: "error",
+          text: `Je n'ai pas compris de montant en euros dans « ${question} ». Précisez par exemple « répartis un budget de 50 000 euros ».`,
+        });
+        return;
+      }
+      const title = `Demander à George — « ${question} »`;
+      setPopup({ title, status: "loading", text: null });
+      allocateBudgetMutation.mutate(
+        { portfolioId: activePortfolioIdRef.current, budget },
+        {
+          onSuccess: (data) => setPopup({ title, status: "done", text: data.summary }),
+          onError: (err) => setPopup({ title, status: "error", text: err.message }),
+        }
+      );
+    },
+  });
+
+  function askGeorge(portfolioId) {
+    activePortfolioIdRef.current = portfolioId;
+    voice.start();
+  }
+
+  function closePopup() {
+    voice.abort();
+    setPopup(null);
+  }
 
   return (
     <div className="h-full overflow-y-auto gd-scrollbar px-5 py-6">
+      <ResponsePopup popup={popup} onClose={closePopup} onStopListening={voice.stop} />
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
           <div className="text-xs tracking-widest" style={{ color: "var(--warning)", letterSpacing: "0.2em" }}>
@@ -39,7 +107,16 @@ export default function MonPortefeuille() {
         {(portfolios ?? []).map((portfolio) => (
           <div key={portfolio.id} className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="display text-[15px] font-semibold">{portfolio.name}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="display text-[15px] font-semibold">{portfolio.name}</h2>
+                <button
+                  onClick={() => askGeorge(portfolio.id)}
+                  className="text-[11px] px-2.5 py-1 rounded-full border"
+                  style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+                >
+                  🎙 Demander à George
+                </button>
+              </div>
               <button
                 onClick={() => deletePortfolioMutation.mutate(portfolio.id)}
                 className="text-[11px] px-2.5 py-1 rounded-full border"
@@ -58,7 +135,7 @@ export default function MonPortefeuille() {
                   <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 680 }}>
                     <thead>
                       <tr style={{ background: "var(--panel-alt)", color: "var(--text-dim)" }}>
-                        {["Ticker", "Décision", "Entrée", "Take-profit", "Stop-loss", "Confiance", ""].map((h) => (
+                        {["Ticker", "Entrée", "Take-profit", "Stop-loss", "Confiance", "Quantité", ""].map((h) => (
                           <th
                             key={h}
                             className="text-left px-3 py-2 font-normal border-b"
@@ -72,11 +149,8 @@ export default function MonPortefeuille() {
                     <tbody>
                       {portfolio.decisions.map((d, i) => (
                         <tr key={d.id} style={{ background: i % 2 === 0 ? "var(--bg)" : "var(--panel)" }}>
-                          <td className="px-3 py-2 font-bold">{d.symbol}</td>
-                          <td className="px-3 py-2">
-                            <span className="font-bold" style={{ color: decisionColor(d.decision_type) }}>
-                              {d.decision_type}
-                            </span>
+                          <td className="px-3 py-2 font-bold" style={{ color: decisionColor(d.decision_type) }}>
+                            {d.symbol}
                           </td>
                           <td className="px-3 py-2">{d.entry_price.toFixed(2)} €</td>
                           <td className="px-3 py-2">
@@ -86,6 +160,7 @@ export default function MonPortefeuille() {
                           <td className="px-3 py-2 font-bold" style={{ color: scoreColor(d.confidence) }}>
                             {Math.round(d.confidence)}%
                           </td>
+                          <td className="px-3 py-2 mono">{d.quantity ?? "—"}</td>
                           <td className="px-3 py-2">
                             <button
                               onClick={() =>

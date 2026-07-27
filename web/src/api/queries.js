@@ -105,3 +105,14 @@ export function useRemoveDecisionFromPortfolio() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
   });
 }
+
+// Répartition d'un budget entre les décisions d'un portefeuille (action
+// vocale "Demander à George") — calcul déterministe côté serveur
+// (engine/portfolio_allocation.py), pas un appel LLM.
+export function useAllocateBudget() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ portfolioId, budget }) => apiPost(`/portfolios/${portfolioId}/allocate`, { budget }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
+  });
+}

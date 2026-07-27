@@ -208,7 +208,10 @@ Fonctionnalité demandée directement par l'utilisateur, pas dans `George_Prompt
 - **`GET /portfolios`** — liste tous les portefeuilles, chacun avec ses décisions complètes.
 - **`DELETE /portfolios/{id}`** — supprime un portefeuille entier.
 - **`DELETE /portfolios/{id}/decisions/{decision_id}`** — retire une seule décision d'un portefeuille.
+- **`POST /portfolios/{id}/allocate`** (`{"budget": 100000}`) — répartit un budget entre les décisions du portefeuille (pondération confiance × ratio gain/risque, calcul déterministe, voir `engine/portfolio_allocation.py`), fixe la quantité (nombre entier d'actions) de chacune, et renvoie un résumé texte de la répartition.
 
-Sur l'écran **Paniers** : une colonne « Portefeuille » (case à cocher) entre Confiance et Créée le. Cocher des lignes ne les envoie pas tout de suite à l'API — un bouton « Créer un portefeuille (N) » apparaît, ouvrant un popup (nom + ❌ Annuler / ✅ Enregistrer) qui appelle `POST /portfolios` seulement à la confirmation. Le nouvel écran **Mon Portefeuille** (onglet dédié) liste chaque portefeuille sauvegardé avec ses décisions, et permet de retirer une décision ou de supprimer un portefeuille entier.
+Sur l'écran **Paniers** : une colonne « Portefeuille » (case à cocher) entre Confiance et Créée le. Cocher des lignes ne les envoie pas tout de suite à l'API — un bouton « Créer un portefeuille (N) » apparaît, ouvrant un popup (nom + ❌ Annuler / ✅ Enregistrer) qui appelle `POST /portfolios` seulement à la confirmation.
+
+Le nouvel écran **Mon Portefeuille** (onglet dédié) liste chaque portefeuille sauvegardé avec ses décisions (Ticker, Entrée, Take-profit, Stop-loss, Confiance, **Quantité**), permet de retirer une décision ou de supprimer un portefeuille entier, et propose un bouton **🎙 Demander à George** par portefeuille : commande vocale (même reconnaissance vocale que sur Univers, voir `web/src/hooks/useVoiceCapture.js`) qui comprend un montant en euros dans la phrase ("répartis un budget de 100 000 euros entre ces actions en fonction du risque et des profits") et appelle `POST /portfolios/{id}/allocate` avec ce montant.
 
 Les onglets « Décisions » et « Alertes » (`Placeholder` jamais implémentés depuis la Phase 3) ont été retirés de la navigation à cette occasion.
