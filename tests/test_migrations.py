@@ -18,6 +18,7 @@ EXPECTED_TABLES = {
     "baskets",
     "basket_securities",
     "pattern_candidates",
+    "agent_events",
 }
 
 

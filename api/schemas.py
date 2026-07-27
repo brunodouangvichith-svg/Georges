@@ -1,0 +1,92 @@
+"""Schémas Pydantic de réponse de l'API (Phase 3).
+
+Toutes les listes sont enveloppées dans le même schéma générique de
+pagination (`Page[T]`) : `{"items": [...], "total": N, "limit": L, "offset": O}`.
+"""
+
+from datetime import datetime
+from typing import Generic, TypeVar
+
+from pydantic import BaseModel, ConfigDict
+
+T = TypeVar("T")
+
+
+class Page(BaseModel, Generic[T]):
+    items: list[T]
+    total: int
+    limit: int
+    offset: int
+
+
+class SecurityOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    symbol: str
+    name: str
+    country: str
+    currency: str
+    sector: str
+    theme: str | None = None
+
+
+class PriceBarOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    ts: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+
+
+class PatternOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    symbol: str
+    pattern_type: str
+    detected_at: datetime
+    confidence: float
+    context: dict
+
+
+class BasketOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    type: str
+
+
+class GeorgeIndexOut(BaseModel):
+    basket_id: int
+    basket_name: str
+    george_index: float | None
+
+
+class DecisionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    symbol: str
+    decision_type: str
+    entry_price: float
+    take_profit: float | None
+    stop_loss: float | None
+    confidence: float
+    rationale: str | None
+    created_at: datetime
+
+
+class AgentEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    agent_name: str
+    description: str
+    status: str
+    symbol: str | None
+    created_at: datetime
+    context: dict

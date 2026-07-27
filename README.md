@@ -1,15 +1,15 @@
 # George
 
-Agent d'analyse technique des marchés financiers. Ce dépôt suit la roadmap détaillée dans `George_Prompts_Claude_Code.md` (8 phases). Ce README couvre les **Phases 0, 1 et 2** : fondations du projet (structure, Docker, schéma de base de données), moteur quantitatif (ingestion des prix, détection de patterns) et mémoire historique/apprentissage continu (backtesting, score de confiance appris, paniers, George Index).
+Agent d'analyse technique des marchés financiers. Ce dépôt suit la roadmap détaillée dans `George_Prompts_Claude_Code.md` (8 phases). Ce README couvre les **Phases 0 à 3** : fondations du projet (structure, Docker, schéma de base de données), moteur quantitatif (ingestion des prix, détection de patterns), mémoire historique/apprentissage continu (backtesting, score de confiance appris, paniers, George Index), et l'API + l'interface web MVP branchée sur des données réelles.
 
 ## Structure du dépôt
 
 ```
 ingestion/   ingestion de données (yfinance) + schéma DB (migrations Alembic) — Phase 0/1
-engine/      moteur de détection de patterns + scoring de confiance — Phase 1, déjà en place
+engine/      moteur de détection de patterns + scoring de confiance — Phase 1/2, déjà en place
 agents/      sous-agents de veille (presse, macro, géopolitique...) — Phase 7 (pas encore implémenté)
-api/         API FastAPI — Phase 3 (pas encore implémenté)
-web/         interface web React (Vite + Tailwind) — Phase 3, déjà en place
+api/         API FastAPI — Phase 3, déjà en place
+web/         interface web React (Vite + Tailwind), branchée sur l'API — Phase 3, déjà en place
 mobile/      application mobile (pas encore planifié)
 infra/       docker-compose.yml et configuration d'infrastructure
 tests/       tests pytest
@@ -57,7 +57,7 @@ Avec l'environnement Docker démarré (étape 1) :
 alembic upgrade head
 ```
 
-Ceci crée les 8 tables du schéma : `securities`, `prices_ohlcv` (hypertable TimescaleDB), `patterns_detected`, `decisions`, `decision_outcomes` (migration `0001`), puis `baskets`, `basket_securities`, `pattern_candidates` (migration `0002`, Phase 2).
+Ceci crée les 9 tables du schéma : `securities`, `prices_ohlcv` (hypertable TimescaleDB), `patterns_detected`, `decisions`, `decision_outcomes` (migration `0001`), `baskets`, `basket_securities`, `pattern_candidates` (migration `0002`, Phase 2), puis `agent_events` (migration `0003`, Phase 3).
 
 Par défaut, la connexion utilisée est `postgresql+psycopg://george:george@localhost:5432/george` (voir `ingestion/db.py`). Pour la surcharger, définir la variable d'environnement `DATABASE_URL` avant d'exécuter `alembic` (ou tout autre script Python du dépôt).
 
@@ -118,6 +118,39 @@ La formule exacte du George Index est documentée dans `engine/george_index.md` 
 
 Comme pour la Phase 1, tout le code testable sans base (`engine/features.py`, `engine/backtest.py`, `engine/george_index.py`, `engine/scoring.py`) l'est : `pytest tests/test_features.py tests/test_backtest.py tests/test_george_index.py tests/test_scoring.py`.
 
-## Interface web
+## 9. Lancer l'API (Phase 3)
 
-Le prototype front-end (`web/`) est déjà implémenté — voir `web/README.md` et `CLAUDE.md` à la racine pour le lancer. Il fonctionne aujourd'hui avec des données fictives (`web/src/data.js`) ; le raccordement à l'API réelle (`api/`, Phase 3) reste à faire.
+Avec l'environnement Docker démarré et les migrations appliquées (étapes 1 et 3) :
+
+```bash
+uvicorn api.main:app --reload
+```
+
+Documentation interactive générée automatiquement par FastAPI : [localhost:8000/docs](http://localhost:8000/docs) (Swagger UI) et `/openapi.json`. Endpoints : `GET /securities` (paginé, filtrable par `basket_id`), `GET /securities/{symbol}/patterns`, `GET /securities/{symbol}/prices` (ajouté au-delà de la liste minimale du prompt — indispensable au graphique en chandeliers du panneau de détail), `GET /baskets`, `GET /baskets/{id}/george-index` (réutilise directement `engine.george_index`, Phase 2), `GET /decisions` (filtrable par `status`/`basket_id`), `GET /agents/activity` (filtrable par `status`/`symbol`). Pas d'authentification à ce stade (Phase 9).
+
+Pour peupler un peu la base au-delà de l'univers CAC 40 et de son historique de prix (paniers, décisions, activité d'agents — sinon l'API renvoie des listes vides, ce qui est un état honnête mais peu démonstratif) :
+
+```bash
+python -m ingestion.seed_demo
+```
+
+Crée un panier par secteur (équipondéré), et — seulement pour les titres ayant déjà un historique de prix (`ingestion.ohlcv`) — quelques décisions et événements d'agents **explicitement illustratifs** (`ingestion/seed_demo.py`), en attendant que les Phases 6/7 les génèrent réellement. Idempotent.
+
+Tests d'intégration (`tests/test_api.py`, pytest + `fastapi.testclient`) : la plupart nécessitent Docker (testcontainers), mais `test_db_unreachable_returns_503_with_cors_headers` ne l'exige pas — il couvre spécifiquement un piège Starlette rencontré pendant le développement (voir `api/main.py:database_exception_handler`) où un handler enregistré pour la classe `Exception` nue est redirigé vers `ServerErrorMiddleware`, *au-dessus* de `CORSMiddleware`, produisant une erreur CORS trompeuse côté navigateur au lieu du vrai message d'erreur.
+
+## 10. Interface web (Phase 3)
+
+```bash
+cd web
+npm install
+cp .env.example .env   # optionnel : surcharge VITE_API_BASE_URL (défaut : http://localhost:8000)
+npm run dev
+```
+
+Branchée sur l'API réelle via [React Query](https://tanstack.com/query) (`web/src/api/`) — plus de données fictives dans les vues Univers/Paniers (voir `CLAUDE.md` pour le détail de l'architecture). Base vide ou API non démarrée : chaque vue affiche un message d'état clair (« Aucun titre en base », « Impossible de contacter l'API »...) plutôt qu'un écran vide ou cassé.
+
+```bash
+npm run build   # build de production
+npm run lint     # oxlint
+npm run test     # Vitest + React Testing Library — aucune dépendance à Docker ni à l'API réelle (hooks mockés)
+```

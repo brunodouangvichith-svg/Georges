@@ -118,3 +118,22 @@ class PatternCandidate(Base):
     detected_at: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     confidence: Mapped[float] = mapped_column(Numeric, nullable=False)
     context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+
+class AgentEvent(Base):
+    """Ligne d'activité d'un sous-agent de veille (Phase 7), au format
+    carnet d'ordres consommé par `GET /agents/activity` (Phase 3) et affiché
+    dans le flux d'activité de `web/`. Aucun sous-agent n'existe encore pour
+    l'alimenter — table créée en avance, comme `pattern_candidates`."""
+
+    __tablename__ = "agent_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)  # validated | pending | quarantine
+    symbol: Mapped[str | None] = mapped_column(ForeignKey("securities.symbol"), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+    context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)

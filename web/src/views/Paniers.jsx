@@ -1,36 +1,54 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp, Eye, Wallet } from "lucide-react";
-import { positions, georgeIndex, CAPITAL, decisionColor, scoreColor } from "../data";
+import { useBaskets, useDecisions, useGeorgeIndex, useSecurities } from "../api/queries";
+import { decisionColor, scoreColor } from "../data";
 
 const PIE_COLORS = ["#ffb020", "#3ddc84", "#5aa9ff", "#ff5c5c", "#c58aff", "#4fd6c5", "#e0975a", "#8b95a1", "#e85d9a", "#7fd6ff"];
-const FILTERS = ["Tous", "Achat", "Renforcer", "Surveiller"];
+const DECISION_TYPES = ["Achat", "Renforcer", "Surveiller", "Alléger"];
+
+function BasketIndexRow({ basketId, basketName }) {
+  const { data, isLoading } = useGeorgeIndex(basketId);
+  const score = data?.george_index ?? null;
+
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span>{basketName}</span>
+        <span className="font-bold" style={{ color: score != null ? scoreColor(score) : "var(--text-dim)" }}>
+          {isLoading ? "…" : score != null ? Math.round(score) : "—"}
+        </span>
+      </div>
+      <div className="rounded-full h-1.5" style={{ background: "var(--panel-alt)" }}>
+        <div
+          className="rounded-full h-1.5"
+          style={{ width: `${score ?? 0}%`, background: score != null ? scoreColor(score) : "var(--hairline)" }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function Paniers() {
-  const [filter, setFilter] = useState("Tous");
+  const { data: basketsPage, isLoading: basketsLoading, isError: basketsError } = useBaskets();
+  const { data: securitiesPage, isError: securitiesError } = useSecurities({ limit: 200 });
+  const { data: decisionsPage, isError: decisionsError } = useDecisions({ limit: 200 });
+  const apiUnreachable = basketsError || securitiesError || decisionsError;
 
-  const investedPct = positions.reduce((s, p) => s + p.weight, 0);
-  const cashPct = 100 - investedPct;
-
-  const filtered = useMemo(
-    () => (filter === "Tous" ? positions : positions.filter((p) => p.dec === filter)),
-    [filter]
-  );
-
-  const counts = useMemo(() => {
-    const c = { Achat: 0, Renforcer: 0, Surveiller: 0 };
-    positions.forEach((p) => { c[p.dec] = (c[p.dec] || 0) + 1; });
-    return c;
-  }, []);
-
-  const avgConf = Math.round(positions.reduce((s, p) => s + p.conf, 0) / positions.length);
+  const baskets = basketsPage ?? [];
+  const securities = securitiesPage?.items ?? [];
+  const decisions = decisionsPage?.items ?? [];
 
   const sectorAgg = useMemo(() => {
     const map = {};
-    positions.forEach((p) => { map[p.basket] = (map[p.basket] || 0) + p.weight; });
-    map["Trésorerie"] = cashPct;
+    for (const s of securities) map[s.sector] = (map[s.sector] || 0) + 1;
     return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [cashPct]);
+  }, [securities]);
+
+  const decisionCounts = useMemo(() => {
+    const counts = {};
+    for (const d of decisions) counts[d.decision_type] = (counts[d.decision_type] || 0) + 1;
+    return counts;
+  }, [decisions]);
 
   return (
     <div className="h-full overflow-y-auto gd-scrollbar px-5 py-6">
@@ -40,148 +58,158 @@ export default function Paniers() {
             <div className="text-xs tracking-widest" style={{ color: "var(--warning)", letterSpacing: "0.2em" }}>
               GEORGE · PANIERS
             </div>
-            <h1 className="display text-2xl sm:text-3xl font-bold mt-1">Portefeuille de test — 1 000 000 €</h1>
+            <h1 className="display text-2xl sm:text-3xl font-bold mt-1">Paniers &amp; décisions</h1>
             <div className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
-              Simulation illustrative · patterns et confiances non issus d'un flux de marché réel
+              Univers suivi regroupé par panier — George Index calculé en temps réel depuis la base.
             </div>
           </div>
           <div className="flex gap-3 text-xs">
             {[
-              ["Investi", `${investedPct}%`, "var(--positive)"],
-              ["Confiance moy.", `${avgConf}%`, "var(--warning)"],
-              ["Lignes", positions.length, "var(--text)"],
+              ["Paniers", baskets.length, "var(--positive)"],
+              ["Titres suivis", securities.length, "var(--warning)"],
+              ["Décisions", decisions.length, "var(--text)"],
             ].map(([label, value, color]) => (
               <div key={label} className="px-3 py-2 rounded-lg border" style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}>
                 <div style={{ color: "var(--text-dim)" }}>{label}</div>
-                <div className="font-bold text-[15px]" style={{ color }}>{value}</div>
+                <div className="font-bold text-[15px]" style={{ color }}>
+                  {value}
+                </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <div className="rounded-lg p-3 flex items-center gap-3 border" style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}>
-            <TrendingUp size={18} color="var(--positive)" />
-            <div>
-              <div className="text-xs" style={{ color: "var(--text-dim)" }}>Achat / Renforcer</div>
-              <div className="font-bold" style={{ color: "var(--positive)" }}>{counts.Achat + counts.Renforcer} positions</div>
-            </div>
+        {apiUnreachable && (
+          <div
+            className="text-[13px] p-4 rounded-lg border mb-6"
+            style={{ borderColor: "var(--negative)", color: "var(--negative)" }}
+          >
+            Impossible de contacter l'API — vérifiez qu'elle tourne (<code>uvicorn api.main:app --reload</code>).
           </div>
-          <div className="rounded-lg p-3 flex items-center gap-3 border" style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}>
-            <Eye size={18} color="var(--warning)" />
-            <div>
-              <div className="text-xs" style={{ color: "var(--text-dim)" }}>Surveiller</div>
-              <div className="font-bold" style={{ color: "var(--warning)" }}>{counts.Surveiller} positions</div>
+        )}
+
+        <div className="grid grid-cols-4 gap-3 mb-6">
+          {DECISION_TYPES.map((status) => (
+            <div key={status} className="rounded-lg p-3 border" style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}>
+              <div className="text-xs" style={{ color: "var(--text-dim)" }}>
+                {status}
+              </div>
+              <div className="font-bold" style={{ color: decisionColor(status) }}>
+                {decisionCounts[status] ?? 0}
+              </div>
             </div>
-          </div>
-          <div className="rounded-lg p-3 flex items-center gap-3 border" style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}>
-            <Wallet size={18} color="var(--text-dim)" />
-            <div>
-              <div className="text-xs" style={{ color: "var(--text-dim)" }}>Réserve de cash</div>
-              <div className="font-bold">{cashPct}% · {(CAPITAL * cashPct / 100).toLocaleString("fr-FR")} €</div>
-            </div>
-          </div>
+          ))}
         </div>
 
         <div className="grid lg:grid-cols-5 gap-5 mb-6">
           <div className="lg:col-span-2 rounded-lg p-4 border" style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}>
-            <div className="text-xs mb-3 tracking-wider" style={{ color: "var(--warning)" }}>GEORGE INDEX PAR PANIER</div>
+            <div className="text-xs mb-3 tracking-wider" style={{ color: "var(--warning)" }}>
+              GEORGE INDEX PAR PANIER
+            </div>
+            {basketsLoading && (
+              <div className="text-xs" style={{ color: "var(--text-dim)" }}>
+                Chargement…
+              </div>
+            )}
+            {!basketsLoading && baskets.length === 0 && (
+              <div className="text-xs" style={{ color: "var(--text-dim)" }}>
+                Aucun panier. Lancez <code>python -m ingestion.seed_demo</code>.
+              </div>
+            )}
             <div className="space-y-3">
-              {georgeIndex.map((g) => (
-                <div key={g.basket}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span>{g.basket}</span>
-                    <span className="font-bold" style={{ color: scoreColor(g.score) }}>{g.score}</span>
-                  </div>
-                  <div className="rounded-full h-1.5" style={{ background: "var(--panel-alt)" }}>
-                    <div className="rounded-full h-1.5" style={{ width: `${g.score}%`, background: scoreColor(g.score) }} />
-                  </div>
-                </div>
+              {baskets.map((b) => (
+                <BasketIndexRow key={b.id} basketId={b.id} basketName={b.name} />
               ))}
             </div>
           </div>
 
           <div className="lg:col-span-3 rounded-lg p-4 border" style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}>
-            <div className="text-xs mb-1 tracking-wider" style={{ color: "var(--warning)" }}>ALLOCATION PAR PANIER</div>
-            <div style={{ height: 260 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={sectorAgg} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={1}>
-                    {sectorAgg.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="var(--panel)" />)}
-                  </Pie>
-                  <Tooltip
-                    formatter={(v, n) => [`${v}%`, n]}
-                    contentStyle={{ background: "var(--panel-alt)", border: "1px solid var(--hairline)", borderRadius: 6, fontSize: 12, color: "var(--text)" }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="text-xs mb-1 tracking-wider" style={{ color: "var(--warning)" }}>
+              RÉPARTITION DE L'UNIVERS PAR SECTEUR
             </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-              {sectorAgg.map((s, i) => (
-                <div key={s.name} className="flex items-center gap-1 text-xs" style={{ color: "var(--text-dim)" }}>
-                  <span className="inline-block w-2 h-2 rounded-sm" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                  {s.name} · {s.value}%
+            {sectorAgg.length === 0 ? (
+              <div className="text-xs mt-3" style={{ color: "var(--text-dim)" }}>
+                Aucun titre en base.
+              </div>
+            ) : (
+              <>
+                <div style={{ height: 260 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={sectorAgg} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={1}>
+                        {sectorAgg.map((_, i) => (
+                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="var(--panel)" />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(v, n) => [`${v} titre${v > 1 ? "s" : ""}`, n]}
+                        contentStyle={{ background: "var(--panel-alt)", border: "1px solid var(--hairline)", borderRadius: 6, fontSize: 12, color: "var(--text)" }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                  {sectorAgg.map((s, i) => (
+                    <div key={s.name} className="flex items-center gap-1 text-xs" style={{ color: "var(--text-dim)" }}>
+                      <span className="inline-block w-2 h-2 rounded-sm" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                      {s.name} · {s.value}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="flex gap-2 mb-3">
-          {FILTERS.map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className="text-xs px-3 py-1.5 rounded-md border"
-              style={{
-                background: filter === f ? "var(--warning)" : "var(--panel)",
-                color: filter === f ? "#1a1305" : "var(--text-dim)",
-                borderColor: filter === f ? "var(--warning)" : "var(--hairline)",
-                fontWeight: filter === f ? 700 : 400,
-              }}
-            >
-              {f}
-            </button>
-          ))}
+        <div className="text-xs mb-3 tracking-wider" style={{ color: "var(--warning)" }}>
+          DÉCISIONS RÉCENTES
         </div>
-
-        <div className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--hairline)" }}>
-          <div className="overflow-x-auto gd-scrollbar">
-            <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 680 }}>
-              <thead>
-                <tr style={{ background: "var(--panel-alt)", color: "var(--text-dim)" }}>
-                  {["Ticker", "Société", "Panier", "Poids", "Montant", "Pattern", "Confiance", "Décision"].map((h) => (
-                    <th key={h} className="text-left px-3 py-2 font-normal border-b" style={{ borderColor: "var(--hairline)" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((p, i) => {
-                  const Icon = p.dec === "Achat" || p.dec === "Renforcer" ? TrendingUp : Eye;
-                  return (
-                    <tr key={p.t} style={{ background: i % 2 === 0 ? "var(--bg)" : "var(--panel)" }}>
-                      <td className="px-3 py-2 font-bold">{p.t}</td>
-                      <td className="px-3 py-2" style={{ color: "var(--text-dim)" }}>{p.n}</td>
-                      <td className="px-3 py-2" style={{ color: "var(--text-dim)" }}>{p.basket}</td>
-                      <td className="px-3 py-2">{p.weight}%</td>
-                      <td className="px-3 py-2">{(CAPITAL * p.weight / 100).toLocaleString("fr-FR")} €</td>
-                      <td className="px-3 py-2" style={{ color: "var(--text-dim)" }}>{p.pattern}</td>
-                      <td className="px-3 py-2 font-bold" style={{ color: scoreColor(p.conf) }}>{p.conf}%</td>
+        {decisions.length === 0 ? (
+          <div className="text-xs" style={{ color: "var(--text-dim)" }}>
+            Aucune décision enregistrée. Lancez <code>python -m ingestion.seed_demo</code>.
+          </div>
+        ) : (
+          <div className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--hairline)" }}>
+            <div className="overflow-x-auto gd-scrollbar">
+              <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 680 }}>
+                <thead>
+                  <tr style={{ background: "var(--panel-alt)", color: "var(--text-dim)" }}>
+                    {["Ticker", "Décision", "Entrée", "Take-profit", "Stop-loss", "Confiance", "Créée le"].map((h) => (
+                      <th key={h} className="text-left px-3 py-2 font-normal border-b" style={{ borderColor: "var(--hairline)" }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {decisions.map((d, i) => (
+                    <tr key={d.id} style={{ background: i % 2 === 0 ? "var(--bg)" : "var(--panel)" }}>
+                      <td className="px-3 py-2 font-bold">{d.symbol}</td>
                       <td className="px-3 py-2">
-                        <span className="inline-flex items-center gap-1 font-bold" style={{ color: decisionColor(p.dec) }}>
-                          <Icon size={12} /> {p.dec}
+                        <span className="font-bold" style={{ color: decisionColor(d.decision_type) }}>
+                          {d.decision_type}
                         </span>
                       </td>
+                      <td className="px-3 py-2">{d.entry_price.toFixed(2)} €</td>
+                      <td className="px-3 py-2">{d.take_profit != null ? `${d.take_profit.toFixed(2)} €` : "—"}</td>
+                      <td className="px-3 py-2">{d.stop_loss != null ? `${d.stop_loss.toFixed(2)} €` : "—"}</td>
+                      <td className="px-3 py-2 font-bold" style={{ color: scoreColor(d.confidence) }}>
+                        {Math.round(d.confidence)}%
+                      </td>
+                      <td className="px-3 py-2" style={{ color: "var(--text-dim)" }}>
+                        {new Date(d.created_at).toLocaleDateString("fr-FR")}
+                      </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="text-xs mt-5 pb-6" style={{ color: "var(--text-dim)" }}>
-          Document de démonstration. Portefeuille, patterns et scores fictifs — ne constitue pas un conseil en investissement.
+          Données réelles issues de l'API — les décisions affichées ici sont pour l'instant un jeu de démonstration illustratif
+          (<code>ingestion/seed_demo.py</code>) tant que les Phases 6/7 (gestion du risque, sous-agents) ne les génèrent pas elles-mêmes.
         </div>
       </div>
     </div>

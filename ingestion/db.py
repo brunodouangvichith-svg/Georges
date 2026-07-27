@@ -6,12 +6,19 @@ from sqlalchemy.orm import sessionmaker
 
 load_dotenv()
 
-DEFAULT_DATABASE_URL = "postgresql+psycopg://george:george@localhost:5432/george"
+
+# 127.0.0.1 plutôt que "localhost" : ce dernier résout aussi en ::1, et
+# psycopg essaie alors les deux adresses l'une après l'autre — quand rien
+# n'écoute, ça double le temps avant l'échec (2 × CONNECT_TIMEOUT_SECONDS)
+# pour rien, ce qui se voit particulièrement à l'usage derrière l'API
+# (voir api/main.py:database_exception_handler) où chaque requête déjà
+# retentée une fois par React Query s'ajoute par-dessus.
+DEFAULT_DATABASE_URL = "postgresql+psycopg://george:george@127.0.0.1:5432/george"
 
 # Sans timeout explicite, psycopg peut rester bloqué largement plus d'une
-# minute (essais IPv6 puis IPv4) quand rien n'écoute sur l'hôte/port —
-# ce qui bloquerait silencieusement tout script attendant un échec rapide
-# pour retomber sur un autre chemin (voir engine/notebooks/pattern_validation.ipynb).
+# minute quand rien n'écoute sur l'hôte/port — ce qui bloquerait
+# silencieusement tout script attendant un échec rapide pour retomber sur un
+# autre chemin (voir engine/notebooks/pattern_validation.ipynb).
 CONNECT_TIMEOUT_SECONDS = 5
 
 
