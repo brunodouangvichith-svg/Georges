@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { useBaskets, useDecisions, useGeorgeIndex, useSecurities } from "../api/queries";
+import ResponsePopup from "../components/ResponsePopup";
+import { useBaskets, useDecisions, useExplainDecision, useGeorgeIndex, useSecurities } from "../api/queries";
 import { decisionColor, scoreColor } from "../data";
 
 const PIE_COLORS = ["#ffb020", "#3ddc84", "#5aa9ff", "#ff5c5c", "#c58aff", "#4fd6c5", "#e0975a", "#8b95a1", "#e85d9a", "#7fd6ff"];
@@ -82,6 +83,33 @@ export default function Paniers() {
     return counts;
   }, [decisions]);
 
+  const [popup, setPopup] = useState(null);
+  const explainMutation = useExplainDecision();
+
+  function openDecisionPopup(decision) {
+    const title = `${decision.symbol} — ${decision.decision_type}`;
+    setPopup({
+      title,
+      status: "prompt",
+      text:
+        `Entrée ${decision.entry_price.toFixed(2)} €` +
+        (decision.take_profit != null ? ` · Take-profit ${decision.take_profit.toFixed(2)} €` : "") +
+        (decision.stop_loss != null ? ` · Stop-loss ${decision.stop_loss.toFixed(2)} €` : "") +
+        ` · Confiance ${Math.round(decision.confidence)}%`,
+      actionLabel: "Demander l'explication complète à George",
+      onAction: () => {
+        setPopup((prev) => ({ ...prev, status: "loading", text: null }));
+        explainMutation.mutate(
+          { decisionId: decision.id },
+          {
+            onSuccess: (data) => setPopup({ title, status: "done", text: data.explanation }),
+            onError: (err) => setPopup({ title, status: "error", text: err.message }),
+          }
+        );
+      },
+    });
+  }
+
   const [minConfidence, setMinConfidence] = useState(0);
   const [decisionTypeFilter, setDecisionTypeFilter] = useState("Toutes");
   const [sortKey, setSortKey] = useState("created_at");
@@ -114,6 +142,7 @@ export default function Paniers() {
 
   return (
     <div className="h-full overflow-y-auto gd-scrollbar px-5 py-6">
+      <ResponsePopup popup={popup} onClose={() => setPopup(null)} />
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
           <div>
@@ -304,7 +333,12 @@ export default function Paniers() {
                 </thead>
                 <tbody>
                   {visibleDecisions.map((d, i) => (
-                    <tr key={d.id} style={{ background: i % 2 === 0 ? "var(--bg)" : "var(--panel)" }}>
+                    <tr
+                      key={d.id}
+                      onClick={() => openDecisionPopup(d)}
+                      className="cursor-pointer"
+                      style={{ background: i % 2 === 0 ? "var(--bg)" : "var(--panel)" }}
+                    >
                       <td className="px-3 py-2 font-bold">{d.symbol}</td>
                       <td className="px-3 py-2">
                         <span className="font-bold" style={{ color: decisionColor(d.decision_type) }}>

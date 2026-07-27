@@ -7,15 +7,17 @@ vi.mock("../api/queries", () => ({
   useSecurities: vi.fn(),
   useDecisions: vi.fn(),
   useGeorgeIndex: vi.fn(),
+  useExplainDecision: vi.fn(),
 }));
 
-import { useBaskets, useDecisions, useGeorgeIndex, useSecurities } from "../api/queries";
+import { useBaskets, useDecisions, useExplainDecision, useGeorgeIndex, useSecurities } from "../api/queries";
 
 function mockEmptyApi() {
   useBaskets.mockReturnValue({ data: [], isLoading: false, isError: false });
   useSecurities.mockReturnValue({ data: { items: [] }, isError: false });
   useDecisions.mockReturnValue({ data: { items: [] }, isError: false });
   useGeorgeIndex.mockReturnValue({ data: null, isLoading: false });
+  useExplainDecision.mockReturnValue({ mutate: vi.fn(), isPending: false });
 }
 
 describe("Paniers", () => {
@@ -99,5 +101,20 @@ describe("Paniers", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Confiance/ })); // re-clic -> inverse
     expect(rowsInOrder()).toEqual(["AAA.PA", "CCC.PA", "BBB.PA"]);
+  });
+
+  it("opens a popup with a prompt to ask George for the full explanation when a decision row is clicked", () => {
+    mockEmptyApi();
+    mockDecisions();
+    const mutate = vi.fn();
+    useExplainDecision.mockReturnValue({ mutate, isPending: false });
+    render(<Paniers />);
+
+    fireEvent.click(screen.getByText("AAA.PA").closest("tr"));
+    expect(screen.getByText("Demander l'explication complète à George")).toBeInTheDocument();
+    expect(screen.getByText(/Confiance 55%/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Demander l'explication complète à George"));
+    expect(mutate).toHaveBeenCalledWith({ decisionId: 1 }, expect.anything());
   });
 });
