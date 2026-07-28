@@ -144,10 +144,10 @@ export default function MonPortefeuille() {
             ) : (
               <div className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--hairline)" }}>
                 <div className="overflow-x-auto gd-scrollbar">
-                  <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 680 }}>
+                  <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 840 }}>
                     <thead>
                       <tr style={{ background: "var(--panel-alt)", color: "var(--text-dim)" }}>
-                        {["Ticker", "Entrée", "Prix", "Take-profit", "Stop-loss", "PnL", "Quantité", ""].map((h) => (
+                        {["Ticker", "Entrée", "Prix", "Take-profit", "Stop-loss", "PnL", "Quantité", "Date", "Heure", ""].map((h) => (
                           <th
                             key={h}
                             className="text-left px-3 py-2 font-normal border-b"
@@ -174,6 +174,10 @@ export default function MonPortefeuille() {
                             {formatPnlPct(d.pnl_pct)}
                           </td>
                           <td className="px-3 py-2 mono">{d.quantity ?? "—"}</td>
+                          <td className="px-3 py-2">{new Date(d.created_at).toLocaleDateString("fr-FR")}</td>
+                          <td className="px-3 py-2 mono">
+                            {new Date(d.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                          </td>
                           <td className="px-3 py-2">
                             <button
                               onClick={() =>

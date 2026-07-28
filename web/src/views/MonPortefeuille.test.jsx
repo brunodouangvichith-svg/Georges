@@ -44,6 +44,7 @@ const PORTFOLIO = {
       stop_loss: 45,
       pnl_pct: 10,
       quantity: 12,
+      created_at: "2026-07-27T14:32:00Z",
     },
   ],
   total_pnl_amount: 60,
@@ -84,6 +85,16 @@ describe("MonPortefeuille", () => {
     expect(screen.queryByText("Confiance")).not.toBeInTheDocument();
     expect(screen.getByText("55.00 €")).toBeInTheDocument(); // current_price
     expect(screen.getByText("+10.0%")).toBeInTheDocument(); // pnl_pct
+  });
+
+  it("shows Date and Heure columns with the decision's created_at split into a date and a time", () => {
+    mockEmptyApi();
+    usePortfolios.mockReturnValue({ data: [PORTFOLIO], isError: false });
+    render(<MonPortefeuille />);
+    expect(screen.getByText("Date")).toBeInTheDocument();
+    expect(screen.getByText("Heure")).toBeInTheDocument();
+    expect(screen.getByText("27/07/2026")).toBeInTheDocument();
+    expect(screen.getByText(/^\d{2}:\d{2}$/)).toBeInTheDocument();
   });
 
   it("shows the portfolio-level PnL total when quantities and prices are available", () => {

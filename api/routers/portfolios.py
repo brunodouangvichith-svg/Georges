@@ -17,7 +17,7 @@ from api.schemas import (
     PortfolioOut,
 )
 from engine.portfolio_allocation import allocate_budget, format_allocation_summary
-from engine.reevaluate_decisions import evaluate_decision
+from engine.reevaluate_decisions import BULLISH_DECISIONS
 from engine.run_detection import load_prices
 from ingestion.models import Decision, Portfolio, PortfolioDecision
 
@@ -37,17 +37,24 @@ def _portfolio_decisions(db: Session, portfolio_id: int) -> list[tuple[Decision,
 
 
 def _current_price_and_pnl(engine, decision: Decision) -> tuple[float | None, float | None]:
-    """Prix le plus récent et rendement (%) depuis l'entrée, réutilisant la
-    même logique direction-consciente (Achat/Renforcer haussier, Alléger
-    baissier) que `engine.reevaluate_decisions.evaluate_decision` — sans
-    dupliquer ce calcul ici. `pnl_pct` reste `None` si aucune séance de prix
-    n'est disponible depuis la création de la décision."""
+    """Prix le plus récent et rendement (%) courant depuis l'entrée, même
+    logique direction-consciente (Achat/Renforcer haussier, Alléger baissier)
+    que `engine.reevaluate_decisions.evaluate_decision` — mais calculé
+    directement sur le dernier cours plutôt qu'en réutilisant cette fonction :
+    son filtre `since = df[df.index >= decision.created_at]` sert à borner
+    l'historique pour la détection de franchissement TP/SL (Phase 6), pas au
+    calcul d'un PnL affiché en direct, et renvoie `None` tant qu'aucune
+    séance n'est postérieure à la création — pour une décision prise sur la
+    clôture du jour même, cela laisse le PnL vide jusqu'à la séance
+    suivante alors que le rendement (nul ce jour-là) est déjà connu.
+    `pnl_pct` reste `None` seulement si aucun prix n'est disponible du tout."""
     df = load_prices(engine, decision.symbol)
     if df.empty:
         return None, None
     current_price = float(df["close"].iloc[-1])
-    outcome = evaluate_decision(decision, df)
-    pnl_pct = outcome[1] if outcome is not None else None
+    entry = float(decision.entry_price)
+    direction = 1 if decision.decision_type in BULLISH_DECISIONS else -1
+    pnl_pct = (current_price - entry) / entry * 100 * direction
     return current_price, pnl_pct
 
 
