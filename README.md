@@ -94,6 +94,8 @@ python -m ingestion.ohlcv
 
 Télécharge, via [yfinance](https://pypi.org/project/yfinance/), l'historique quotidien (2 ans par défaut) de chaque titre de `securities` et le charge dans `prices_ohlcv` (upsert, sans danger à relancer). Les échecs (ticker introuvable, erreur réseau — jusqu'à 3 tentatives par titre) sont listés à la fin sans bloquer les autres titres. Nécessite un accès réseau vers Yahoo Finance.
 
+Aucune tâche planifiée n'existe encore (Phase 7) — même chose déclenchable depuis l'écran **Univers** via le bouton **🔄 Mise à jour des prix** sous « Univers » dans la navigation, qui appelle `POST /prices/refresh` (dure jusqu'à une minute pour tout l'univers).
+
 ## 7. Détecter les figures chartistes (Phase 1)
 
 ```bash

@@ -49,7 +49,7 @@ export default function ResponsePopup({ popup, onClose, onStopListening }) {
               className="text-[13px] leading-relaxed whitespace-pre-wrap max-h-[60vh] overflow-y-auto"
               style={{ color: popup.status === "error" ? "var(--negative)" : "var(--text)" }}
             >
-              {popup.status === "loading" ? "George réfléchit…" : popup.text}
+              {popup.status === "loading" ? popup.loadingText ?? "George réfléchit…" : popup.text}
             </div>
             {popup.status === "prompt" && popup.actionLabel && (
               <button

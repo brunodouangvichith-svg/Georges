@@ -744,3 +744,18 @@ def test_portfolio_decisions_include_current_price_and_pnl(client):
     portfolio = next(p for p in body if p["id"] == portfolio_id)
     assert portfolio["total_invested"] == pytest.approx(1000.0)  # 10 actions à 100.0
     assert portfolio["total_pnl_amount"] == pytest.approx(100.0)  # 10 actions x (110 - 100)
+
+
+def test_refresh_prices_summarizes_updated_and_failed_symbols(client, monkeypatch):
+    import api.routers.prices as prices_router
+
+    monkeypatch.setattr(
+        prices_router,
+        "run_price_refresh",
+        lambda: {"AAA.PA": 500, "BBB.PA": 500, "ZZZ.PA": -1},
+    )
+
+    response = client.post("/prices/refresh")
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {"total": 3, "updated_count": 2, "failed_symbols": ["ZZZ.PA"]}

@@ -11,6 +11,7 @@ import {
   useChat,
   useDecisions,
   useExplainDecision,
+  useRefreshPrices,
   useSecurities,
   useSecurityPatterns,
   useSecurityPrices,
@@ -18,13 +19,7 @@ import {
 
 const FILTERS = ["Tous", "Achat", "Surveiller", "Alléger"];
 
-const SIDEBAR_NAV = [
-  { icon: "◆", label: "Univers", active: true },
-  { icon: "▤", label: "Paniers" },
-  { icon: "✓", label: "Décisions" },
-  { icon: "◔", label: "George Index" },
-  { icon: "⏱", label: "Historique" },
-];
+const SIDEBAR_NAV = [{ icon: "◆", label: "Univers", active: true }];
 
 function EmptyState({ children }) {
   return (
@@ -41,6 +36,29 @@ export default function Univers() {
   const [popup, setPopup] = useState(null); // { title, status: "listening"|"loading"|"done"|"error", text }
   const chatMutation = useChat();
   const explainMutation = useExplainDecision();
+  const refreshPricesMutation = useRefreshPrices();
+
+  function refreshPrices() {
+    setPopup({
+      title: "Mise à jour des prix",
+      status: "loading",
+      text: null,
+      loadingText: "Téléchargement des prix en cours (jusqu'à une minute pour tout l'univers)…",
+    });
+    refreshPricesMutation.mutate(undefined, {
+      onSuccess: (data) => {
+        const failedText = data.failed_symbols.length
+          ? ` Échecs : ${data.failed_symbols.join(", ")}.`
+          : "";
+        setPopup({
+          title: "Mise à jour des prix",
+          status: "done",
+          text: `${data.updated_count}/${data.total} titres mis à jour.${failedText}`,
+        });
+      },
+      onError: (err) => setPopup({ title: "Mise à jour des prix", status: "error", text: err.message }),
+    });
+  }
 
   const voice = useVoiceCapture({
     onListening: () => setPopup({ title: "Commande vocale", status: "listening", text: "" }),
@@ -134,6 +152,15 @@ export default function Univers() {
               {item.label}
             </div>
           ))}
+          <button
+            onClick={refreshPrices}
+            disabled={refreshPricesMutation.isPending}
+            className="flex items-center gap-2.5 text-[13px] font-medium px-2.5 py-2 rounded-lg text-left w-full border-0 bg-transparent"
+            style={{ color: "var(--text-dim)" }}
+          >
+            <span className="w-4 text-center opacity-85">🔄</span>
+            {refreshPricesMutation.isPending ? "Mise à jour…" : "Mise à jour des prix"}
+          </button>
         </div>
 
         {/* Watchlist + tiles */}

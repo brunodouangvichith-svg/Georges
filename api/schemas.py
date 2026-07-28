@@ -166,6 +166,12 @@ class PortfolioOut(BaseModel):
     total_invested: float | None = None  # somme quantité × prix d'entrée, même périmètre que total_pnl_amount
 
 
+class PriceRefreshResponse(BaseModel):
+    total: int
+    updated_count: int
+    failed_symbols: list[str]
+
+
 class AllocateBudgetRequest(BaseModel):
     budget: float
 

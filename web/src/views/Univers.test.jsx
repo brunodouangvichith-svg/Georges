@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import Univers from "./Univers";
 
@@ -12,6 +12,7 @@ vi.mock("../api/queries", () => ({
   useAgentActivity: vi.fn(),
   useChat: vi.fn(),
   useExplainDecision: vi.fn(),
+  useRefreshPrices: vi.fn(),
 }));
 
 import {
@@ -21,6 +22,7 @@ import {
   useDecisions,
   useExplainDecision,
   useGeorgeIndex,
+  useRefreshPrices,
   useSecurities,
   useSecurityPatterns,
   useSecurityPrices,
@@ -36,6 +38,7 @@ function mockEmptyApi() {
   useGeorgeIndex.mockReturnValue({ data: null, isLoading: false });
   useChat.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useExplainDecision.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  useRefreshPrices.mockReturnValue({ mutate: vi.fn(), isPending: false });
 }
 
 describe("Univers", () => {
@@ -76,5 +79,28 @@ describe("Univers", () => {
     });
     render(<Univers />);
     expect(screen.getByText(/posez une question à george/i)).toBeInTheDocument();
+  });
+
+  it("only shows Univers in the sidebar navigation, without Paniers/Décisions/George Index/Historique", () => {
+    render(<Univers />);
+    expect(screen.getByText("Univers")).toBeInTheDocument();
+    expect(screen.queryByText("Paniers")).not.toBeInTheDocument();
+    expect(screen.queryByText("Décisions")).not.toBeInTheDocument();
+    expect(screen.queryByText("George Index")).not.toBeInTheDocument();
+    expect(screen.queryByText("Historique")).not.toBeInTheDocument();
+  });
+
+  it("triggers a price refresh and shows the result summary when the sidebar button is clicked", () => {
+    const mutate = vi.fn();
+    useRefreshPrices.mockReturnValue({ mutate, isPending: false });
+    render(<Univers />);
+
+    fireEvent.click(screen.getByText("Mise à jour des prix"));
+    expect(mutate).toHaveBeenCalled();
+
+    const onSuccess = mutate.mock.calls[0][1].onSuccess;
+    act(() => onSuccess({ total: 102, updated_count: 100, failed_symbols: ["XYZ.PA", "ABC.PA"] }));
+    expect(screen.getByText(/100\/102 titres mis à jour/)).toBeInTheDocument();
+    expect(screen.getByText(/Échecs : XYZ\.PA, ABC\.PA/)).toBeInTheDocument();
   });
 });

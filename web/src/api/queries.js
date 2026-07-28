@@ -116,3 +116,15 @@ export function useAllocateBudget() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
   });
 }
+
+// Déclenchement manuel de `python -m ingestion.ohlcv` (bouton "Mise à jour
+// des prix" de la sidebar Univers) — aucune tâche planifiée n'existe encore
+// (Phase 7). Invalide tout le cache : un nouveau prix affecte potentiellement
+// les patterns, décisions, George Index et portefeuilles, pas juste /securities.
+export function useRefreshPrices() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiPost("/prices/refresh"),
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
+}
