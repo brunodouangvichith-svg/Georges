@@ -1,7 +1,26 @@
+import { useEffect } from "react";
+import { useSpeechOutput } from "../hooks/useSpeechOutput";
+
 // Popup centré partagé par toutes les réponses de George (chat, explication
 // de décision, commande vocale) — extrait de Univers.jsx pour être réutilisé
 // par Paniers.jsx sans dupliquer le rendu.
 export default function ResponsePopup({ popup, onClose, onStopListening }) {
+  const { speaking, speak, stop } = useSpeechOutput();
+
+  // George lit la réponse à voix haute dès qu'elle est disponible. Se
+  // déclenche uniquement sur status "done" (pas "loading"/"error"/"prompt"/
+  // "listening") ; le cleanup coupe la lecture si le popup se ferme, change
+  // de contenu, ou si le composant est démonté.
+  useEffect(() => {
+    if (popup?.status === "done" && popup.text) {
+      speak(popup.text);
+    } else {
+      stop();
+    }
+    return () => stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [popup?.status, popup?.text]);
+
   if (!popup) return null;
 
   return (
@@ -19,9 +38,20 @@ export default function ResponsePopup({ popup, onClose, onStopListening }) {
           <div className="display font-semibold text-[14px]" style={{ color: "var(--accent)" }}>
             {popup.title}
           </div>
-          <button onClick={onClose} style={{ color: "var(--text-dim)" }}>
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            {popup.status === "done" && popup.text && (
+              <button
+                onClick={() => (speaking ? stop() : speak(popup.text))}
+                style={{ color: "var(--text-dim)" }}
+                title={speaking ? "Arrêter la lecture" : "Relire à voix haute"}
+              >
+                {speaking ? "🔊" : "🔈"}
+              </button>
+            )}
+            <button onClick={onClose} style={{ color: "var(--text-dim)" }}>
+              ✕
+            </button>
+          </div>
         </div>
         {popup.status === "listening" ? (
           <div className="flex flex-col items-center gap-4 py-4">
