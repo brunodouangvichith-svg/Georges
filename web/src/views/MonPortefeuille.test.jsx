@@ -34,8 +34,20 @@ const PORTFOLIO = {
   name: "Mes achats",
   created_at: "2026-07-27T10:00:00Z",
   decisions: [
-    { id: 2, symbol: "BBB.PA", decision_type: "Achat", entry_price: 50, take_profit: 55, stop_loss: 45, confidence: 85, quantity: 12 },
+    {
+      id: 2,
+      symbol: "BBB.PA",
+      decision_type: "Achat",
+      entry_price: 50,
+      current_price: 55,
+      take_profit: 60,
+      stop_loss: 45,
+      pnl_pct: 10,
+      quantity: 12,
+    },
   ],
+  total_pnl_amount: 60,
+  total_invested: 600,
 };
 
 describe("MonPortefeuille", () => {
@@ -61,6 +73,38 @@ describe("MonPortefeuille", () => {
     expect(screen.getByText("12")).toBeInTheDocument(); // quantité
     expect(screen.queryByText("Décision")).not.toBeInTheDocument();
     expect(screen.getByText("Quantité")).toBeInTheDocument();
+  });
+
+  it("shows Prix and PnL columns instead of Confiance, with the current price and per-decision PnL", () => {
+    mockEmptyApi();
+    usePortfolios.mockReturnValue({ data: [PORTFOLIO], isError: false });
+    render(<MonPortefeuille />);
+    expect(screen.getByText("Prix")).toBeInTheDocument();
+    expect(screen.getByText("PnL")).toBeInTheDocument();
+    expect(screen.queryByText("Confiance")).not.toBeInTheDocument();
+    expect(screen.getByText("55.00 €")).toBeInTheDocument(); // current_price
+    expect(screen.getByText("+10.0%")).toBeInTheDocument(); // pnl_pct
+  });
+
+  it("shows the portfolio-level PnL total when quantities and prices are available", () => {
+    mockEmptyApi();
+    usePortfolios.mockReturnValue({ data: [PORTFOLIO], isError: false });
+    render(<MonPortefeuille />);
+    expect(screen.getByText("PnL du portefeuille")).toBeInTheDocument();
+    expect(screen.getByText("+60.00 € (+10.0%)")).toBeInTheDocument();
+  });
+
+  it("shows a fallback message instead of a PnL total when no decision has a quantity yet", () => {
+    mockEmptyApi();
+    const portfolioWithoutPnl = {
+      ...PORTFOLIO,
+      decisions: [{ ...PORTFOLIO.decisions[0], quantity: null, current_price: null, pnl_pct: null }],
+      total_pnl_amount: null,
+      total_invested: null,
+    };
+    usePortfolios.mockReturnValue({ data: [portfolioWithoutPnl], isError: false });
+    render(<MonPortefeuille />);
+    expect(screen.getByText(/renseignez des quantités/i)).toBeInTheDocument();
   });
 
   it("removes a single decision from a portfolio via the API", () => {

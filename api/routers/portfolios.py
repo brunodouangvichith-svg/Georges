@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from api import deps
 from api.deps import get_db
 from api.schemas import (
     AllocateBudgetRequest,
@@ -16,6 +17,8 @@ from api.schemas import (
     PortfolioOut,
 )
 from engine.portfolio_allocation import allocate_budget, format_allocation_summary
+from engine.reevaluate_decisions import evaluate_decision
+from engine.run_detection import load_prices
 from ingestion.models import Decision, Portfolio, PortfolioDecision
 
 router = APIRouter(prefix="/portfolios", tags=["portfolios"])
@@ -33,19 +36,55 @@ def _portfolio_decisions(db: Session, portfolio_id: int) -> list[tuple[Decision,
     )
 
 
-def _portfolio_out(db: Session, portfolio: Portfolio) -> PortfolioOut:
+def _current_price_and_pnl(engine, decision: Decision) -> tuple[float | None, float | None]:
+    """Prix le plus récent et rendement (%) depuis l'entrée, réutilisant la
+    même logique direction-consciente (Achat/Renforcer haussier, Alléger
+    baissier) que `engine.reevaluate_decisions.evaluate_decision` — sans
+    dupliquer ce calcul ici. `pnl_pct` reste `None` si aucune séance de prix
+    n'est disponible depuis la création de la décision."""
+    df = load_prices(engine, decision.symbol)
+    if df.empty:
+        return None, None
+    current_price = float(df["close"].iloc[-1])
+    outcome = evaluate_decision(decision, df)
+    pnl_pct = outcome[1] if outcome is not None else None
+    return current_price, pnl_pct
+
+
+def _portfolio_out(db: Session, engine, portfolio: Portfolio) -> PortfolioOut:
     rows = _portfolio_decisions(db, portfolio.id)
-    decisions = [
-        PortfolioDecisionOut.model_validate(decision, from_attributes=True).model_copy(update={"quantity": quantity})
-        for decision, quantity in rows
-    ]
-    return PortfolioOut(id=portfolio.id, name=portfolio.name, created_at=portfolio.created_at, decisions=decisions)
+    decisions = []
+    total_pnl_amount = 0.0
+    total_invested = 0.0
+    has_any_position = False
+
+    for decision, quantity in rows:
+        current_price, pnl_pct = _current_price_and_pnl(engine, decision)
+        decisions.append(
+            PortfolioDecisionOut.model_validate(decision, from_attributes=True).model_copy(
+                update={"quantity": quantity, "current_price": current_price, "pnl_pct": pnl_pct}
+            )
+        )
+        if quantity and pnl_pct is not None:
+            invested = quantity * float(decision.entry_price)
+            total_invested += invested
+            total_pnl_amount += invested * pnl_pct / 100
+            has_any_position = True
+
+    return PortfolioOut(
+        id=portfolio.id,
+        name=portfolio.name,
+        created_at=portfolio.created_at,
+        decisions=decisions,
+        total_pnl_amount=round(total_pnl_amount, 2) if has_any_position else None,
+        total_invested=round(total_invested, 2) if has_any_position else None,
+    )
 
 
 @router.get("", response_model=list[PortfolioOut])
 def list_portfolios(db: Session = Depends(get_db)):
     portfolios = db.execute(select(Portfolio).order_by(Portfolio.created_at.desc())).scalars().all()
-    return [_portfolio_out(db, p) for p in portfolios]
+    return [_portfolio_out(db, deps.engine, p) for p in portfolios]
 
 
 @router.post("", response_model=PortfolioOut)
@@ -67,7 +106,7 @@ def create_portfolio(request: PortfolioCreateRequest, db: Session = Depends(get_
     db.flush()  # attribue portfolio.id avant d'insérer les liens
     db.add_all(PortfolioDecision(portfolio_id=portfolio.id, decision_id=did) for did in request.decision_ids)
     db.commit()
-    return _portfolio_out(db, portfolio)
+    return _portfolio_out(db, deps.engine, portfolio)
 
 
 @router.delete("/{portfolio_id}", status_code=204)
@@ -90,7 +129,7 @@ def remove_decision_from_portfolio(portfolio_id: int, decision_id: int, db: Sess
         raise HTTPException(status_code=404, detail="Cette décision n'est pas dans ce portefeuille.")
     db.delete(link)
     db.commit()
-    return _portfolio_out(db, portfolio)
+    return _portfolio_out(db, deps.engine, portfolio)
 
 
 @router.post("/{portfolio_id}/allocate", response_model=AllocateBudgetResponse)
@@ -129,4 +168,4 @@ def allocate_portfolio_budget(portfolio_id: int, request: AllocateBudgetRequest,
     db.commit()
 
     summary = format_allocation_summary(decisions_for_alloc, allocations, request.budget)
-    return AllocateBudgetResponse(portfolio=_portfolio_out(db, portfolio), summary=summary)
+    return AllocateBudgetResponse(portfolio=_portfolio_out(db, deps.engine, portfolio), summary=summary)

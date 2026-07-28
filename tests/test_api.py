@@ -676,3 +676,71 @@ def test_allocate_budget_rejects_non_positive_budget(client):
 
 def test_allocate_budget_unknown_portfolio_returns_404(client):
     assert client.post("/portfolios/999999/allocate", json={"budget": 1000.0}).status_code == 404
+
+
+def test_portfolio_decisions_include_current_price_and_pnl(client):
+    # created_at explicitement dans le passé (comme test_monitor_and_confirm_exit_flow) :
+    # le fixture "AAA.PA" partagé a un created_at = maintenant, plus tardif
+    # que sa dernière séance de prix (minuit aujourd'hui), ce qui viderait
+    # `since` dans evaluate_decision — un titre dédié évite ce piège.
+    old_ts = pd.Timestamp("2020-01-01", tz="UTC")
+    with deps.engine.begin() as conn:
+        conn.execute(
+            Security.__table__.insert(),
+            [{"symbol": "ZZZ.PA", "name": "Zeta SA", "country": "FR", "currency": "EUR", "sector": "Tech", "theme": None}],
+        )
+        price_rows = [
+            {
+                "symbol": "ZZZ.PA",
+                "ts": old_ts + pd.Timedelta(days=i),
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.0,
+                "volume": 1_000_000,
+            }
+            for i in range(5)
+        ]
+        price_rows.append(
+            {
+                "symbol": "ZZZ.PA",
+                "ts": old_ts + pd.Timedelta(days=5),
+                "open": 108.0,
+                "high": 112.0,
+                "low": 107.0,
+                "close": 110.0,
+                "volume": 1_000_000,
+            }
+        )
+        conn.execute(PriceOHLCV.__table__.insert(), price_rows)
+        decision_id = conn.execute(
+            Decision.__table__.insert()
+            .values(
+                symbol="ZZZ.PA",
+                decision_type="Achat",
+                status="confirmee",
+                entry_price=100.0,
+                take_profit=200.0,  # volontairement loin : rien n'est "atteint" par ce prix
+                stop_loss=50.0,
+                confidence=70.0,
+                created_at=old_ts,
+            )
+            .returning(Decision.id)
+        ).scalar_one()
+
+    portfolio_id = client.post("/portfolios", json={"name": "PnL test", "decision_ids": [decision_id]}).json()["id"]
+
+    # Sans quantité : le PnL par titre est déjà calculable, pas le total du portefeuille.
+    body = client.get("/portfolios").json()
+    portfolio = next(p for p in body if p["id"] == portfolio_id)
+    decision = portfolio["decisions"][0]
+    assert decision["current_price"] == 110.0
+    assert decision["pnl_pct"] == pytest.approx(10.0)  # (110 - 100) / 100 * 100
+    assert portfolio["total_pnl_amount"] is None  # aucune quantité renseignée encore
+
+    # Avec une quantité (via l'allocation) : le total du portefeuille se calcule.
+    client.post(f"/portfolios/{portfolio_id}/allocate", json={"budget": 1000.0})
+    body = client.get("/portfolios").json()
+    portfolio = next(p for p in body if p["id"] == portfolio_id)
+    assert portfolio["total_invested"] == pytest.approx(1000.0)  # 10 actions à 100.0
+    assert portfolio["total_pnl_amount"] == pytest.approx(100.0)  # 10 actions x (110 - 100)

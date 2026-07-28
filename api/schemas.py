@@ -146,9 +146,13 @@ class PortfolioDecisionOut(DecisionOut):
     """`DecisionOut` + `quantity` — le nombre d'actions détenu dans *ce*
     portefeuille (colonne de la table de liaison `portfolio_decisions`, pas
     de `decisions` elle-même : une même décision peut avoir des quantités
-    différentes dans deux portefeuilles distincts)."""
+    différentes dans deux portefeuilles distincts) — et `current_price`/
+    `pnl_pct`, calculés à la volée depuis le prix le plus récent (pas des
+    colonnes stockées), voir `api/routers/portfolios.py:_current_price_and_pnl`."""
 
     quantity: int | None = None
+    current_price: float | None = None
+    pnl_pct: float | None = None
 
 
 class PortfolioOut(BaseModel):
@@ -158,6 +162,8 @@ class PortfolioOut(BaseModel):
     name: str
     created_at: datetime
     decisions: list[PortfolioDecisionOut]
+    total_pnl_amount: float | None = None  # somme des PnL en €, uniquement sur les lignes avec une quantité renseignée
+    total_invested: float | None = None  # somme quantité × prix d'entrée, même périmètre que total_pnl_amount
 
 
 class AllocateBudgetRequest(BaseModel):

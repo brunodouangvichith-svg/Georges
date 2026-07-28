@@ -7,7 +7,19 @@ import {
   usePortfolios,
   useRemoveDecisionFromPortfolio,
 } from "../api/queries";
-import { decisionColor, scoreColor } from "../data";
+import { decisionColor } from "../data";
+
+function pnlColor(value) {
+  return value == null ? "var(--text-dim)" : value >= 0 ? "var(--positive)" : "var(--negative)";
+}
+
+function formatPnlPct(value) {
+  return value == null ? "—" : `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function formatAmount(value) {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)} €`;
+}
 
 // Extrait un montant en euros d'une phrase transcrite ("répartis un budget
 // de 100 000 euros entre ces actions" -> 100000) — la reconnaissance vocale
@@ -135,7 +147,7 @@ export default function MonPortefeuille() {
                   <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 680 }}>
                     <thead>
                       <tr style={{ background: "var(--panel-alt)", color: "var(--text-dim)" }}>
-                        {["Ticker", "Entrée", "Take-profit", "Stop-loss", "Confiance", "Quantité", ""].map((h) => (
+                        {["Ticker", "Entrée", "Prix", "Take-profit", "Stop-loss", "PnL", "Quantité", ""].map((h) => (
                           <th
                             key={h}
                             className="text-left px-3 py-2 font-normal border-b"
@@ -153,12 +165,13 @@ export default function MonPortefeuille() {
                             {d.symbol}
                           </td>
                           <td className="px-3 py-2">{d.entry_price.toFixed(2)} €</td>
+                          <td className="px-3 py-2 mono">{d.current_price != null ? `${d.current_price.toFixed(2)} €` : "—"}</td>
                           <td className="px-3 py-2">
                             {d.take_profit != null ? `${d.take_profit.toFixed(2)} €` : "—"}
                           </td>
                           <td className="px-3 py-2">{d.stop_loss != null ? `${d.stop_loss.toFixed(2)} €` : "—"}</td>
-                          <td className="px-3 py-2 font-bold" style={{ color: scoreColor(d.confidence) }}>
-                            {Math.round(d.confidence)}%
+                          <td className="px-3 py-2 font-bold" style={{ color: pnlColor(d.pnl_pct) }}>
+                            {formatPnlPct(d.pnl_pct)}
                           </td>
                           <td className="px-3 py-2 mono">{d.quantity ?? "—"}</td>
                           <td className="px-3 py-2">
@@ -176,6 +189,22 @@ export default function MonPortefeuille() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+                <div
+                  className="flex items-center justify-between px-3 py-2 text-xs border-t"
+                  style={{ borderColor: "var(--hairline)", background: "var(--panel-alt)" }}
+                >
+                  <span style={{ color: "var(--text-dim)" }}>PnL du portefeuille</span>
+                  {portfolio.total_pnl_amount == null ? (
+                    <span style={{ color: "var(--text-dim)" }}>
+                      Renseignez des quantités (« Demander à George ») pour calculer le PnL total.
+                    </span>
+                  ) : (
+                    <span className="font-bold mono" style={{ color: pnlColor(portfolio.total_pnl_amount) }}>
+                      {formatAmount(portfolio.total_pnl_amount)}
+                      {portfolio.total_invested ? ` (${formatPnlPct((portfolio.total_pnl_amount / portfolio.total_invested) * 100)})` : ""}
+                    </span>
+                  )}
                 </div>
               </div>
             )}
