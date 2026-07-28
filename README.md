@@ -208,7 +208,24 @@ Une décision suit désormais un vrai cycle de vie, `status` en base : `proposee
 
 Testé de bout en bout contre la base de développement réelle (109 figures détectées sur l'univers CAC 40) : 16 propositions générées avec des niveaux cohérents ; voir `tests/test_exit_levels.py` (les 13 types de figures, sans DB), `tests/test_exit_scenarios.py`, `tests/test_reevaluate_decisions.py`, et `tests/test_api.py` pour le cycle complet propose → confirm → monitor → confirm-exit avec Docker.
 
-## 13. Portefeuilles nommés (hors roadmap)
+## 13. Sous-agents de collecte (Phase 7, MVP volontairement réduit)
+
+```bash
+alembic upgrade head              # migration 0008 : collected_info_quarantine
+uvicorn api.main:app --reload     # POST /agents/collect, GET /agents/activity
+```
+
+La Phase 7 complète (orchestrateur LangGraph, Celery+Redis, Playwright/Scrapy, Airflow, 6 sous-agents, 4 modes d'activation) est décrite par la roadmap elle-même comme "l'étape la plus complexe du projet" — plusieurs semaines de travail. Ce qui est construit ici, avec l'accord explicite de l'utilisateur (mode plan) pour réduire le périmètre plutôt que de tout tenter d'un coup :
+
+- **L'orchestrateur** (`agents/orchestrator/run.py:run_collection_task`) et le **module de validation/quarantaine** (`agents/orchestrator/validation.py`) — recoupement multi-sources, score de fiabilité, mise en quarantaine (`collected_info_quarantine`) en cas de désaccord non résolu.
+- **2 sous-agents** sur les 6 prévus, déclenchables manuellement via `POST /agents/collect` (même principe que `POST /prices/refresh`, pas de scheduler) :
+  - **`donnees_macro`** (`agents/collectors/macro.py`) — FRED et la BCE, deux API publiques sans clé. Le taux EUR/USD est recoupé sur les deux sources pour de vrai (valeurs proches mais pas identiques en pratique) ; le taux OAT 10 ans reste à une seule source.
+  - **`synthese_document`** (`agents/collectors/synthesis.py`) — résume un `Report` déjà généré (Phase 4) en quelques indicateurs via un appel Mistral dédié. **Remplace le sous-agent "fondamentaux d'entreprise" (SEC EDGAR)** prévu par la roadmap : vérifié contre `company_tickers.json` de la SEC, seulement ~5-6 des 102 titres suivis ont un vrai dépôt SEC — une couverture jugée trop faible par l'utilisateur pour la construire telle quelle.
+- Différé explicitement : agents de scraping (actualités réglementaires, calendrier résultats, presse sectorielle), veille méthodologique continue de Jane (réservée par la roadmap à une infra de tâches de fond à faible priorité qui n'existe pas encore — sa second-opinion synchrone, elle, est en place depuis la Phase 4), et 3 des 4 modes d'activation (veille continue, batch Airflow, réaction à un manque identifié).
+
+Testé contre l'environnement de dev réel : `POST /agents/collect` avec `donnees_macro` a bien écrit deux `agent_events` validés (OAT 10 ans à 3.68 %, EUR/USD à 1.1385/1.1389 selon la source, écart 0.04 %) ; `synthese_document` contre un vrai rapport a produit une synthèse fidèle aux chiffres réels du rapport, sans rien inventer.
+
+## 14. Portefeuilles nommés (hors roadmap)
 
 Fonctionnalité demandée directement par l'utilisateur, pas dans `George_Prompts_Claude_Code.md` — persistée en base (`portfolios`/`portfolio_decisions`, migration `0006`), pas en localStorage, pour survivre au navigateur qui l'a créée.
 

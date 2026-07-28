@@ -20,6 +20,7 @@ dependencies = [
   "uvicorn[standard]>=0.29",
   "mistralai>=1.5",
   "pgvector>=0.3",
+  "requests>=2.31",
 ]
 
 [project.optional-dependencies]

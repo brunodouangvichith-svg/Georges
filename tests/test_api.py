@@ -22,10 +22,12 @@ from ingestion.models import (
     AgentEvent,
     Basket,
     BasketSecurity,
+    CollectedInfoQuarantine,
     Decision,
     DecisionOutcome,
     PatternDetected,
     PriceOHLCV,
+    Report,
     Security,
 )
 
@@ -763,3 +765,82 @@ def test_refresh_prices_summarizes_updated_and_failed_symbols(client, monkeypatc
     assert response.status_code == 200
     body = response.json()
     assert body == {"total": 3, "updated_count": 2, "failed_symbols": ["ZZZ.PA"]}
+
+
+def _fake_fred_item(value, label="Taux de change EUR/USD", observed_at="2026-07-27"):
+    from agents.orchestrator.types import CollectedItem
+
+    return CollectedItem(label=label, value=value, unit=None, source_name="FRED", source_url="x", observed_at=observed_at)
+
+
+def _fake_ecb_item(value, label="Taux de change EUR/USD", observed_at="2026-07-27"):
+    from agents.orchestrator.types import CollectedItem
+
+    return CollectedItem(label=label, value=value, unit=None, source_name="BCE", source_url="x", observed_at=observed_at)
+
+
+def test_collect_donnees_macro_writes_validated_events_when_sources_agree(client, monkeypatch):
+    import agents.collectors.macro as macro
+
+    monkeypatch.setattr(macro, "fetch_fred_series", lambda *a, **k: _fake_fred_item(1.1385))
+    monkeypatch.setattr(macro, "fetch_ecb_series", lambda *a, **k: _fake_ecb_item(1.1377))
+
+    response = client.post("/agents/collect", json={"task_type": "donnees_macro"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["quarantined_count"] == 0
+    assert len(body["validated"]) == 2  # OAT (source unique) + EUR/USD (2 sources concordantes)
+    assert all(e["agent_name"] == "donnees_macro" and e["status"] == "validated" for e in body["validated"])
+
+    activity = client.get("/agents/activity", params={"status": "validated"}).json()
+    assert any("EUR/USD" in e["description"] for e in activity["items"])
+
+
+def test_collect_donnees_macro_quarantines_contradictory_sources(client, monkeypatch):
+    import agents.collectors.macro as macro
+
+    monkeypatch.setattr(macro, "fetch_fred_series", lambda *a, **k: _fake_fred_item(1.10))
+    monkeypatch.setattr(macro, "fetch_ecb_series", lambda *a, **k: _fake_ecb_item(1.30))
+
+    response = client.post("/agents/collect", json={"task_type": "donnees_macro"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["quarantined_count"] == 1
+    assert len(body["validated"]) == 1  # seule l'OAT (source unique) est validée
+
+    with deps.engine.begin() as conn:
+        rows = conn.execute(select(CollectedInfoQuarantine).where(CollectedInfoQuarantine.task_type == "donnees_macro")).all()
+    assert len(rows) == 1
+    assert "FRED" in rows[0].reason and "BCE" in rows[0].reason
+
+
+def test_collect_synthese_document_creates_a_validated_event_from_a_real_report(client, mock_llm):
+    report_id = client.post("/reports", json={"basket_id": 1}).json()["id"]
+
+    response = client.post("/agents/collect", json={"task_type": "synthese_document", "report_id": report_id})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["quarantined_count"] == 0
+    assert len(body["validated"]) == 1
+    event = body["validated"][0]
+    assert event["agent_name"] == "synthese_document"
+    assert f"#{report_id}" in event["description"]
+    # `_fake_complete` renvoie le contexte JSON tel quel : le vrai contenu du
+    # rapport (généré par le report_system.txt réel juste au-dessus) doit
+    # s'y retrouver, preuve qu'aucun chiffre n'a été inventé en chemin.
+    assert "Tech FR" in event["context"]["sources"][0]["value"]
+
+
+def test_collect_unknown_task_type_returns_400(client):
+    response = client.post("/agents/collect", json={"task_type": "presse_sectorielle"})
+    assert response.status_code == 400
+
+
+def test_collect_synthese_document_without_report_id_returns_400(client):
+    response = client.post("/agents/collect", json={"task_type": "synthese_document"})
+    assert response.status_code == 400
+
+
+def test_collect_synthese_document_unknown_report_returns_404(client, mock_llm):
+    response = client.post("/agents/collect", json={"task_type": "synthese_document", "report_id": 999999})
+    assert response.status_code == 404

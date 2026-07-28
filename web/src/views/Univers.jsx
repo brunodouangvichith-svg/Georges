@@ -15,6 +15,7 @@ import {
   useSecurities,
   useSecurityPatterns,
   useSecurityPrices,
+  useTriggerCollection,
 } from "../api/queries";
 
 const FILTERS = ["Tous", "Achat", "Surveiller", "Alléger"];
@@ -57,6 +58,26 @@ export default function Univers() {
         });
       },
       onError: (err) => setPopup({ title: "Mise à jour des prix", status: "error", text: err.message }),
+    });
+  }
+
+  const triggerCollectionMutation = useTriggerCollection();
+
+  function triggerMacroCollection() {
+    setPopup({
+      title: "Collecte macro",
+      status: "loading",
+      text: null,
+      loadingText: "Interrogation de FRED et de la BCE en cours…",
+    });
+    triggerCollectionMutation.mutate("donnees_macro", {
+      onSuccess: (data) =>
+        setPopup({
+          title: "Collecte macro",
+          status: "done",
+          text: `${data.validated.length} validée(s), ${data.quarantined_count} en quarantaine.`,
+        }),
+      onError: (err) => setPopup({ title: "Collecte macro", status: "error", text: err.message }),
     });
   }
 
@@ -160,6 +181,15 @@ export default function Univers() {
           >
             <span className="w-4 text-center opacity-85">🔄</span>
             {refreshPricesMutation.isPending ? "Mise à jour…" : "Mise à jour des prix"}
+          </button>
+          <button
+            onClick={triggerMacroCollection}
+            disabled={triggerCollectionMutation.isPending}
+            className="flex items-center gap-2.5 text-[13px] font-medium px-2.5 py-2 rounded-lg text-left w-full border-0 bg-transparent"
+            style={{ color: "var(--text-dim)" }}
+          >
+            <span className="w-4 text-center opacity-85">🌍</span>
+            {triggerCollectionMutation.isPending ? "Collecte…" : "Collecte macro"}
           </button>
         </div>
 

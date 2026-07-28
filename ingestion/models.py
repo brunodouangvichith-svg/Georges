@@ -163,8 +163,12 @@ class Report(Base):
 class AgentEvent(Base):
     """Ligne d'activité d'un sous-agent de veille (Phase 7), au format
     carnet d'ordres consommé par `GET /agents/activity` (Phase 3) et affiché
-    dans le flux d'activité de `web/`. Aucun sous-agent n'existe encore pour
-    l'alimenter — table créée en avance, comme `pattern_candidates`."""
+    dans le flux d'activité de `web/`. Depuis le MVP de la Phase 7
+    (`agents/orchestrator/`), une ligne validée ici est écrite par
+    `run_collection_task` — `agent_name` identifie le sous-agent producteur,
+    ce qui joue le même rôle qu'un `produced_by_agent` séparé sans ajouter de
+    colonne redondante. Les infos non validées vont dans
+    `CollectedInfoQuarantine` plutôt qu'ici."""
 
     __tablename__ = "agent_events"
 
@@ -177,6 +181,29 @@ class AgentEvent(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
     context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+
+class CollectedInfoQuarantine(Base):
+    """Info collectée par un sous-agent (Phase 7) mais dont la validation a
+    échoué — recoupement multi-sources contradictoire (`agents/orchestrator
+    /validation.py:validate`). `payload` porte les valeurs par source qui se
+    contredisent ; `reason` explique le rejet en une phrase. Une info à
+    source unique ne passe jamais ici (elle est `validated` par défaut, voir
+    `validate`) — cette table n'existe que pour les vrais désaccords entre
+    au moins deux sources indépendantes."""
+
+    __tablename__ = "collected_info_quarantine"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_name: Mapped[str] = mapped_column(Text, nullable=False)
+    task_type: Mapped[str] = mapped_column(Text, nullable=False)
+    symbol: Mapped[str | None] = mapped_column(ForeignKey("securities.symbol"), nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 class Portfolio(Base):

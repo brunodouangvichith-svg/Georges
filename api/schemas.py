@@ -106,6 +106,20 @@ class AgentEventOut(BaseModel):
     context: dict
 
 
+class CollectionTaskRequest(BaseModel):
+    """Requête de déclenchement manuel d'une tâche de collecte (Phase 7,
+    MVP) — voir `agents/orchestrator/run.py:run_collection_task`.
+    `report_id` n'est utilisé (et requis) que pour `task_type="synthese_document"`."""
+
+    task_type: str
+    report_id: int | None = None
+
+
+class CollectionTaskResponse(BaseModel):
+    validated: list[AgentEventOut]
+    quarantined_count: int
+
+
 class ChatRequest(BaseModel):
     question: str
 

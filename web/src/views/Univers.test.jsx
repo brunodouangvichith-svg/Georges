@@ -13,6 +13,7 @@ vi.mock("../api/queries", () => ({
   useChat: vi.fn(),
   useExplainDecision: vi.fn(),
   useRefreshPrices: vi.fn(),
+  useTriggerCollection: vi.fn(),
 }));
 
 import {
@@ -26,6 +27,7 @@ import {
   useSecurities,
   useSecurityPatterns,
   useSecurityPrices,
+  useTriggerCollection,
 } from "../api/queries";
 
 function mockEmptyApi() {
@@ -39,6 +41,7 @@ function mockEmptyApi() {
   useChat.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useExplainDecision.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useRefreshPrices.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  useTriggerCollection.mockReturnValue({ mutate: vi.fn(), isPending: false });
 }
 
 describe("Univers", () => {
@@ -102,5 +105,18 @@ describe("Univers", () => {
     act(() => onSuccess({ total: 102, updated_count: 100, failed_symbols: ["XYZ.PA", "ABC.PA"] }));
     expect(screen.getByText(/100\/102 titres mis à jour/)).toBeInTheDocument();
     expect(screen.getByText(/Échecs : XYZ\.PA, ABC\.PA/)).toBeInTheDocument();
+  });
+
+  it("triggers a macro collection and shows the validated/quarantined summary when clicked", () => {
+    const mutate = vi.fn();
+    useTriggerCollection.mockReturnValue({ mutate, isPending: false });
+    render(<Univers />);
+
+    fireEvent.click(screen.getByText("Collecte macro"));
+    expect(mutate).toHaveBeenCalledWith("donnees_macro", expect.anything());
+
+    const onSuccess = mutate.mock.calls[0][1].onSuccess;
+    act(() => onSuccess({ validated: [{}, {}], quarantined_count: 1 }));
+    expect(screen.getByText(/2 validée\(s\), 1 en quarantaine/)).toBeInTheDocument();
   });
 });

@@ -128,3 +128,15 @@ export function useRefreshPrices() {
     onSuccess: () => queryClient.invalidateQueries(),
   });
 }
+
+// Déclenchement manuel d'une tâche de collecte (Phase 7, MVP) — voir
+// api/routers/agents.py:trigger_collection. Pas de scheduler encore : c'est
+// le seul moyen de peupler /agents/activity avec de vraies données pour
+// l'instant.
+export function useTriggerCollection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (taskType) => apiPost("/agents/collect", { task_type: taskType }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agent-activity"] }),
+  });
+}
