@@ -128,6 +128,9 @@ export default function MonPortefeuille() {
                 >
                   🎙 Demander à George
                 </button>
+                <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
+                  Créé le {new Date(portfolio.created_at).toLocaleDateString("fr-FR")}
+                </span>
               </div>
               <button
                 onClick={() => deletePortfolioMutation.mutate(portfolio.id)}
@@ -174,9 +177,13 @@ export default function MonPortefeuille() {
                             {formatPnlPct(d.pnl_pct)}
                           </td>
                           <td className="px-3 py-2 mono">{d.quantity ?? "—"}</td>
-                          <td className="px-3 py-2">{new Date(d.created_at).toLocaleDateString("fr-FR")}</td>
+                          <td className="px-3 py-2">
+                            {d.price_updated_at ? new Date(d.price_updated_at).toLocaleDateString("fr-FR") : "—"}
+                          </td>
                           <td className="px-3 py-2 mono">
-                            {new Date(d.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                            {d.price_updated_at
+                              ? new Date(d.price_updated_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+                              : "—"}
                           </td>
                           <td className="px-3 py-2">
                             <button

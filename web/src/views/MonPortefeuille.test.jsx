@@ -32,7 +32,7 @@ function mockEmptyApi() {
 const PORTFOLIO = {
   id: 1,
   name: "Mes achats",
-  created_at: "2026-07-27T10:00:00Z",
+  created_at: "2026-07-20T10:00:00Z",
   decisions: [
     {
       id: 2,
@@ -44,7 +44,8 @@ const PORTFOLIO = {
       stop_loss: 45,
       pnl_pct: 10,
       quantity: 12,
-      created_at: "2026-07-27T14:32:00Z",
+      created_at: "2026-07-20T14:32:00Z",
+      price_updated_at: "2026-07-27T12:00:00Z",
     },
   ],
   total_pnl_amount: 60,
@@ -87,14 +88,34 @@ describe("MonPortefeuille", () => {
     expect(screen.getByText("+10.0%")).toBeInTheDocument(); // pnl_pct
   });
 
-  it("shows Date and Heure columns with the decision's created_at split into a date and a time", () => {
+  it("shows Date and Heure columns with the price's last-update time, not the decision's creation time", () => {
     mockEmptyApi();
     usePortfolios.mockReturnValue({ data: [PORTFOLIO], isError: false });
     render(<MonPortefeuille />);
     expect(screen.getByText("Date")).toBeInTheDocument();
     expect(screen.getByText("Heure")).toBeInTheDocument();
+    // price_updated_at (27/07/2026) doit s'afficher, pas created_at (20/07/2026).
     expect(screen.getByText("27/07/2026")).toBeInTheDocument();
+    expect(screen.queryByText("20/07/2026")).not.toBeInTheDocument();
     expect(screen.getByText(/^\d{2}:\d{2}$/)).toBeInTheDocument();
+  });
+
+  it("shows a dash for Date/Heure when no price is available for a decision", () => {
+    mockEmptyApi();
+    const portfolioWithoutPrice = {
+      ...PORTFOLIO,
+      decisions: [{ ...PORTFOLIO.decisions[0], price_updated_at: null, current_price: null, pnl_pct: null }],
+    };
+    usePortfolios.mockReturnValue({ data: [portfolioWithoutPrice], isError: false });
+    render(<MonPortefeuille />);
+    expect(screen.queryByText("27/07/2026")).not.toBeInTheDocument();
+  });
+
+  it("shows the portfolio's creation date next to the 'Demander à George' button", () => {
+    mockEmptyApi();
+    usePortfolios.mockReturnValue({ data: [PORTFOLIO], isError: false });
+    render(<MonPortefeuille />);
+    expect(screen.getByText(/créé le 20\/07\/2026/i)).toBeInTheDocument();
   });
 
   it("shows the portfolio-level PnL total when quantities and prices are available", () => {

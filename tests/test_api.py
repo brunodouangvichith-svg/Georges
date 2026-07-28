@@ -737,6 +737,10 @@ def test_portfolio_decisions_include_current_price_and_pnl(client):
     assert decision["current_price"] == 110.0
     assert decision["pnl_pct"] == pytest.approx(10.0)  # (110 - 100) / 100 * 100
     assert portfolio["total_pnl_amount"] is None  # aucune quantité renseignée encore
+    # price_updated_at = date de la dernière séance de prix (2020-01-06),
+    # distincte de created_at de la décision (2020-01-01, old_ts).
+    assert decision["price_updated_at"].startswith("2020-01-06")
+    assert decision["created_at"].startswith("2020-01-01")
 
     # Avec une quantité (via l'allocation) : le total du portefeuille se calcule.
     client.post(f"/portfolios/{portfolio_id}/allocate", json={"budget": 1000.0})

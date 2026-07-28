@@ -36,10 +36,13 @@ def _portfolio_decisions(db: Session, portfolio_id: int) -> list[tuple[Decision,
     )
 
 
-def _current_price_and_pnl(engine, decision: Decision) -> tuple[float | None, float | None]:
-    """Prix le plus récent et rendement (%) courant depuis l'entrée, même
-    logique direction-consciente (Achat/Renforcer haussier, Alléger baissier)
-    que `engine.reevaluate_decisions.evaluate_decision` — mais calculé
+def _current_price_and_pnl(engine, decision: Decision) -> tuple[float | None, float | None, object | None]:
+    """Prix le plus récent, rendement (%) courant depuis l'entrée, et
+    horodatage de la séance de ce prix (`price_updated_at` — la date/heure
+    de la dernière ingestion de prix, pas celle de la décision elle-même,
+    voir les colonnes Date/Heure de `MonPortefeuille.jsx`). Même logique
+    direction-consciente (Achat/Renforcer haussier, Alléger baissier) que
+    `engine.reevaluate_decisions.evaluate_decision` — mais calculée
     directement sur le dernier cours plutôt qu'en réutilisant cette fonction :
     son filtre `since = df[df.index >= decision.created_at]` sert à borner
     l'historique pour la détection de franchissement TP/SL (Phase 6), pas au
@@ -47,15 +50,17 @@ def _current_price_and_pnl(engine, decision: Decision) -> tuple[float | None, fl
     séance n'est postérieure à la création — pour une décision prise sur la
     clôture du jour même, cela laisse le PnL vide jusqu'à la séance
     suivante alors que le rendement (nul ce jour-là) est déjà connu.
-    `pnl_pct` reste `None` seulement si aucun prix n'est disponible du tout."""
+    Les trois valeurs restent `None` seulement si aucun prix n'est
+    disponible du tout."""
     df = load_prices(engine, decision.symbol)
     if df.empty:
-        return None, None
+        return None, None, None
     current_price = float(df["close"].iloc[-1])
+    price_updated_at = df.index[-1].to_pydatetime()
     entry = float(decision.entry_price)
     direction = 1 if decision.decision_type in BULLISH_DECISIONS else -1
     pnl_pct = (current_price - entry) / entry * 100 * direction
-    return current_price, pnl_pct
+    return current_price, pnl_pct, price_updated_at
 
 
 def _portfolio_out(db: Session, engine, portfolio: Portfolio) -> PortfolioOut:
@@ -66,10 +71,15 @@ def _portfolio_out(db: Session, engine, portfolio: Portfolio) -> PortfolioOut:
     has_any_position = False
 
     for decision, quantity in rows:
-        current_price, pnl_pct = _current_price_and_pnl(engine, decision)
+        current_price, pnl_pct, price_updated_at = _current_price_and_pnl(engine, decision)
         decisions.append(
             PortfolioDecisionOut.model_validate(decision, from_attributes=True).model_copy(
-                update={"quantity": quantity, "current_price": current_price, "pnl_pct": pnl_pct}
+                update={
+                    "quantity": quantity,
+                    "current_price": current_price,
+                    "pnl_pct": pnl_pct,
+                    "price_updated_at": price_updated_at,
+                }
             )
         )
         if quantity and pnl_pct is not None:
