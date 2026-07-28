@@ -22,3 +22,6 @@ web/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Logs de scripts/dev-up.ps1
+.dev-logs/

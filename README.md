@@ -38,6 +38,12 @@ Cela démarre :
 
 Pour arrêter : `docker compose down` (ajouter `-v` pour aussi supprimer les volumes de données).
 
+**Raccourci** : une fois l'environnement Python (étape 2) et les dépendances web (étape 10) installés au moins une fois, `scripts\dev-up.ps1` démarre Docker (si besoin), l'infra, l'API et le serveur web en une seule commande, tous en arrière-plan :
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\dev-up.ps1
+```
+Idempotent (relançable sans dupliquer ce qui tourne déjà) ; logs dans `.dev-logs/` à la racine du dépôt.
+
 ## 2. Installer l'environnement Python
 
 Depuis la racine du dépôt :
