@@ -25,3 +25,6 @@ Thumbs.db
 
 # Logs de scripts/dev-up.ps1
 .dev-logs/
+
+# Configuration Claude Code locale/personnelle (hooks, permissions propres à cette machine)
+.claude/settings.local.json
