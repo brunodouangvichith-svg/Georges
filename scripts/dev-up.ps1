@@ -21,7 +21,7 @@ function Test-PortListening($Port) {
 }
 
 function Test-DockerUp {
-    docker info *> $null
+    try { docker info *> $null } catch {}
     return $LASTEXITCODE -eq 0
 }
 

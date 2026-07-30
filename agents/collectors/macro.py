@@ -1,11 +1,14 @@
 """Sous-agent de collecte "données macro" (Phase 7, MVP) — récupère des
 indicateurs macroéconomiques publics, sans clé API : FRED (`fredgraph.csv`,
-Réserve fédérale de Saint-Louis) et la BCE (Statistical Data Warehouse). Le
-taux EUR/USD est récupéré des deux pour démontrer un vrai recoupement
+Réserve fédérale de Saint-Louis), la BCE (Statistical Data Warehouse) et
+Frankfurter (taux de change, `api.frankfurter.dev` — le domaine `.app`
+d'origine redirige en 301 vers `.dev`, on appelle directement ce dernier).
+Le taux EUR/USD est récupéré des trois pour démontrer un vrai recoupement
 multi-sources (`agents/orchestrator/validation.py`) — les valeurs sont
 proches mais pas identiques en pratique, sans rien fabriquer. Le taux OAT
 10 ans reste à une seule source (aucune alternative publique sans clé
-trouvée)."""
+trouvée). EUR/GBP et EUR/CHF n'ont qu'une seule source (Frankfurter) —
+aucune alternative FRED/BCE identifiée pour ces paires."""
 
 from __future__ import annotations
 
@@ -24,11 +27,18 @@ MAX_RETRIES = 2
 
 FRED_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 ECB_URL_TEMPLATE = "https://data-api.ecb.europa.eu/service/data/EXR/{key}"
+FRANKFURTER_URL = "https://api.frankfurter.dev/v1/latest"
 
 # (label, unité, [(nom_source, type_fetcher, identifiant_série), ...])
 INDICATORS = [
     ("Taux OAT 10 ans (France)", "%", [("FRED", "fred", "IRLTLT01FRM156N")]),
-    ("Taux de change EUR/USD", None, [("FRED", "fred", "DEXUSEU"), ("BCE", "ecb", "D.USD.EUR.SP00.A")]),
+    (
+        "Taux de change EUR/USD",
+        None,
+        [("FRED", "fred", "DEXUSEU"), ("BCE", "ecb", "D.USD.EUR.SP00.A"), ("Frankfurter", "frankfurter", "USD")],
+    ),
+    ("Taux de change EUR/GBP", None, [("Frankfurter", "frankfurter", "GBP")]),
+    ("Taux de change EUR/CHF", None, [("Frankfurter", "frankfurter", "CHF")]),
 ]
 
 
@@ -93,6 +103,34 @@ def fetch_ecb_series(key: str, label: str, source_name: str, unit: str | None) -
     )
 
 
+def fetch_frankfurter_rate(target_currency: str, label: str, source_name: str, unit: str | None) -> CollectedItem | None:
+    """Endpoint public de Frankfurter (`api.frankfurter.dev`), sans clé API
+    — taux de référence BCE republiés sous une forme JSON simple. Même
+    contrat que `fetch_fred_series`/`fetch_ecb_series` : `None` en cas
+    d'échec ou de devise absente de la réponse, jamais d'exception. Forme
+    vérifiée en direct : `{"amount":1.0,"base":"EUR","date":"...","rates":
+    {"USD":1.138}}` — un appel par devise cible plutôt qu'un appel groupé,
+    pour rester dans le même patron `fetch_X(id, label, source_name, unit)`
+    que les deux autres fetchers (le coût de la redondance est négligeable,
+    l'API est gratuite et sans limite de débit documentée)."""
+    response = _get_with_retry(FRANKFURTER_URL, params={"from": "EUR", "to": target_currency})
+    if response is None:
+        return None
+    payload = response.json()
+    rate = payload.get("rates", {}).get(target_currency)
+    if rate is None:
+        logger.warning("Devise %s absente de la réponse Frankfurter", target_currency)
+        return None
+    return CollectedItem(
+        label=label,
+        value=float(rate),
+        unit=unit,
+        source_name=source_name,
+        source_url=f"{FRANKFURTER_URL}?from=EUR&to={target_currency}",
+        observed_at=payload["date"],
+    )
+
+
 def collect_donnees_macro(db, engine, scope=None) -> list[tuple[str, list[CollectedItem]]]:
     """Ignore `db`/`engine`/`scope` — cette collecte porte toujours sur
     l'ensemble des indicateurs macro suivis (`INDICATORS`), pas sur un titre
@@ -103,7 +141,7 @@ def collect_donnees_macro(db, engine, scope=None) -> list[tuple[str, list[Collec
     monkeypatcher `fetch_fred_series`/`fetch_ecb_series` sur le module et
     voir l'effet — un dict figé au chargement du module capturerait les
     fonctions d'origine avant tout monkeypatch."""
-    fetchers = {"fred": fetch_fred_series, "ecb": fetch_ecb_series}
+    fetchers = {"fred": fetch_fred_series, "ecb": fetch_ecb_series, "frankfurter": fetch_frankfurter_rate}
     groups = []
     for label, unit, sources in INDICATORS:
         items = []

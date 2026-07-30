@@ -784,6 +784,10 @@ def test_collect_donnees_macro_writes_validated_events_when_sources_agree(client
 
     monkeypatch.setattr(macro, "fetch_fred_series", lambda *a, **k: _fake_fred_item(1.1385))
     monkeypatch.setattr(macro, "fetch_ecb_series", lambda *a, **k: _fake_ecb_item(1.1377))
+    # Frankfurter indisponible dans ce scénario — EUR/GBP et EUR/CHF (source
+    # unique Frankfurter) sont donc omis, et EUR/USD ne recoupe que FRED/BCE,
+    # gardant les comptes de cette assertion inchangés.
+    monkeypatch.setattr(macro, "fetch_frankfurter_rate", lambda *a, **k: None)
 
     response = client.post("/agents/collect", json={"task_type": "donnees_macro"})
     assert response.status_code == 200
@@ -801,6 +805,7 @@ def test_collect_donnees_macro_quarantines_contradictory_sources(client, monkeyp
 
     monkeypatch.setattr(macro, "fetch_fred_series", lambda *a, **k: _fake_fred_item(1.10))
     monkeypatch.setattr(macro, "fetch_ecb_series", lambda *a, **k: _fake_ecb_item(1.30))
+    monkeypatch.setattr(macro, "fetch_frankfurter_rate", lambda *a, **k: None)
 
     response = client.post("/agents/collect", json={"task_type": "donnees_macro"})
     assert response.status_code == 200

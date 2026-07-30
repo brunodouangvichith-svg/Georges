@@ -76,12 +76,66 @@ def test_collect_donnees_macro_groups_by_indicator(monkeypatch):
 
     monkeypatch.setattr(macro.requests, "get", fake_get)
     monkeypatch.setattr(macro, "fetch_ecb_series", lambda *a, **k: None)  # BCE indisponible ce cycle
+    monkeypatch.setattr(macro, "fetch_frankfurter_rate", lambda *a, **k: None)  # Frankfurter indisponible ce cycle
 
     groups = macro.collect_donnees_macro(db=None, engine=None)
     labels = {label: len(items) for label, items in groups}
     assert labels["Taux OAT 10 ans (France)"] == 1
-    # EUR/USD ne garde que la source FRED (BCE en échec) — toujours inclus, pas de groupe vide.
+    # EUR/USD ne garde que la source FRED (BCE + Frankfurter en échec) — toujours inclus, pas de groupe vide.
     assert labels["Taux de change EUR/USD"] == 1
+    # EUR/GBP et EUR/CHF n'ont que Frankfurter comme source — indisponible ce cycle, indicateurs absents.
+    assert "Taux de change EUR/GBP" not in labels
+    assert "Taux de change EUR/CHF" not in labels
+
+
+class _FakeFrankfurterResponse:
+    def __init__(self, rates):
+        self._rates = rates
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {"amount": 1.0, "base": "EUR", "date": "2026-07-29", "rates": self._rates}
+
+
+def test_fetch_frankfurter_rate_parses_the_real_json_shape(monkeypatch):
+    # Forme vérifiée en direct contre api.frankfurter.dev (frankfurter.app
+    # redirige en 301 vers ce domaine) : {"amount":1.0,"base":"EUR",
+    # "date":"2026-07-29","rates":{"USD":1.138}}.
+    monkeypatch.setattr(
+        macro.requests, "get", lambda url, params=None, timeout=None: _FakeFrankfurterResponse({"USD": 1.138})
+    )
+    item = macro.fetch_frankfurter_rate("USD", label="Taux de change EUR/USD", source_name="Frankfurter", unit=None)
+    assert item is not None
+    assert item.value == 1.138
+    assert item.observed_at == "2026-07-29"
+    assert item.source_name == "Frankfurter"
+
+
+def test_fetch_frankfurter_rate_returns_none_when_currency_missing(monkeypatch):
+    monkeypatch.setattr(
+        macro.requests, "get", lambda url, params=None, timeout=None: _FakeFrankfurterResponse({"GBP": 0.856})
+    )
+    assert macro.fetch_frankfurter_rate("USD", label="x", source_name="Frankfurter", unit=None) is None
+
+
+def test_collect_donnees_macro_eur_usd_recoups_three_sources(monkeypatch):
+    # Recoupement complet FRED + BCE + Frankfurter pour EUR/USD — les 3
+    # sources répondent, l'indicateur regroupe bien les 3 CollectedItem
+    # (c'est `validate()`, testé ailleurs, qui décide ensuite si l'écart
+    # entre elles reste dans la tolérance).
+    def fake_requests_get(url, params=None, timeout=None):
+        if "fredgraph" in url:
+            return _FakeResponse(f"observation_date,{params['id']}\n2026-06-01,3.68\n")
+        if "frankfurter" in url:
+            return _FakeFrankfurterResponse({"USD": 1.138})
+        return _FakeResponse(ECB_CSV)
+
+    monkeypatch.setattr(macro.requests, "get", fake_requests_get)
+    groups = macro.collect_donnees_macro(db=None, engine=None)
+    eur_usd = next(items for label, items in groups if label == "Taux de change EUR/USD")
+    assert {i.source_name for i in eur_usd} == {"FRED", "BCE", "Frankfurter"}
 
 
 def test_collect_synthese_document_sends_the_real_report_content_to_the_prompt(monkeypatch):
