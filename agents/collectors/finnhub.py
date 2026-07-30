@@ -10,13 +10,13 @@ une clé absente ici est traitée comme n'importe quel autre échec de
 collecte : `None` + log, jamais d'exception — même éthique que
 `agents/collectors/macro.py`.
 
-Forme de réponse connue et documentée par Finnhub
-(`{"c","d","dp","h","l","o","pc","t"}`) mais non vérifiée en direct dans
-ce dépôt faute de clé API configurée au moment de l'écriture — à
-recontrôler contre un vrai appel dès qu'une clé est disponible. Risque
-identifié : le palier gratuit de Finnhub est historiquement centré sur les
-valeurs américaines ; la couverture des tickers Euronext Paris (`.PA`)
-n'est pas garantie et reste à vérifier."""
+Forme de réponse confirmée en direct une fois une clé obtenue :
+`{"c","d","dp","h","l","o","pc","t"}`. **Confirmé aussi (risque identifié à
+l'écriture, vérifié ensuite) : le palier gratuit de Finnhub ne couvre pas
+Euronext Paris** — `GET /quote?symbol=TTE.PA` renvoie un vrai `403 Forbidden`
+(pas un `200` avec `c: 0`), alors qu'un ticker américain (`AAPL`) fonctionne.
+`fetch_finnhub_quote` traite les deux cas (403, ou `c` nul/absent) de la
+même façon : `None` + log, jamais d'exception."""
 
 from __future__ import annotations
 
@@ -49,9 +49,16 @@ def _get_with_retry(url: str, params: dict) -> requests.Response | None:
 def fetch_finnhub_quote(symbol: str, label: str, source_name: str, unit: str | None) -> CollectedItem | None:
     """Cotation actuelle (`c`, "current price") d'un symbole via Finnhub.
     Renvoie `None` (jamais d'exception) si `FINNHUB_API_KEY` est absente,
-    si la requête échoue, ou si la réponse ne contient pas de prix courant
-    exploitable (Finnhub renvoie `c: 0` pour un symbole inconnu/non couvert
-    plutôt qu'une erreur HTTP — traité comme un échec de collecte)."""
+    si la requête échoue (y compris un `403` pour un symbole/marché non
+    couvert par le palier gratuit — vérifié en direct sur `TTE.PA`), ou si
+    la réponse ne contient pas de prix courant exploitable. **Ne renseigne
+    jamais `CollectedItem.symbol`** : contrairement aux autres champs
+    `symbol` de ce projet, `AgentEvent.symbol`/`CollectedInfoQuarantine.symbol`
+    portent une contrainte de clé étrangère vers `securities.symbol` — un
+    symbole Finnhub interrogé (ex. `AAPL`, hors univers CAC 40/Mid 60)
+    ferait échouer l'écriture en base avec une violation de FK si on le
+    renseignait ici (bug réel rencontré en testant en direct). Le symbole
+    reste visible dans `label`, ce qui suffit à l'affichage."""
     api_key = os.environ.get("FINNHUB_API_KEY")
     if not api_key:
         logger.warning("Variable d'environnement FINNHUB_API_KEY manquante — collecte Finnhub ignorée.")
@@ -72,7 +79,6 @@ def fetch_finnhub_quote(symbol: str, label: str, source_name: str, unit: str | N
         source_name=source_name,
         source_url=f"{FINNHUB_URL}?symbol={symbol}",
         observed_at=str(payload.get("t", "")),
-        symbol=symbol,
     )
 
 
