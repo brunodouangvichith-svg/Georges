@@ -126,7 +126,7 @@ export default function MonPortefeuille() {
                   className="text-[11px] px-2.5 py-1 rounded-full border"
                   style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
                 >
-                  🎙 Demander à George
+                  🎙 Demander à George pour répartir le budget du portefeuille
                 </button>
                 <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
                   Créé le {new Date(portfolio.created_at).toLocaleDateString("fr-FR")}

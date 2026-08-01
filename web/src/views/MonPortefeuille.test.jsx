@@ -168,7 +168,7 @@ describe("MonPortefeuille", () => {
     useVoiceCapture.mockReturnValue({ start, stop: vi.fn(), abort: vi.fn() });
     render(<MonPortefeuille />);
 
-    fireEvent.click(screen.getByText("🎙 Demander à George"));
+    fireEvent.click(screen.getByText("🎙 Demander à George pour répartir le budget du portefeuille"));
     expect(start).toHaveBeenCalled();
   });
 
@@ -184,7 +184,7 @@ describe("MonPortefeuille", () => {
     });
     render(<MonPortefeuille />);
 
-    fireEvent.click(screen.getByText("🎙 Demander à George")); // fixe le portefeuille actif (ref)
+    fireEvent.click(screen.getByText("🎙 Demander à George pour répartir le budget du portefeuille")); // fixe le portefeuille actif (ref)
     act(() => capturedConfig.onFinal("Georges, répartis un budget de 100 000 euros entre ces actions"));
 
     expect(allocateMutate).toHaveBeenCalledWith({ portfolioId: 1, budget: 100000 }, expect.anything());
@@ -202,7 +202,7 @@ describe("MonPortefeuille", () => {
     });
     render(<MonPortefeuille />);
 
-    fireEvent.click(screen.getByText("🎙 Demander à George"));
+    fireEvent.click(screen.getByText("🎙 Demander à George pour répartir le budget du portefeuille"));
     act(() => capturedConfig.onFinal("Georges, que penses-tu de ce portefeuille ?"));
 
     expect(allocateMutate).not.toHaveBeenCalled();
