@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, BigInteger, Text, func
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, Numeric, BigInteger, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -237,3 +237,82 @@ class PortfolioDecision(Base):
     portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id", ondelete="CASCADE"), primary_key=True)
     decision_id: Mapped[int] = mapped_column(ForeignKey("decisions.id", ondelete="CASCADE"), primary_key=True)
     quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class CurrencyPair(Base):
+    """Univers des paires de devises suivies pour le panier Carry Trade (ad
+    hoc, pas une phase du roadmap) — schéma FX dédié plutôt qu'une
+    réutilisation de `Security`, dont `country`/`sector` (NOT NULL) n'ont
+    aucun sens pour une paire de devises. `symbol` est le ticker yfinance
+    (ex. `"AUDJPY=X"`)."""
+
+    __tablename__ = "currency_pairs"
+
+    symbol: Mapped[str] = mapped_column(Text, primary_key=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    funding_currency: Mapped[str] = mapped_column(Text, nullable=False)  # devise vendue/empruntée, ex. "JPY"
+    target_currency: Mapped[str] = mapped_column(Text, nullable=False)  # devise achetée/investie, ex. "AUD"
+
+
+class FxPriceOHLCV(Base):
+    """Hypertable TimescaleDB — historique quotidien d'une paire de devises
+    (`ingestion/fx_rates.py`, via yfinance). Même forme que `PriceOHLCV`
+    mais FK vers `currency_pairs` — `volume` vaut toujours 0 pour le FX spot
+    (yfinance n'en fournit pas de réel), conservé pour rester dans la même
+    forme que `PriceOHLCV` plutôt que de retirer la colonne pour ce seul cas."""
+
+    __tablename__ = "fx_prices_ohlcv"
+
+    symbol: Mapped[str] = mapped_column(ForeignKey("currency_pairs.symbol"), primary_key=True)
+    ts: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), primary_key=True)
+    open: Mapped[float] = mapped_column(Numeric, nullable=False)
+    high: Mapped[float] = mapped_column(Numeric, nullable=False)
+    low: Mapped[float] = mapped_column(Numeric, nullable=False)
+    close: Mapped[float] = mapped_column(Numeric, nullable=False)
+    volume: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class CarryRateSnapshot(Base):
+    """Dernier taux court connu par devise (`ingestion/carry_rates.py`,
+    FRED) — pas de FK vers `securities`/`currency_pairs` (une devise, pas un
+    titre ni une paire) : réutiliser `AgentEvent.symbol` était tentant mais
+    porte une contrainte de clé étrangère vers `securities.symbol`, où une
+    devise n'a pas sa place (même piège que le collecteur Finnhub, voir
+    CLAUDE.md). Unique par (devise, date d'observation) pour une ingestion
+    idempotente."""
+
+    __tablename__ = "carry_rate_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    currency: Mapped[str] = mapped_column(Text, nullable=False)  # code ISO 3 lettres, ex. "JPY"
+    rate_pct: Mapped[float] = mapped_column(Numeric, nullable=False)
+    observed_at: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    source_name: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (UniqueConstraint("currency", "observed_at", name="uq_carry_rate_snapshot_currency_date"),)
+
+
+class CotPositioning(Base):
+    """Dernier positionnement spéculatif connu par devise (rapport CFTC
+    "TFF — Futures Only", `ingestion/cot_positioning.py`) — `lev_money_long`/
+    `lev_money_short` sont les positions "Leveraged Funds" (l'équivalent TFF
+    des spéculateurs). Unique par (devise, date du rapport) pour une
+    ingestion idempotente."""
+
+    __tablename__ = "cot_positioning"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    currency: Mapped[str] = mapped_column(Text, nullable=False)
+    report_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    lev_money_long: Mapped[int] = mapped_column(Integer, nullable=False)
+    lev_money_short: Mapped[int] = mapped_column(Integer, nullable=False)
+    open_interest_all: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_name: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (UniqueConstraint("currency", "report_date", name="uq_cot_positioning_currency_date"),)

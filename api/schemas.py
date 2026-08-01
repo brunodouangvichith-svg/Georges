@@ -199,3 +199,43 @@ class AllocateBudgetRequest(BaseModel):
 class AllocateBudgetResponse(BaseModel):
     portfolio: PortfolioOut
     summary: str
+
+
+class CarryPairOut(BaseModel):
+    """Une paire du panier Carry Trade (ad hoc, pas une phase du roadmap) et
+    son score — voir `engine/carry_index.py`. Les champs de score restent
+    `null` plutôt qu'une valeur fabriquée quand ils ne sont pas calculables
+    (ex. historique de prix ou positionnement COT indisponible)."""
+
+    symbol: str
+    name: str
+    funding_currency: str
+    target_currency: str
+    funding_rate_pct: float | None
+    target_rate_pct: float | None
+    carry_pct: float | None
+    realized_vol_pct: float | None
+    carry_vol_ratio: float | None
+    cot_crowding_score: float | None
+    decision: str
+
+
+class CarryTradeDetailOut(CarryPairOut):
+    """`CarryPairOut` + l'historique de prix récent (pour le graphique) —
+    même schéma `PriceBarOut` que les actions, réutilisable tel quel par
+    `CandlestickChart` côté web si besoin plus tard."""
+
+    recent_prices: list[PriceBarOut]
+
+
+class CarryTradeExplanationResponse(BaseModel):
+    explanation: str
+
+
+class CarryTradeRefreshResponse(BaseModel):
+    fx_prices_updated: int
+    fx_prices_failed: list[str]
+    rates_updated: list[str]
+    rates_failed: list[str]
+    cot_updated: list[str]
+    cot_failed: list[str]

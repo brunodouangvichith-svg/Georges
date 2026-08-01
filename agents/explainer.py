@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agents import mistral_client
-from agents.context import decision_context, exit_scenario_context
+from agents.context import carry_trade_context, decision_context, exit_scenario_context
 from ingestion.models import Decision, PatternDetected, Security
 
 
@@ -59,5 +59,18 @@ def explain_exit_scenario(
     security = db.get(Security, decision.symbol)
     context = exit_scenario_context(decision, security, result, pnl_pct, scenario, volume_confirmed)
     system_prompt = mistral_client.load_system_prompt("exit_scenario_system.txt")
+    user_message = json.dumps(context, ensure_ascii=False)
+    return mistral_client.complete(system_prompt, user_message, model=mistral_client.MODEL_SMALL)
+
+
+def explain_carry_trade(scored_pair: dict) -> str:
+    """Met en mots le score déjà calculé d'une paire du panier Carry Trade
+    (ad hoc, pas une phase du roadmap) — `scored_pair` vient de
+    `engine.carry_index.compute_carry_score`, jamais recalculé ici. Pas
+    d'accès DB (contrairement à `explain_decision`) : tout ce dont ce module
+    a besoin est déjà dans `scored_pair`, fourni par l'appelant
+    (`api/routers/carry_trade.py`)."""
+    context = carry_trade_context(scored_pair)
+    system_prompt = mistral_client.load_system_prompt("carry_explainer_system.txt")
     user_message = json.dumps(context, ensure_ascii=False)
     return mistral_client.complete(system_prompt, user_message, model=mistral_client.MODEL_SMALL)

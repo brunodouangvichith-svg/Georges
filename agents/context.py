@@ -103,6 +103,34 @@ def exit_scenario_context(
     }
 
 
+def carry_trade_context(scored_pair: dict) -> dict:
+    """Contexte pour `agents/explainer.py:explain_carry_trade` (ad hoc, pas
+    une phase du roadmap) — `scored_pair` est déjà le dict complet renvoyé
+    par `engine.carry_index.compute_carry_score` (+ métadonnées de la
+    paire), jamais recalculé ici. Retranscrit tel quel plutôt que
+    reconstruit à la main, pour qu'aucun chiffre affiché ne diffère de ceux
+    passés au LLM."""
+    return {
+        "paire": {
+            "symbole": scored_pair["symbol"],
+            "nom": scored_pair["name"],
+            "devise_financement": scored_pair["funding_currency"],
+            "devise_cible": scored_pair["target_currency"],
+        },
+        "taux": {
+            "financement_pct": scored_pair["funding_rate_pct"],
+            "cible_pct": scored_pair["target_rate_pct"],
+        },
+        "score": {
+            "differentiel_carry_pct": scored_pair["carry_pct"],
+            "volatilite_realisee_pct": scored_pair["realized_vol_pct"],
+            "ratio_carry_vol": scored_pair["carry_vol_ratio"],
+            "score_saturation_cot": scored_pair["cot_crowding_score"],
+        },
+        "decision": scored_pair["decision"],
+    }
+
+
 def basket_report_context(
     basket: Basket | None,
     george_index: float | None,

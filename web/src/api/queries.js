@@ -129,6 +129,37 @@ export function useRefreshPrices() {
   });
 }
 
+// Panier Carry Trade (ad hoc, pas une phase du roadmap) — voir
+// api/routers/carry_trade.py. Liste brute (pas de Page[T]), même choix que
+// useBaskets.
+export function useCarryTrade() {
+  return useQuery({ queryKey: ["carry-trade"], queryFn: () => apiFetch("/carry-trade") });
+}
+
+export function useCarryTradeDetail(symbol) {
+  return useQuery({
+    queryKey: ["carry-trade", symbol],
+    queryFn: () => apiFetch(`/carry-trade/${symbol}`),
+    enabled: Boolean(symbol),
+  });
+}
+
+export function useExplainCarryTrade() {
+  return useMutation({
+    mutationFn: (symbol) => apiPost(`/carry-trade/${symbol}/explanation`),
+  });
+}
+
+// Rafraîchissement manuel des 3 flux d'ingestion (prix FX, taux, COT) — même
+// précédent que useRefreshPrices, invalide tout le cache carry-trade.
+export function useRefreshCarryTrade() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiPost("/carry-trade/refresh"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["carry-trade"] }),
+  });
+}
+
 // Déclenchement manuel d'une tâche de collecte (Phase 7, MVP) — voir
 // api/routers/agents.py:trigger_collection. Pas de scheduler encore : c'est
 // le seul moyen de peupler /agents/activity avec de vraies données pour

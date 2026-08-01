@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from agents.mistral_client import MistralUnavailableError
-from api.routers import agents, baskets, chat, decisions, portfolios, prices, reports, securities
+from api.routers import agents, baskets, carry_trade, chat, decisions, portfolios, prices, reports, securities
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +70,7 @@ app.include_router(chat.router)
 app.include_router(reports.router)
 app.include_router(portfolios.router)
 app.include_router(prices.router)
+app.include_router(carry_trade.router)
 
 
 @app.get("/health", tags=["meta"])
