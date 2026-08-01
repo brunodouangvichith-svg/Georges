@@ -146,7 +146,7 @@ export default function Paniers() {
         (decision.take_profit != null ? ` · Take-profit ${decision.take_profit.toFixed(2)} €` : "") +
         (decision.stop_loss != null ? ` · Stop-loss ${decision.stop_loss.toFixed(2)} €` : "") +
         ` · Confiance ${Math.round(decision.confidence)}%`,
-      actionLabel: "Demander l'explication complète à George",
+      actionLabel: "Demander une analyse à George",
       onAction: () => {
         setPopup((prev) => ({ ...prev, status: "loading", text: null }));
         explainMutation.mutate(

@@ -69,7 +69,7 @@ class DecisionDetailScreen extends ConsumerWidget {
           Text(
             decision?.rationale ??
                 (decision != null
-                    ? "Aucune note courte pour cette décision — demandez l'explication complète à George."
+                    ? "Aucune note courte pour cette décision — demandez une analyse à George."
                     : 'Aucune décision enregistrée pour ce titre.'),
           ),
           if (decision != null) ...[
@@ -84,7 +84,7 @@ class DecisionDetailScreen extends ConsumerWidget {
                   return result.explanation;
                 },
               ),
-              child: const Text('Demander l\'explication complète à George'),
+              child: const Text('Demander une analyse à George'),
             ),
           ],
           const SizedBox(height: 20),

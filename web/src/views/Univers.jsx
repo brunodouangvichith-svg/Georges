@@ -353,7 +353,7 @@ export default function Univers() {
                       );
                     }}
                   >
-                    {explainMutation.isPending ? "George réfléchit…" : "Demander l'explication complète à George"}
+                    {explainMutation.isPending ? "George réfléchit…" : "Demander une analyse à George"}
                   </button>
                 )}
 

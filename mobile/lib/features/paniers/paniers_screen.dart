@@ -76,7 +76,7 @@ class _PaniersScreenState extends ConsumerState<PaniersScreen> {
                 },
               );
             },
-            child: const Text("Demander l'explication complète à George"),
+            child: const Text("Demander une analyse à George"),
           ),
         ],
       ),

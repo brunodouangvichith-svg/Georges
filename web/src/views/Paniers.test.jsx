@@ -132,10 +132,10 @@ describe("Paniers", () => {
     render(<Paniers />);
 
     fireEvent.click(screen.getByText("AAA.PA").closest("tr"));
-    expect(screen.getByText("Demander l'explication complète à George")).toBeInTheDocument();
+    expect(screen.getByText("Demander une analyse à George")).toBeInTheDocument();
     expect(screen.getByText(/Confiance 55%/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Demander l'explication complète à George"));
+    fireEvent.click(screen.getByText("Demander une analyse à George"));
     expect(mutate).toHaveBeenCalledWith({ decisionId: 1 }, expect.anything());
   });
 
@@ -149,7 +149,7 @@ describe("Paniers", () => {
 
     fireEvent.click(checkbox);
     expect(checkbox.checked).toBe(true);
-    expect(screen.queryByText("Demander l'explication complète à George")).not.toBeInTheDocument();
+    expect(screen.queryByText("Demander une analyse à George")).not.toBeInTheDocument();
   });
 
   it("opens the create-portfolio popup once a decision is checked, and saves via the API on Enregistrer", () => {
