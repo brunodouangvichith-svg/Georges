@@ -20,6 +20,20 @@ function Test-PortListening($Port) {
     return $null -ne (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
 }
 
+# Un port 8000 "deja en ecoute" ne veut pas forcement dire que c'est
+# l'API de George : une autre application Python/uvicorn sans rapport
+# (rencontre reelle : un projet nomme "Jaz") peut deja occuper ce port.
+# Verifie donc /health et son corps JSON attendu, pas juste que le port
+# repond.
+function Test-GeorgeApiRunning {
+    try {
+        $response = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health" -TimeoutSec 3 -ErrorAction Stop
+        return $response.status -eq "ok"
+    } catch {
+        return $false
+    }
+}
+
 function Test-DockerUp {
     try { docker info *> $null } catch {}
     return $LASTEXITCODE -eq 0
@@ -52,8 +66,11 @@ docker compose up -d
 Pop-Location
 
 Write-Host "== API FastAPI ==" -ForegroundColor Cyan
-if (Test-PortListening 8000) {
+if (Test-GeorgeApiRunning) {
     Write-Host "Deja en ecoute sur le port 8000 - rien a faire."
+} elseif (Test-PortListening 8000) {
+    Write-Error "Le port 8000 est occupe par une autre application (pas l'API de George - /health ne repond pas comme attendu). Liberez le port avant de relancer ce script."
+    exit 1
 } else {
     $pythonExe = Join-Path $RepoRoot ".venv\Scripts\python.exe"
     if (-not (Test-Path $pythonExe)) {

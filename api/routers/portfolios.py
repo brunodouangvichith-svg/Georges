@@ -50,13 +50,22 @@ def _current_price_and_pnl(engine, decision: Decision) -> tuple[float | None, fl
     séance n'est postérieure à la création — pour une décision prise sur la
     clôture du jour même, cela laisse le PnL vide jusqu'à la séance
     suivante alors que le rendement (nul ce jour-là) est déjà connu.
-    Les trois valeurs restent `None` seulement si aucun prix n'est
-    disponible du tout."""
+    Les trois valeurs restent `None` seulement si aucun prix exploitable
+    n'est disponible du tout. **`close` peut être `NaN` sur la toute
+    dernière séance ingérée** (constaté en direct sur de vraies données
+    yfinance : open/high/low/volume présents mais close absent, probablement
+    une séance encore en cours au moment de l'ingestion) — `.iloc[-1]` seul
+    renverrait alors un `NaN` silencieusement transformé en `null` côté JSON
+    (par `current_price` et par `pnl_pct`, qui en hérite), sans que rien ne
+    l'indique. On ne garde donc que les séances où `close` est réellement
+    renseigné, même logique "ignorer les valeurs manquantes, prendre la plus
+    récente exploitable" que les collecteurs de `agents/collectors/`."""
     df = load_prices(engine, decision.symbol)
-    if df.empty:
+    closes = df["close"].dropna()
+    if closes.empty:
         return None, None, None
-    current_price = float(df["close"].iloc[-1])
-    price_updated_at = df.index[-1].to_pydatetime()
+    current_price = float(closes.iloc[-1])
+    price_updated_at = closes.index[-1].to_pydatetime()
     entry = float(decision.entry_price)
     direction = 1 if decision.decision_type in BULLISH_DECISIONS else -1
     pnl_pct = (current_price - entry) / entry * 100 * direction
