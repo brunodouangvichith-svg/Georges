@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../data/decisions_repository.dart';
+import '../../data/fundamentals_repository.dart';
 import '../../data/patterns_repository.dart';
 import '../../data/prices_repository.dart';
 import '../../models/decision.dart';
@@ -24,6 +26,8 @@ class DecisionDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final patternsAsync = ref.watch(securityPatternsProvider(security.symbol));
     final pricesAsync = ref.watch(securityPricesProvider(security.symbol));
+    final fundamentalsAsync = ref.watch(securityFundamentalsProvider(security.symbol));
+    final dividendsAsync = ref.watch(securityDividendsProvider(security.symbol));
 
     return Scaffold(
       appBar: AppBar(title: Text(security.name)),
@@ -88,6 +92,71 @@ class DecisionDetailScreen extends ConsumerWidget {
               child: const Text('Demander une analyse à George'),
             ),
           ],
+          const SizedBox(height: 20),
+          Text('Fondamentaux', style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 8),
+          fundamentalsAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, st) => const Text('—'),
+            data: (fundamentals) {
+              if (fundamentals == null) {
+                return const Text("Aucun instantané disponible pour l'instant (import quotidien pas encore passé).");
+              }
+              final rows = [
+                ['Secteur', fundamentals.sector ?? '—'],
+                ['Industrie', fundamentals.industry ?? '—'],
+                [
+                  'Capitalisation',
+                  fundamentals.marketCap != null
+                      ? '${(fundamentals.marketCap! / 1e9).toStringAsFixed(2)} Md ${fundamentals.currency ?? ""}'
+                      : '—',
+                ],
+                ['PER (trailing)', fundamentals.trailingPe != null ? fundamentals.trailingPe!.toStringAsFixed(1) : '—'],
+                [
+                  'Rendement dividende',
+                  fundamentals.dividendYield != null ? '${fundamentals.dividendYield!.toStringAsFixed(2)}%' : '—',
+                ],
+              ];
+              return Column(
+                children: [
+                  for (final row in rows)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(row[0], style: TextStyle(color: Theme.of(context).colorScheme.outline)),
+                          Text(row[1], style: monoTextStyle()),
+                        ],
+                      ),
+                    ),
+                  dividendsAsync.maybeWhen(
+                    data: (page) => page.items.isEmpty
+                        ? const SizedBox.shrink()
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 8),
+                              Text('Derniers dividendes', style: Theme.of(context).textTheme.bodySmall),
+                              for (final d in page.items)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 2),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(DateFormat('dd/MM/yyyy').format(d.exDate), style: Theme.of(context).textTheme.bodySmall),
+                                      Text('${d.amount.toStringAsFixed(2)} ${fundamentals.currency ?? ""}', style: monoTextStyle(fontSize: 12)),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                    orElse: () => const SizedBox.shrink(),
+                  ),
+                ],
+              );
+            },
+          ),
           const SizedBox(height: 20),
           if (decision != null) ...[
             Text('Niveaux proposés', style: Theme.of(context).textTheme.labelLarge),

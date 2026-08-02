@@ -4,7 +4,7 @@ Toutes les listes sont enveloppées dans le même schéma générique de
 pagination (`Page[T]`) : `{"items": [...], "total": N, "limit": L, "offset": O}`.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict
@@ -50,6 +50,37 @@ class PatternOut(BaseModel):
     detected_at: datetime
     confidence: float
     context: dict
+
+
+class FundamentalsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    symbol: str
+    observed_at: date
+    sector: str | None = None
+    industry: str | None = None
+    country: str | None = None
+    currency: str | None = None
+    exchange: str | None = None
+    long_name: str | None = None
+    website: str | None = None
+    long_business_summary: str | None = None
+    full_time_employees: int | None = None
+    market_cap: int | None = None
+    trailing_pe: float | None = None
+    forward_pe: float | None = None
+    dividend_yield: float | None = None
+    beta: float | None = None
+    fifty_two_week_high: float | None = None
+    fifty_two_week_low: float | None = None
+
+
+class DividendOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    symbol: str
+    ex_date: date
+    amount: float
 
 
 class BasketOut(BaseModel):

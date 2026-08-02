@@ -297,6 +297,65 @@ class CarryRateSnapshot(Base):
     __table_args__ = (UniqueConstraint("currency", "observed_at", name="uq_carry_rate_snapshot_currency_date"),)
 
 
+class CompanyFundamentals(Base):
+    """Instantané quotidien des données fondamentales/entreprise d'un titre
+    (`ingestion/fundamentals.py`, via yfinance `Ticker.info`) — ad hoc, pas
+    une phase du roadmap. Contrairement à `CarryRateSnapshot`/`CotPositioning`
+    (une seule ligne "dernière valeur connue" par clé), chaque exécution
+    quotidienne insère une nouvelle ligne plutôt que d'écraser la
+    précédente : les fondamentaux évoluent lentement mais un vrai historique
+    (ex. évolution du PE ou du market cap dans le temps) a de la valeur, pas
+    seulement le dernier instantané. Toutes les colonnes de contenu sont
+    nullable : la couverture yfinance est bonne sur cet univers (vérifié en
+    direct, contrairement au vrai trou de couverture Finnhub déjà découvert
+    sur les mêmes tickers `.PA`, voir CLAUDE.md) mais pas garantie champ par
+    champ. `raw_info` conserve le dict `Ticker.info` complet — même principe
+    que `PatternDetected.context`/`CollectedInfoQuarantine.payload` : capture
+    tout ce qui n'a pas sa propre colonne, pour un usage futur sans nouvelle
+    migration."""
+
+    __tablename__ = "company_fundamentals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(ForeignKey("securities.symbol"), nullable=False)
+    observed_at: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    sector: Mapped[str | None] = mapped_column(Text, nullable=True)
+    industry: Mapped[str | None] = mapped_column(Text, nullable=True)
+    country: Mapped[str | None] = mapped_column(Text, nullable=True)
+    currency: Mapped[str | None] = mapped_column(Text, nullable=True)
+    exchange: Mapped[str | None] = mapped_column(Text, nullable=True)
+    long_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    website: Mapped[str | None] = mapped_column(Text, nullable=True)
+    long_business_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    full_time_employees: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    market_cap: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    trailing_pe: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    forward_pe: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    dividend_yield: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    beta: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    fifty_two_week_high: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    fifty_two_week_low: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    raw_info: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    __table_args__ = (UniqueConstraint("symbol", "observed_at", name="uq_company_fundamentals_symbol_date"),)
+
+
+class Dividend(Base):
+    """Un versement de dividende par ligne (`ingestion/fundamentals.py`, via
+    yfinance `Ticker.dividends`) — ad hoc, pas une phase du roadmap. Unique
+    par (titre, date ex-dividende) pour une ingestion quotidienne idempotente
+    (même précédent que `CarryRateSnapshot`/`CotPositioning`)."""
+
+    __tablename__ = "dividends"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(ForeignKey("securities.symbol"), nullable=False)
+    ex_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric, nullable=False)
+
+    __table_args__ = (UniqueConstraint("symbol", "ex_date", name="uq_dividend_symbol_ex_date"),)
+
+
 class CotPositioning(Base):
     """Dernier positionnement spéculatif connu par devise (rapport CFTC
     "TFF — Futures Only", `ingestion/cot_positioning.py`) — `lev_money_long`/

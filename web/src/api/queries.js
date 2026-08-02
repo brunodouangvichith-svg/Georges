@@ -31,6 +31,23 @@ export function useSecurityPrices(symbol, { limit = 250 } = {}) {
   });
 }
 
+export function useSecurityFundamentals(symbol) {
+  return useQuery({
+    queryKey: ["security-fundamentals", symbol],
+    queryFn: () => apiFetch(`/securities/${symbol}/fundamentals`),
+    enabled: Boolean(symbol),
+    retry: false, // 404 attendu tant que l'import quotidien n'a jamais tourné pour ce titre
+  });
+}
+
+export function useSecurityDividends(symbol, { limit = 5 } = {}) {
+  return useQuery({
+    queryKey: ["security-dividends", symbol, limit],
+    queryFn: () => apiFetch(`/securities/${symbol}/dividends`, { limit }),
+    enabled: Boolean(symbol),
+  });
+}
+
 export function useBaskets() {
   return useQuery({ queryKey: ["baskets"], queryFn: () => apiFetch("/baskets") });
 }

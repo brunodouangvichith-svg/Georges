@@ -13,8 +13,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from api.deps import get_db
-from api.schemas import Page, PatternOut, PriceBarOut, SecurityOut
-from ingestion.models import BasketSecurity, PatternDetected, PriceOHLCV, Security
+from api.schemas import DividendOut, FundamentalsOut, Page, PatternOut, PriceBarOut, SecurityOut
+from ingestion.models import BasketSecurity, CompanyFundamentals, Dividend, PatternDetected, PriceOHLCV, Security
 
 router = APIRouter(prefix="/securities", tags=["securities"])
 
@@ -68,6 +68,37 @@ def list_security_patterns(
         .scalars()
         .all()
     )
+    return Page(items=rows, total=total or 0, limit=limit, offset=offset)
+
+
+@router.get("/{symbol}/fundamentals", response_model=FundamentalsOut)
+def get_security_fundamentals(symbol: str, db: Session = Depends(get_db)):
+    """Instantané le plus récent (`observed_at` décroissant) — pas de
+    `Page[T]`, une seule ligne. `404` si l'import quotidien
+    (`ingestion.fundamentals`) n'a encore jamais tourné pour ce titre."""
+    _get_security_or_404(symbol, db)
+    row = db.execute(
+        select(CompanyFundamentals)
+        .where(CompanyFundamentals.symbol == symbol)
+        .order_by(CompanyFundamentals.observed_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Aucun instantané fondamentaux pour {symbol}.")
+    return row
+
+
+@router.get("/{symbol}/dividends", response_model=Page[DividendOut])
+def list_security_dividends(
+    symbol: str,
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    _get_security_or_404(symbol, db)
+    stmt = select(Dividend).where(Dividend.symbol == symbol)
+    total = db.scalar(select(func.count()).select_from(stmt.subquery()))
+    rows = db.execute(stmt.order_by(Dividend.ex_date.desc()).limit(limit).offset(offset)).scalars().all()
     return Page(items=rows, total=total or 0, limit=limit, offset=offset)
 
 

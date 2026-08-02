@@ -4,6 +4,8 @@ import Univers from "./Univers";
 
 vi.mock("../api/queries", () => ({
   useSecurities: vi.fn(),
+  useSecurityDividends: vi.fn(),
+  useSecurityFundamentals: vi.fn(),
   useSecurityPatterns: vi.fn(),
   useSecurityPrices: vi.fn(),
   useBaskets: vi.fn(),
@@ -25,6 +27,8 @@ import {
   useGeorgeIndex,
   useRefreshPrices,
   useSecurities,
+  useSecurityDividends,
+  useSecurityFundamentals,
   useSecurityPatterns,
   useSecurityPrices,
   useTriggerCollection,
@@ -37,6 +41,8 @@ function mockEmptyApi() {
   useAgentActivity.mockReturnValue({ data: { items: [] } });
   useSecurityPatterns.mockReturnValue({ data: { items: [] } });
   useSecurityPrices.mockReturnValue({ data: { items: [], total: 0 } });
+  useSecurityFundamentals.mockReturnValue({ data: undefined });
+  useSecurityDividends.mockReturnValue({ data: { items: [], total: 0 } });
   useGeorgeIndex.mockReturnValue({ data: null, isLoading: false });
   useChat.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useExplainDecision.mockReturnValue({ mutate: vi.fn(), isPending: false });

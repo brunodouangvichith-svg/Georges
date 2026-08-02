@@ -24,8 +24,10 @@ from ingestion.models import (
     Basket,
     BasketSecurity,
     CollectedInfoQuarantine,
+    CompanyFundamentals,
     Decision,
     DecisionOutcome,
+    Dividend,
     PatternDetected,
     PriceOHLCV,
     Report,
@@ -141,6 +143,41 @@ def client(database_url, monkeypatch):
                 }
             ],
         )
+        conn.execute(
+            CompanyFundamentals.__table__.insert(),
+            [
+                # Deux instantanés pour AAA.PA à des dates différentes : sans
+                # tri par `observed_at` décroissant, l'endpoint pourrait
+                # renvoyer le plus ancien plutôt que le plus récent.
+                {
+                    "symbol": "AAA.PA",
+                    "observed_at": base_ts.date() - pd.Timedelta(days=1),
+                    "sector": "Technologie",
+                    "industry": "Ancien",
+                    "market_cap": 1_000,
+                    "trailing_pe": 10.0,
+                    "dividend_yield": 1.0,
+                    "raw_info": {},
+                },
+                {
+                    "symbol": "AAA.PA",
+                    "observed_at": base_ts.date(),
+                    "sector": "Technologie",
+                    "industry": "Le plus récent",
+                    "market_cap": 2_000_000_000,
+                    "trailing_pe": 15.5,
+                    "dividend_yield": 2.5,
+                    "raw_info": {"marketCap": 2_000_000_000},
+                },
+            ],
+        )
+        conn.execute(
+            Dividend.__table__.insert(),
+            [
+                {"symbol": "AAA.PA", "ex_date": base_ts.date() - pd.Timedelta(days=10), "amount": 1.5},
+                {"symbol": "AAA.PA", "ex_date": base_ts.date(), "amount": 2.0},
+            ],
+        )
 
     # Ce portail simple (Phase 9) protège chaque routeur via
     # `Depends(require_user)` — aucun des tests existants n'a de jeton
@@ -218,6 +255,28 @@ def test_list_security_prices_chronological_order(client):
     assert body["total"] == 30
     closes = [row["close"] for row in body["items"]]
     assert closes == sorted(closes)
+
+
+def test_get_security_fundamentals_returns_most_recent_snapshot(client):
+    resp = client.get("/securities/AAA.PA/fundamentals")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["industry"] == "Le plus récent"
+    assert body["market_cap"] == 2_000_000_000
+    assert body["trailing_pe"] == 15.5
+
+
+def test_get_security_fundamentals_404_when_no_snapshot_yet(client):
+    resp = client.get("/securities/BBB.PA/fundamentals")
+    assert resp.status_code == 404
+
+
+def test_list_security_dividends_most_recent_first(client):
+    resp = client.get("/securities/AAA.PA/dividends")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert body["items"][0]["amount"] == 2.0
 
 
 def test_list_baskets(client):

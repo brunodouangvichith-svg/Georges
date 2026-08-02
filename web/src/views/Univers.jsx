@@ -13,6 +13,8 @@ import {
   useExplainDecision,
   useRefreshPrices,
   useSecurities,
+  useSecurityDividends,
+  useSecurityFundamentals,
   useSecurityPatterns,
   useSecurityPrices,
   useTriggerCollection,
@@ -132,6 +134,8 @@ export default function Univers() {
 
   const { data: selectedPatternsPage } = useSecurityPatterns(selectedSymbol, { limit: 1 });
   const { data: selectedPricesPage } = useSecurityPrices(selectedSymbol, { limit: 250 });
+  const { data: selectedFundamentals } = useSecurityFundamentals(selectedSymbol);
+  const { data: selectedDividendsPage } = useSecurityDividends(selectedSymbol, { limit: 5 });
 
   const selectedPattern = selectedPatternsPage?.items?.[0] ?? null;
   const priceItems = selectedPricesPage?.items ?? [];
@@ -372,6 +376,45 @@ export default function Univers() {
                     </span>
                   </div>
                 ))}
+
+                <div className="text-[11px] uppercase tracking-wider mt-4 mb-2" style={{ color: "var(--text-dim)" }}>
+                  Fondamentaux
+                </div>
+                {[
+                  ["Secteur", selectedFundamentals?.sector ?? "—"],
+                  ["Industrie", selectedFundamentals?.industry ?? "—"],
+                  [
+                    "Capitalisation",
+                    selectedFundamentals?.market_cap != null
+                      ? `${(selectedFundamentals.market_cap / 1e9).toFixed(2)} Md ${selectedFundamentals.currency ?? ""}`
+                      : "—",
+                  ],
+                  ["PER (trailing)", selectedFundamentals?.trailing_pe != null ? selectedFundamentals.trailing_pe.toFixed(1) : "—"],
+                  [
+                    "Rendement dividende",
+                    selectedFundamentals?.dividend_yield != null ? `${selectedFundamentals.dividend_yield.toFixed(2)}%` : "—",
+                  ],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex justify-between text-[13px] py-1.5 border-b" style={{ borderColor: "var(--hairline)" }}>
+                    <span style={{ color: "var(--text-dim)" }}>{k}</span>
+                    <span className="mono" style={{ color: "var(--text)" }}>{v}</span>
+                  </div>
+                ))}
+                {(selectedDividendsPage?.items?.length ?? 0) > 0 && (
+                  <>
+                    <div className="text-[11px] mt-3 mb-1" style={{ color: "var(--text-dim)" }}>
+                      Derniers dividendes
+                    </div>
+                    {selectedDividendsPage.items.map((d) => (
+                      <div key={d.ex_date} className="flex justify-between text-[12px] py-1" style={{ color: "var(--text-dim)" }}>
+                        <span>{d.ex_date}</span>
+                        <span className="mono">
+                          {d.amount.toFixed(2)} {selectedFundamentals?.currency ?? ""}
+                        </span>
+                      </div>
+                    ))}
+                  </>
+                )}
 
                 {selectedDecision && (
                   <>
