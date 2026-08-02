@@ -86,56 +86,76 @@ class _PaniersScreenState extends ConsumerState<PaniersScreen> {
 
   void _openCreatePortfolioDialog() {
     final controller = TextEditingController();
+    var isSubmitting = false;
+
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Créer un portefeuille'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: 'Nom du portefeuille', hintText: 'ex. Portefeuille croissance'),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Créer un portefeuille'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Nom du portefeuille', hintText: 'ex. Portefeuille croissance'),
+              ),
+              const SizedBox(height: 8),
+              Text('${_checkedIds.length} décision${_checkedIds.length > 1 ? 's' : ''} sélectionnée${_checkedIds.length > 1 ? 's' : ''}'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.of(dialogContext).pop(),
+              child: const Text('❌ Annuler'),
             ),
-            const SizedBox(height: 8),
-            Text('${_checkedIds.length} décision${_checkedIds.length > 1 ? 's' : ''} sélectionnée${_checkedIds.length > 1 ? 's' : ''}'),
+            FilledButton(
+              // `isSubmitting` évite un vrai bug observé en direct : sans ce
+              // garde-fou, un double-tap (ou un simple délai réseau) sur
+              // "Enregistrer" déclenchait deux appels `create()` avant que le
+              // premier n'ait eu le temps de fermer la boîte de dialogue,
+              // créant deux portefeuilles identiques (même nom, mêmes
+              // décisions) — même précaution déjà en place sur la boîte de
+              // dialogue d'inscription (login_screen.dart:_showSignUpDialog).
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      final name = controller.text.trim();
+                      if (name.isEmpty) return;
+                      setDialogState(() => isSubmitting = true);
+                      final navigator = Navigator.of(dialogContext);
+                      try {
+                        await ref.read(portfoliosRepositoryProvider).create(name, _checkedIds.toList());
+                        ref.invalidate(portfoliosProvider);
+                        if (mounted) setState(() => _checkedIds.clear());
+                        navigator.pop();
+                        if (mounted) {
+                          showDialog<void>(
+                            context: context,
+                            builder: (confirmContext) => AlertDialog(
+                              title: const Text('Portefeuille créé'),
+                              content: Text('« $name » a bien été enregistré.'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(confirmContext).pop(), child: const Text('OK')),
+                              ],
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setDialogState(() => isSubmitting = false);
+                        if (dialogContext.mounted) {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('$e')));
+                        }
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('✅ Enregistrer'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('❌ Annuler')),
-          FilledButton(
-            onPressed: () async {
-              final name = controller.text.trim();
-              if (name.isEmpty) return;
-              final navigator = Navigator.of(dialogContext);
-              try {
-                await ref.read(portfoliosRepositoryProvider).create(name, _checkedIds.toList());
-                ref.invalidate(portfoliosProvider);
-                if (mounted) setState(() => _checkedIds.clear());
-                navigator.pop();
-                if (mounted) {
-                  showDialog<void>(
-                    context: context,
-                    builder: (confirmContext) => AlertDialog(
-                      title: const Text('Portefeuille créé'),
-                      content: Text('« $name » a bien été enregistré.'),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.of(confirmContext).pop(), child: const Text('OK')),
-                      ],
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (dialogContext.mounted) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('$e')));
-                }
-              }
-            },
-            child: const Text('✅ Enregistrer'),
-          ),
-        ],
       ),
     );
   }
