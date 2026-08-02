@@ -14,7 +14,7 @@ import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/response_dialog.dart';
 import '../decision_detail/decision_detail_screen.dart';
 import 'widgets/breaking_news_tile.dart';
-import 'widgets/macro_tile.dart';
+import 'widgets/energy_market_tile.dart';
 
 const _filters = ['Tous', 'Achat', 'Surveiller', 'Alléger'];
 
@@ -166,7 +166,7 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: const [
-                MacroTile(),
+                EnergyMarketTile(),
                 SizedBox(width: 8),
                 BreakingNewsTile(),
               ],

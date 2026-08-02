@@ -3,7 +3,7 @@ import CandlestickChart from "../components/CandlestickChart";
 import GeorgeIndexTile from "../components/GeorgeIndexTile";
 import ResponsePopup from "../components/ResponsePopup";
 import WatchlistRow from "../components/WatchlistRow";
-import { decisionColor, macro } from "../data";
+import { decisionColor } from "../data";
 import { useVoiceCapture } from "../hooks/useVoiceCapture";
 import {
   useAgentActivity,
@@ -12,6 +12,7 @@ import {
   useDecisions,
   useExplainDecision,
   useRefreshPrices,
+  useEnergyPrices,
   useSecurities,
   useSecurityDividends,
   useSecurityFundamentals,
@@ -19,6 +20,16 @@ import {
   useSecurityPrices,
   useTriggerCollection,
 } from "../api/queries";
+
+const ENERGY_LABELS = {
+  BRENT_CRUDE_USD: "Brent",
+  WTI_USD: "WTI",
+  NATURAL_GAS_USD: "Gaz naturel",
+  DIESEL_USD: "Diesel",
+  HEATING_OIL_USD: "Fioul domestique",
+  GASOLINE_USD: "Essence",
+};
+const ENERGY_ORDER = Object.keys(ENERGY_LABELS);
 
 const FILTERS = ["Tous", "Achat", "Surveiller", "Alléger"];
 
@@ -112,6 +123,11 @@ export default function Univers() {
   const { data: decisionsPage } = useDecisions({ limit: 200 });
   const { data: basketsPage } = useBaskets();
   const { data: agentPage } = useAgentActivity({ limit: 6 });
+  const { data: energyPrices } = useEnergyPrices();
+
+  const sortedEnergyPrices = ENERGY_ORDER.map((code) => energyPrices?.find((e) => e.commodity_code === code)).filter(
+    Boolean
+  );
 
   const securities = securitiesPage?.items ?? [];
 
@@ -284,13 +300,18 @@ export default function Univers() {
             )}
             <div className="border rounded-[10px] p-3 flex flex-col gap-2" style={{ borderColor: "var(--hairline)", background: "var(--panel)" }}>
               <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-dim)" }}>
-                Repères macro
+                Marché d'énergie
               </div>
-              {macro.map((m) => (
-                <div key={m.name} className="flex justify-between items-center text-xs py-0.5">
-                  <span style={{ color: "var(--text-dim)" }}>{m.name}</span>
-                  <span className="mono" style={{ color: m.dir === "up" ? "var(--positive)" : "var(--negative)" }}>
-                    {m.dir === "up" ? "▲" : "▼"} {m.value}
+              {sortedEnergyPrices.length === 0 && (
+                <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>
+                  Aucune donnée pour l'instant (import quotidien pas encore passé).
+                </div>
+              )}
+              {sortedEnergyPrices.map((e) => (
+                <div key={e.commodity_code} className="flex justify-between items-center text-xs py-0.5">
+                  <span style={{ color: "var(--text-dim)" }}>{ENERGY_LABELS[e.commodity_code] ?? e.commodity_code}</span>
+                  <span className="mono" style={{ color: (e.change_24h_pct ?? 0) >= 0 ? "var(--positive)" : "var(--negative)" }}>
+                    {(e.change_24h_pct ?? 0) >= 0 ? "▲" : "▼"} {e.price.toFixed(2)} {e.currency}
                   </span>
                 </div>
               ))}

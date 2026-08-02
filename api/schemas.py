@@ -83,6 +83,18 @@ class DividendOut(BaseModel):
     amount: float
 
 
+class EnergyPriceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    commodity_code: str
+    price: float
+    unit: str
+    currency: str
+    change_24h_pct: float | None = None
+    price_observed_at: datetime | None = None
+    snapshot_date: date
+
+
 class NewsItemOut(BaseModel):
     """Voir `api/routers/news.py` — pas de `model_config(from_attributes=True)`
     ici : construit directement depuis un dict yfinance, pas un objet ORM."""

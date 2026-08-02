@@ -282,6 +282,41 @@ class MacroIndicatorSnapshot(Base):
     )
 
 
+class EnergyPriceSnapshot(Base):
+    """Instantané quotidien du marché de l'énergie via OilPriceAPI
+    (`ingestion/energy_prices.py`) — ad hoc, pas une phase du roadmap.
+    Brent, WTI, gaz naturel, et produits raffinés (diesel, fioul
+    domestique, essence). Même principe que `CompanyFundamentals` (yfinance)
+    juste au-dessus : une ligne par (matière première, jour d'ingestion),
+    jamais écrasée, pour qu'un vrai historique s'accumule dans le temps.
+
+    `commodity_code` reprend directement le code OilPriceAPI (ex.
+    `"BRENT_CRUDE_USD"`) plutôt qu'une nouvelle taxonomie. `snapshot_date`
+    est la date du jour d'ingestion (`date.today()`), pas la date
+    d'observation du cours lui-même (`price_observed_at`, qui peut être
+    légèrement en retard un week-end/jour férié de marché fermé) — la clé
+    unique porte sur `snapshot_date` pour garantir un import quotidien
+    idempotent (une seule ligne par jour même si le job est relancé)."""
+
+    __tablename__ = "energy_price_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    commodity_code: Mapped[str] = mapped_column(Text, nullable=False)
+    price: Mapped[float] = mapped_column(Numeric, nullable=False)
+    unit: Mapped[str] = mapped_column(Text, nullable=False)
+    currency: Mapped[str] = mapped_column(Text, nullable=False)
+    change_24h_pct: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    price_observed_at: Mapped[datetime.datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    snapshot_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("commodity_code", "snapshot_date", name="uq_energy_price_snapshot_commodity_date"),
+    )
+
+
 class CurrencyPair(Base):
     """Univers des paires de devises suivies pour le panier Carry Trade (ad
     hoc, pas une phase du roadmap) — schéma FX dédié plutôt qu'une

@@ -48,6 +48,10 @@ export function useSecurityDividends(symbol, { limit = 5 } = {}) {
   });
 }
 
+export function useEnergyPrices() {
+  return useQuery({ queryKey: ["energy-prices"], queryFn: () => apiFetch("/energy-prices") });
+}
+
 export function useBaskets() {
   return useQuery({ queryKey: ["baskets"], queryFn: () => apiFetch("/baskets") });
 }

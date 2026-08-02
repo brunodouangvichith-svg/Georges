@@ -1,0 +1,28 @@
+name: Import quotidien marché de l'énergie (OilPriceAPI)
+
+# 6h UTC = 8h heure française en été (CEST, UTC+2, en vigueur actuellement).
+# Même limitation qu'ailleurs dans ce projet : GitHub Actions ne gère pas
+# nativement l'heure d'été, donc ceci tombera à 7h française en hiver (CET) —
+# décalage d'1h assumé plutôt qu'une 2e règle cron. Un seul appel par matière
+# première suivie (6 au total) pour rester très en dessous du palier gratuit
+# OilPriceAPI (200 requêtes/mois) — ne jamais ajouter de déclenchement
+# manuel répété à cette ingestion sans revoir ce budget.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Marché de l'énergie (ingestion.energy_prices)
+        run: python -m ingestion.energy_prices
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OILPRICEAPI_KEY: ${{ secrets.OILPRICEAPI_KEY }}

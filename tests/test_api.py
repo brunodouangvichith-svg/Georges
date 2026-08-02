@@ -28,6 +28,7 @@ from ingestion.models import (
     Decision,
     DecisionOutcome,
     Dividend,
+    EnergyPriceSnapshot,
     MacroIndicatorSnapshot,
     PatternDetected,
     PriceOHLCV,
@@ -179,6 +180,38 @@ def client(database_url, monkeypatch):
                 {"symbol": "AAA.PA", "ex_date": base_ts.date(), "amount": 2.0},
             ],
         )
+        conn.execute(
+            EnergyPriceSnapshot.__table__.insert(),
+            [
+                # Deux instantanés pour Brent à des dates différentes : sans
+                # tri par `snapshot_date` décroissant, l'endpoint pourrait
+                # renvoyer l'ancien plutôt que le plus récent.
+                {
+                    "commodity_code": "BRENT_CRUDE_USD",
+                    "price": 88.0,
+                    "unit": "barrel",
+                    "currency": "USD",
+                    "change_24h_pct": 1.0,
+                    "snapshot_date": base_ts.date() - pd.Timedelta(days=1),
+                },
+                {
+                    "commodity_code": "BRENT_CRUDE_USD",
+                    "price": 91.04,
+                    "unit": "barrel",
+                    "currency": "USD",
+                    "change_24h_pct": 0.0,
+                    "snapshot_date": base_ts.date(),
+                },
+                {
+                    "commodity_code": "WTI_USD",
+                    "price": 84.67,
+                    "unit": "barrel",
+                    "currency": "USD",
+                    "change_24h_pct": -0.5,
+                    "snapshot_date": base_ts.date(),
+                },
+            ],
+        )
 
     # Ce portail simple (Phase 9) protège chaque routeur via
     # `Depends(require_user)` — aucun des tests existants n'a de jeton
@@ -318,6 +351,16 @@ def test_list_security_dividends_most_recent_first(client):
     body = resp.json()
     assert body["total"] == 2
     assert body["items"][0]["amount"] == 2.0
+
+
+def test_list_energy_prices_returns_most_recent_snapshot_per_commodity(client):
+    resp = client.get("/energy-prices")
+    assert resp.status_code == 200
+    body = resp.json()
+    by_code = {row["commodity_code"]: row for row in body}
+    assert len(body) == 2  # BRENT_CRUDE_USD + WTI_USD, une ligne chacun
+    assert by_code["BRENT_CRUDE_USD"]["price"] == 91.04  # le plus récent, pas 88.0
+    assert by_code["WTI_USD"]["price"] == 84.67
 
 
 def test_list_baskets(client):
