@@ -1,4 +1,19 @@
+import { supabase } from "./supabaseClient";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+
+// Portail d'accès simple (Phase 9, voir CLAUDE.md section Auth) : chaque
+// appel API doit porter le jeton Supabase courant. `getSession()` est
+// toujours une Promise (jamais synchrone, même si elle résout depuis un
+// cache en mémoire sans aller-retour réseau) — compatible avec les 3
+// wrappers ci-dessous, déjà tous `async`.
+async function authHeaders() {
+  if (!supabase) return {};
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session ? { Authorization: `Bearer ${session.access_token}` } : {};
+}
 
 export async function apiFetch(path, params) {
   const url = new URL(path, API_BASE_URL);
@@ -9,7 +24,7 @@ export async function apiFetch(path, params) {
       }
     }
   }
-  const response = await fetch(url);
+  const response = await fetch(url, { headers: await authHeaders() });
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText} sur ${path}`);
   }
@@ -20,7 +35,7 @@ export async function apiPost(path, body) {
   const url = new URL(path, API_BASE_URL);
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify(body ?? {}),
   });
   if (!response.ok) {
@@ -31,7 +46,7 @@ export async function apiPost(path, body) {
 
 export async function apiDelete(path) {
   const url = new URL(path, API_BASE_URL);
-  const response = await fetch(url, { method: "DELETE" });
+  const response = await fetch(url, { method: "DELETE", headers: await authHeaders() });
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText} sur ${path}`);
   }

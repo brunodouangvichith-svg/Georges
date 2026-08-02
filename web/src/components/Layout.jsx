@@ -1,3 +1,5 @@
+import { supabase } from "../api/supabaseClient";
+
 const NAV = [
   { key: "univers", label: "Univers", icon: "◆" },
   { key: "paniers", label: "Paniers", icon: "▤" },
@@ -39,6 +41,13 @@ export default function Layout({ view, setView, children }) {
             Marché ouvert
           </span>
           <span className="mono">08:30 · Euronext Paris</span>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="text-[11.5px] px-2.5 py-1 rounded-full border"
+            style={{ borderColor: "var(--hairline)", color: "var(--text-dim)" }}
+          >
+            Se déconnecter
+          </button>
         </div>
       </div>
       <div className="overflow-hidden">{children}</div>

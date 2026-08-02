@@ -9,12 +9,13 @@ Documentation générée automatiquement par FastAPI : `/docs` (Swagger UI),
 
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from agents.mistral_client import MistralUnavailableError
+from api.auth import SupabaseUnavailableError, require_user
 from api.routers import agents, baskets, carry_trade, chat, decisions, portfolios, prices, reports, securities
 
 logger = logging.getLogger(__name__)
@@ -25,8 +26,11 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Pas d'authentification à ce stade (voir Phase 9) — CORS limité au serveur
-# de dev Vite en local ; à restreindre/remplacer avant tout déploiement partagé.
+# Authentification Supabase (Phase 9, portail simple — voir api/auth.py) :
+# CORS limité au serveur de dev Vite en local ; à restreindre/remplacer avant
+# tout déploiement partagé. `allow_headers=["*"]` couvre déjà l'en-tête
+# `Authorization` envoyé par les clients authentifiés, aucun changement CORS
+# supplémentaire n'est nécessaire pour ça.
 # POST ajouté en Phase 4 pour /chat, /decisions/{id}/explanation, /reports ;
 # DELETE ajouté pour /portfolios (suppression d'un portefeuille/d'une ligne).
 app.add_middleware(
@@ -62,15 +66,35 @@ async def mistral_exception_handler(request: Request, exc: MistralUnavailableErr
     return JSONResponse(status_code=503, content={"detail": f"Service LLM indisponible : {exc}"})
 
 
-app.include_router(securities.router)
-app.include_router(baskets.router)
-app.include_router(decisions.router)
-app.include_router(agents.router)
-app.include_router(chat.router)
-app.include_router(reports.router)
-app.include_router(portfolios.router)
-app.include_router(prices.router)
-app.include_router(carry_trade.router)
+@app.exception_handler(SupabaseUnavailableError)
+async def supabase_exception_handler(request: Request, exc: SupabaseUnavailableError):
+    """Même piège Starlette que ci-dessus : une sous-classe précise plutôt
+    que `Exception` nue, pour rester sous `CORSMiddleware`. Couvre la
+    configuration Supabase manquante et le service d'authentification
+    injoignable (Phase 9) — un jeton simplement invalide/expiré n'est PAS
+    cette erreur, voir `api/auth.py:require_user`, qui lève une
+    `HTTPException(401)` ordinaire (déjà gérée sous `CORSMiddleware` par le
+    handler par défaut de Starlette, sans avoir besoin d'un handler dédié)."""
+    logger.exception("Erreur d'authentification Supabase sur %s", request.url.path, exc_info=exc)
+    return JSONResponse(status_code=503, content={"detail": f"Service d'authentification indisponible : {exc}"})
+
+
+# `dependencies=[Depends(require_user)]` protège chaque route de ces 9
+# routeurs sans que les fonctions de route aient à déclarer/consommer la
+# dépendance elles-mêmes — ce portail simple (Phase 9) n'a besoin ni de
+# filtrer les données par utilisateur, ni de faire remonter un identifiant
+# aux routes, seule la présence d'un jeton Supabase valide compte. `/health`
+# et les routes auto-générées par FastAPI (`/docs`, `/redoc`, `/openapi.json`)
+# restent volontairement hors de cette liste.
+app.include_router(securities.router, dependencies=[Depends(require_user)])
+app.include_router(baskets.router, dependencies=[Depends(require_user)])
+app.include_router(decisions.router, dependencies=[Depends(require_user)])
+app.include_router(agents.router, dependencies=[Depends(require_user)])
+app.include_router(chat.router, dependencies=[Depends(require_user)])
+app.include_router(reports.router, dependencies=[Depends(require_user)])
+app.include_router(portfolios.router, dependencies=[Depends(require_user)])
+app.include_router(prices.router, dependencies=[Depends(require_user)])
+app.include_router(carry_trade.router, dependencies=[Depends(require_user)])
 
 
 @app.get("/health", tags=["meta"])

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import 'api_exception.dart';
+import 'auth/auth_interceptor.dart';
 import 'env.dart';
 
 /// Wrapper HTTP à 3 verbes — miroir de web/src/api/client.js
@@ -17,7 +18,9 @@ class ApiClient {
           baseUrl: apiBaseUrl,
           connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 30),
-        ));
+        )) {
+    _dio.interceptors.add(AuthInterceptor());
+  }
 
   Future<dynamic> get(String path, {Map<String, dynamic>? params, Duration? receiveTimeout}) async {
     try {

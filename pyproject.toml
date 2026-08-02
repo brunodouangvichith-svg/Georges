@@ -21,13 +21,13 @@ dependencies = [
   "mistralai>=1.5",
   "pgvector>=0.3",
   "requests>=2.31",
+  "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest>=8",
   "testcontainers[postgres]>=4",
-  "httpx>=0.27",
 ]
 notebook = [
   "mplfinance>=0.12",

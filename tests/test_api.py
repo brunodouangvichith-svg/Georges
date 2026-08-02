@@ -16,6 +16,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 import agents.mistral_client as mistral_client
+import api.auth as auth
 import api.deps as deps
 from api.main import app
 from ingestion.models import (
@@ -140,6 +141,15 @@ def client(database_url, monkeypatch):
                 }
             ],
         )
+
+    # Ce portail simple (Phase 9) protège chaque routeur via
+    # `Depends(require_user)` — aucun des tests existants n'a de jeton
+    # Supabase à fournir, donc on contourne la dépendance directement
+    # (`app.dependency_overrides`, mécanisme natif de FastAPI, plus propre
+    # que monkeypatcher l'appel HTTP à Supabase). `monkeypatch.setitem`
+    # s'annule tout seul en fin de test, même style que les
+    # `monkeypatch.setattr(deps, ...)` déjà utilisés ci-dessus.
+    monkeypatch.setitem(app.dependency_overrides, auth.require_user, lambda: "test-user-id")
 
     with TestClient(app) as test_client:
         yield test_client
@@ -286,6 +296,7 @@ def test_db_unreachable_returns_503_with_cors_headers(monkeypatch):
     )
     monkeypatch.setattr(deps, "engine", broken_engine)
     monkeypatch.setattr(deps, "SessionLocal", sessionmaker(bind=broken_engine, autoflush=False, future=True))
+    monkeypatch.setitem(app.dependency_overrides, auth.require_user, lambda: "test-user-id")
 
     with TestClient(app) as broken_client:
         resp = broken_client.get("/baskets", headers={"Origin": "http://localhost:5173"})

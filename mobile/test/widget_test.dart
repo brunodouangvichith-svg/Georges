@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:george_mobile/app.dart';
+import 'package:george_mobile/core/auth/auth_providers.dart';
 import 'package:george_mobile/data/agents_repository.dart';
 import 'package:george_mobile/data/decisions_repository.dart';
 import 'package:george_mobile/data/securities_repository.dart';
@@ -30,6 +31,12 @@ void main() {
         securitiesProvider(null).overrideWith((ref) async => fakeSecurities),
         decisionsProvider(const DecisionsFilter()).overrideWith((ref) async => fakeDecisions),
         agentActivityProvider.overrideWith((ref) async => fakeActivity),
+        // Portail d'accès simple (Phase 9) : ces deux providers évitent que
+        // le routeur ne touche le vrai singleton Supabase (jamais
+        // initialisé ici, ce test ne passe pas par main()) et forcent un
+        // état "connecté" pour pouvoir vérifier l'écran Univers.
+        authChangeStreamProvider.overrideWithValue(const Stream.empty()),
+        isLoggedInProvider.overrideWithValue(true),
       ],
       child: const GeorgeApp(),
     ));
