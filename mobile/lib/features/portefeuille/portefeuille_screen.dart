@@ -81,8 +81,9 @@ class PortefeuilleScreen extends ConsumerWidget {
             children: const [
               EmptyState(
                 message:
-                    "Impossible de contacter l'API — vérifiez qu'elle tourne "
-                    '(uvicorn api.main:app --reload --host 0.0.0.0).',
+                    "Impossible de contacter l'API — si le service vient d'être "
+                    'inactif, le premier appel peut prendre jusqu\'à ~50s '
+                    '(réveil du plan gratuit Render), sinon vérifiez la connexion.',
               ),
             ],
           ),

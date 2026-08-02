@@ -5,11 +5,17 @@ import 'auth/auth_interceptor.dart';
 import 'env.dart';
 
 /// Wrapper HTTP à 3 verbes — miroir de web/src/api/client.js
-/// (`apiFetch`/`apiPost`/`apiDelete`). Timeouts par défaut volontairement
-/// courts pour faire remonter vite une vraie panne (API/DB down) ; les 4
-/// appels backend connus pour être lents (/prices/refresh, /agents/collect,
-/// /decisions/{id}/explanation, /chat) passent un `receiveTimeout` plus long
-/// explicitement au niveau de l'appel, pas via ce défaut global.
+/// (`apiFetch`/`apiPost`/`apiDelete`). Le `receiveTimeout` par défaut doit
+/// couvrir le cold start du plan gratuit Render (`george-api`, voir
+/// CLAUDE.md section Hosting) — le service se met en veille après une
+/// période d'inactivité et peut mettre jusqu'à ~50s à répondre au premier
+/// appel suivant, ce qui n'est pas une vraie panne mais se comportait comme
+/// telle avec l'ancien défaut de 30s (calé sur un backend local toujours
+/// éveillé) : l'app affichait "Impossible de contacter l'API" alors que le
+/// service était juste en train de se réveiller. Les 4 appels backend
+/// connus pour être lents pour d'autres raisons (/prices/refresh,
+/// /agents/collect, /decisions/{id}/explanation, /chat) passent un
+/// `receiveTimeout` encore plus long explicitement au niveau de l'appel.
 class ApiClient {
   final Dio _dio;
 
@@ -17,7 +23,7 @@ class ApiClient {
       : _dio = Dio(BaseOptions(
           baseUrl: apiBaseUrl,
           connectTimeout: const Duration(seconds: 15),
-          receiveTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 60),
         )) {
     _dio.interceptors.add(AuthInterceptor());
   }
