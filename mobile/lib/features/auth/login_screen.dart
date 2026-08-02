@@ -234,12 +234,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Text(
-                          'George',
+                          'GeorGe',
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.displaySmall?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                // 36 (taille par défaut Material 3 de displaySmall) * 1.20.
-                                fontSize: 43.2,
+                                // 36 (taille par défaut Material 3 de displaySmall) * 1.20 * 1.20.
+                                fontSize: 51.84,
                                 color: Colors.black87,
                               ),
                         ),
@@ -297,8 +297,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
                       onPressed: _isLoading ? null : _signInWithGoogle,
-                      icon: const Icon(Icons.login),
-                      label: const Text('Continuer avec Google'),
+                      icon: const Icon(Icons.login, color: Colors.black87),
+                      label: const Text('Continuer avec Google', style: TextStyle(color: Colors.black87)),
+                      style: OutlinedButton.styleFrom(backgroundColor: Colors.lightBlue.shade100),
                     ),
                     if (_isLoading)
                       const Padding(
