@@ -87,9 +87,9 @@ ThemeData buildAppTheme() {
       surfaceTintColor: Colors.transparent,
       indicatorColor: AppColors.accentDim,
       labelTextStyle: WidgetStateProperty.resolveWith(
-        // 11 * 1.20 : taille demandée pour les libellés "Univers"/"Paniers"/"Portefeuille".
+        // 11 * 1.20 * 1.10 : taille demandée pour les libellés "Univers"/"Paniers"/"Portefeuille".
         (states) => GoogleFonts.inter(
-          fontSize: 13.2,
+          fontSize: 14.52,
           fontWeight: FontWeight.w600,
           color: states.contains(WidgetState.selected) ? AppColors.text : AppColors.textDim,
         ),

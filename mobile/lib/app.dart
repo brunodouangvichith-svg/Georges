@@ -128,8 +128,18 @@ class _AppShellState extends State<_AppShell> {
                   ),
                 ),
               ),
-        // 22 (taille par défaut du titre d'AppBar, Material 3 titleLarge) * 1.25 * 1.10.
-        title: const Text('George', style: TextStyle(fontSize: 30.25, fontWeight: FontWeight.bold)),
+        title: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.lightBlue.shade100,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            'George',
+            // 22 (taille par défaut du titre d'AppBar, Material 3 titleLarge) * 1.25 * 1.10 * 1.10.
+            style: const TextStyle(fontSize: 33.275, fontWeight: FontWeight.bold, color: Colors.black87),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_outline),
