@@ -31,13 +31,20 @@ flutter run --dart-define=API_BASE_URL=http://localhost:8000
 
 # Appareil physique sur le même réseau (remplacer par l'IP LAN réelle)
 flutter run --dart-define=API_BASE_URL=http://<ip-lan-machine-hote>:8000
+
+# Backend réel hébergé sur Render (n'importe où, pas besoin du même Wi-Fi)
+flutter run --dart-define=API_BASE_URL=https://george-api-mmut.onrender.com
 ```
 
 CORS (`api/main.py:allow_origins`) ne concerne que les clients navigateur —
 non-sujet pour un build natif Android/iOS. Android 9+ bloque le trafic HTTP
 en clair par défaut : un build de développement pointant vers un backend en
 `http://` (non `https://`) nécessite une configuration réseau autorisant le
-cleartext (à ajouter si un vrai appareil Android refuse la connexion).
+cleartext (à ajouter si un vrai appareil Android refuse la connexion) — non
+applicable au backend Render, qui est en `https://`. Les builds distribués
+pour test (voir CLAUDE.md, section Hosting) pointent vers l'URL Render, pas
+vers une IP locale — le service Render gratuit se met en veille après
+inactivité (~50s de réveil au premier appel).
 
 ## Authentification (Supabase, Phase 9)
 
