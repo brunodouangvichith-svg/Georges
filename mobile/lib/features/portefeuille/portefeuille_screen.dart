@@ -67,6 +67,27 @@ class PortefeuilleScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, Portfolio portfolio) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Supprimer le portefeuille ?'),
+        content: Text('« ${portfolio.name} » sera définitivement supprimé.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade400),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(portfoliosRepositoryProvider).delete(portfolio.id);
+    ref.invalidate(portfoliosProvider);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final portfoliosAsync = ref.watch(portfoliosProvider);
@@ -104,6 +125,7 @@ class PortefeuilleScreen extends ConsumerWidget {
               itemBuilder: (context, index) => _PortfolioSection(
                 portfolio: portfolios[index],
                 onAskGeorge: () => _askGeorge(context, ref, portfolios[index]),
+                onDelete: () => _confirmDelete(context, ref, portfolios[index]),
               ),
             );
           },
@@ -114,10 +136,11 @@ class PortefeuilleScreen extends ConsumerWidget {
 }
 
 class _PortfolioSection extends ConsumerWidget {
-  const _PortfolioSection({required this.portfolio, required this.onAskGeorge});
+  const _PortfolioSection({required this.portfolio, required this.onAskGeorge, required this.onDelete});
 
   final Portfolio portfolio;
   final VoidCallback onAskGeorge;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -139,24 +162,24 @@ class _PortfolioSection extends ConsumerWidget {
                 IconButton(
                   tooltip: 'Supprimer le portefeuille',
                   icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
-                  onPressed: () async {
-                    await ref.read(portfoliosRepositoryProvider).delete(portfolio.id);
-                    ref.invalidate(portfoliosProvider);
-                  },
+                  onPressed: onDelete,
                 ),
               ],
             ),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  onPressed: onAskGeorge,
-                  icon: const Icon(Icons.mic_none, size: 16),
-                  label: const Text('Demander à George'),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: onAskGeorge,
+                icon: const Icon(Icons.mic_none, size: 16),
+                label: const Text('Demander à George pour répartir le portefeuille'),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.lightBlue.shade100,
+                  foregroundColor: Colors.black87,
                 ),
-                const SizedBox(width: 8),
-                Text('Créé le ${dateFormat.format(portfolio.createdAt)}', style: Theme.of(context).textTheme.labelSmall),
-              ],
+              ),
             ),
+            const SizedBox(height: 4),
+            Text('Créé le ${dateFormat.format(portfolio.createdAt)}', style: Theme.of(context).textTheme.labelSmall),
             const SizedBox(height: 8),
             if (portfolio.decisions.isEmpty)
               const Text('Ce portefeuille est vide.')
@@ -206,7 +229,10 @@ class _PortfolioSection extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('PnL du portefeuille', style: Theme.of(context).textTheme.labelSmall),
+                  Text(
+                    'PnL du portefeuille',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold),
+                  ),
                   if (portfolio.totalPnlAmount == null)
                     const Expanded(
                       child: Text(

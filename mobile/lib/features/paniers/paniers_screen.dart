@@ -115,6 +115,18 @@ class _PaniersScreenState extends ConsumerState<PaniersScreen> {
                 ref.invalidate(portfoliosProvider);
                 if (mounted) setState(() => _checkedIds.clear());
                 navigator.pop();
+                if (mounted) {
+                  showDialog<void>(
+                    context: context,
+                    builder: (confirmContext) => AlertDialog(
+                      title: const Text('Portefeuille créé'),
+                      content: Text('« $name » a bien été enregistré.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.of(confirmContext).pop(), child: const Text('OK')),
+                      ],
+                    ),
+                  );
+                }
               } catch (e) {
                 if (dialogContext.mounted) {
                   ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('$e')));
