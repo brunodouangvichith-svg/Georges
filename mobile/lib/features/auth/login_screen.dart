@@ -100,6 +100,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final passwordController = TextEditingController();
     final confirmController = TextEditingController();
     var isSubmitting = false;
+    var obscurePassword = true;
+    var obscureConfirm = true;
 
     await showDialog<void>(
       context: context,
@@ -119,16 +121,32 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: passwordController,
-                  obscureText: true,
+                  obscureText: obscurePassword,
                   autofillHints: const [AutofillHints.newPassword],
-                  decoration: const InputDecoration(labelText: 'Mot de passe', border: OutlineInputBorder()),
+                  decoration: InputDecoration(
+                    labelText: 'Mot de passe',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                      tooltip: obscurePassword ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
+                      onPressed: () => setDialogState(() => obscurePassword = !obscurePassword),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: confirmController,
-                  obscureText: true,
+                  obscureText: obscureConfirm,
                   autofillHints: const [AutofillHints.newPassword],
-                  decoration: const InputDecoration(labelText: 'Confirmer le mot de passe', border: OutlineInputBorder()),
+                  decoration: InputDecoration(
+                    labelText: 'Confirmer le mot de passe',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                      tooltip: obscureConfirm ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
+                      onPressed: () => setDialogState(() => obscureConfirm = !obscureConfirm),
+                    ),
+                  ),
                 ),
               ],
             ),

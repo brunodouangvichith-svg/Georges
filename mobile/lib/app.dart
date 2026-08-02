@@ -33,6 +33,18 @@ final _goRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/univers',
     refreshListenable: refreshNotifier,
     redirect: (context, state) {
+      // Le retour du deep link OAuth Google (`io.supabase.george://
+      // login-callback/?code=...`, voir login_screen.dart:_signInWithGoogle)
+      // arrive ici aussi : le SDK Supabase l'intercepte déjà en interne pour
+      // échanger le code contre une session, mais go_router le reçoit
+      // séparément comme une location à router — et comme aucune route ne
+      // matche ce schéma personnalisé, il affiche sa page d'erreur générique
+      // "Page Not Found" (`GoException: no routes for location: io.supabase
+      // .george://...`), vu en direct sur appareil. Il faut l'intercepter ici
+      // avant le matching de routes plutôt que de le laisser 404.
+      if (state.uri.scheme == 'io.supabase.george') {
+        return ref.read(isLoggedInProvider) ? '/univers' : '/login';
+      }
       final loggedIn = ref.read(isLoggedInProvider);
       final onLoginPage = state.matchedLocation == '/login';
       if (!loggedIn) return onLoginPage ? null : '/login';
