@@ -23,24 +23,7 @@ CONNECT_TIMEOUT_SECONDS = 5
 
 
 def get_database_url() -> str:
-    raw = os.environ.get("DATABASE_URL")
-    if raw is not None:
-        # DEBUG TEMPORAIRE — diagnostic d'un échec de parsing SQLAlchemy sur
-        # Render alors que la même chaîne parse correctement en local. Affiche
-        # la forme de la valeur réellement injectée (sans le mot de passe en
-        # clair) pour repérer un caractère invisible ajouté par le
-        # copier-coller dans le dashboard Render (guillemets, saut de ligne,
-        # espace). À retirer une fois le déploiement confirmé fonctionnel.
-        print(
-            "[DEBUG DATABASE_URL] "
-            f"len={len(raw)} "
-            f"repr_start={raw[:25]!r} "
-            f"repr_end={raw[-25:]!r} "
-            f"has_newline={chr(10) in raw or chr(13) in raw} "
-            f"has_quote={chr(34) in raw or chr(39) in raw} "
-            f"has_leading_trailing_space={raw != raw.strip()}"
-        )
-    return raw if raw is not None else DEFAULT_DATABASE_URL
+    return os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
 
 
 def get_engine():
