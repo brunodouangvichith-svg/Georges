@@ -8,6 +8,9 @@
          Supabase, quel que soit le domaine ou la connectivité réelle du
          téléphone. Voir CLAUDE.md, section Auth. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Nécessaire au bouton micro de l'onglet Univers (package speech_to_text,
+         reconnaissance vocale pour "Poser une question à George"). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application
         android:label="george_mobile"
         android:name="${applicationName}"

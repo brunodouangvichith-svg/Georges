@@ -101,8 +101,23 @@ class _AppShellState extends State<_AppShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // 22 (taille par défaut du titre d'AppBar, Material 3 titleLarge) * 1.25.
-        title: const Text('George', style: TextStyle(fontSize: 27.5, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        leadingWidth: 96,
+        leading: _appVersion == null
+            ? null
+            : Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: Text(
+                    'George v$_appVersion',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+                    overflow: TextOverflow.visible,
+                    softWrap: false,
+                  ),
+                ),
+              ),
+        // 22 (taille par défaut du titre d'AppBar, Material 3 titleLarge) * 1.25 * 1.10.
+        title: const Text('George', style: TextStyle(fontSize: 30.25, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_outline),
@@ -113,20 +128,7 @@ class _AppShellState extends State<_AppShell> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          widget.navigationShell,
-          if (_appVersion != null)
-            Positioned(
-              left: 8,
-              bottom: 8,
-              child: Text(
-                'George v$_appVersion',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
-              ),
-            ),
-        ],
-      ),
+      body: widget.navigationShell,
       bottomNavigationBar: NavigationBar(
         selectedIndex: widget.navigationShell.currentIndex,
         onDestinationSelected: (index) => widget.navigationShell.goBranch(
