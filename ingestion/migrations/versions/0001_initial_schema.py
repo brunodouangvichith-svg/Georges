@@ -1,4 +1,10 @@
-"""schema initial : securities, prices_ohlcv (hypertable), patterns_detected, decisions, decision_outcomes
+"""schema initial : securities, prices_ohlcv, patterns_detected, decisions, decision_outcomes
+
+TimescaleDB (hypertable sur prices_ohlcv) retiré : incompatible avec
+l'hébergement Postgres géré gratuit visé (Supabase, Postgres 17, où
+l'extension timescaledb n'est plus disponible — vérifié en direct, voir
+CLAUDE.md). Table Postgres classique désormais, sans perte de
+fonctionnalité réelle à l'échelle de George (~100 titres suivis).
 
 Revision ID: 0001
 Revises:
@@ -19,8 +25,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS timescaledb")
-
     op.create_table(
         "securities",
         sa.Column("symbol", sa.Text(), nullable=False),
@@ -44,8 +48,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["symbol"], ["securities.symbol"]),
         sa.PrimaryKeyConstraint("symbol", "ts"),
     )
-    # `ts` est la colonne de partitionnement temporel de TimescaleDB.
-    op.execute("SELECT create_hypertable('prices_ohlcv', 'ts')")
 
     op.create_table(
         "patterns_detected",

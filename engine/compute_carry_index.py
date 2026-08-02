@@ -35,7 +35,11 @@ def load_fx_prices(engine, symbol: str) -> pd.DataFrame:
     if df.empty:
         return df
     df.index = pd.to_datetime(df.index)
-    return df.astype({"open": float, "high": float, "low": float, "close": float, "volume": "int64"})
+    df = df.astype({"open": float, "high": float, "low": float, "close": float, "volume": "int64"})
+    # Filtre une éventuelle dernière bougie NaN (séance en cours à
+    # l'ingestion) — même correctif que `engine.run_detection.load_prices`,
+    # voir sa docstring pour le bug réel que ça a causé en aval.
+    return df[df["close"].notna()]
 
 
 def latest_rate_by_currency(engine) -> dict[str, float]:

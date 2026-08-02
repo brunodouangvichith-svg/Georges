@@ -28,7 +28,8 @@ class Security(Base):
 
 
 class PriceOHLCV(Base):
-    """Hypertable TimescaleDB — une ligne par (titre, horodatage)."""
+    """Table Postgres classique (plus une hypertable TimescaleDB depuis
+    l'hébergement sur Supabase, voir CLAUDE.md) — une ligne par (titre, horodatage)."""
 
     __tablename__ = "prices_ohlcv"
 
@@ -255,7 +256,8 @@ class CurrencyPair(Base):
 
 
 class FxPriceOHLCV(Base):
-    """Hypertable TimescaleDB — historique quotidien d'une paire de devises
+    """Table Postgres classique (plus une hypertable TimescaleDB, voir
+    `PriceOHLCV` ci-dessus) — historique quotidien d'une paire de devises
     (`ingestion/fx_rates.py`, via yfinance). Même forme que `PriceOHLCV`
     mais FK vers `currency_pairs` — `volume` vaut toujours 0 pour le FX spot
     (yfinance n'en fournit pas de réel), conservé pour rester dans la même

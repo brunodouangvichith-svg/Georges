@@ -17,7 +17,7 @@ tests/       tests pytest
 
 ## Prérequis
 
-- [Docker](https://www.docker.com/) (avec Docker Compose v2) — pour lancer PostgreSQL/TimescaleDB, Redis, MinIO, Adminer.
+- [Docker](https://www.docker.com/) (avec Docker Compose v2) — pour lancer PostgreSQL, Redis, MinIO, Adminer.
 - Python 3.11+.
 - Une clé API [Mistral](https://console.mistral.ai/) (offre gratuite avec quota) pour la Phase 4 — voir section 11. Pas nécessaire pour les Phases 0-3.
 
@@ -31,7 +31,7 @@ docker compose up -d
 ```
 
 Cela démarre :
-- **db** (PostgreSQL 16 + TimescaleDB) sur `localhost:5432` — identifiants par défaut `george` / `george`, base `george` (voir `infra/.env.example` pour les surcharger via un fichier `.env` dans `infra/`).
+- **db** (PostgreSQL 17) sur `localhost:5432` — identifiants par défaut `george` / `george`, base `george` (voir `infra/.env.example` pour les surcharger via un fichier `.env` dans `infra/`).
 - **redis** sur `localhost:6379`.
 - **minio** (stockage compatible S3) sur `localhost:9000` (API) / `localhost:9001` (console web).
 - **adminer** (administration web de la base) sur [localhost:8080](http://localhost:8080) — serveur `db`, utilisateur/mot de passe comme ci-dessus.
@@ -64,7 +64,7 @@ Avec l'environnement Docker démarré (étape 1) :
 alembic upgrade head
 ```
 
-Ceci crée les 9 tables du schéma : `securities`, `prices_ohlcv` (hypertable TimescaleDB), `patterns_detected`, `decisions`, `decision_outcomes` (migration `0001`), `baskets`, `basket_securities`, `pattern_candidates` (migration `0002`, Phase 2), puis `agent_events` (migration `0003`, Phase 3).
+Ceci crée les 9 tables du schéma : `securities`, `prices_ohlcv`, `patterns_detected`, `decisions`, `decision_outcomes` (migration `0001`), `baskets`, `basket_securities`, `pattern_candidates` (migration `0002`, Phase 2), puis `agent_events` (migration `0003`, Phase 3).
 
 Par défaut, la connexion utilisée est `postgresql+psycopg://george:george@localhost:5432/george` (voir `ingestion/db.py`). Pour la surcharger, définir la variable d'environnement `DATABASE_URL` avant d'exécuter `alembic` (ou tout autre script Python du dépôt).
 
@@ -82,7 +82,7 @@ Charge les 40 valeurs du CAC 40 (voir `ingestion/cac40.py`) et les 62 valeurs du
 pytest
 ```
 
-Les tests (`tests/test_migrations.py`, `tests/test_seed.py`) utilisent [testcontainers](https://testcontainers.com/) pour démarrer une instance TimescaleDB jetable et vérifier que les migrations s'appliquent (et se retirent) proprement sur une base vide, et que le seed charge bien les 40 valeurs de façon idempotente. **Ils nécessitent un démon Docker actif** (indépendamment de la stack `infra/docker-compose.yml`, qui n'a pas besoin d'être démarrée pour lancer les tests).
+Les tests (`tests/test_migrations.py`, `tests/test_seed.py`) utilisent [testcontainers](https://testcontainers.com/) pour démarrer une instance Postgres jetable et vérifier que les migrations s'appliquent (et se retirent) proprement sur une base vide, et que le seed charge bien les 40 valeurs de façon idempotente. **Ils nécessitent un démon Docker actif** (indépendamment de la stack `infra/docker-compose.yml`, qui n'a pas besoin d'être démarrée pour lancer les tests).
 
 ## 6. Télécharger l'historique des prix (Phase 1)
 

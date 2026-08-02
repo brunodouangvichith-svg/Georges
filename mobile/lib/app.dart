@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'core/auth/auth_providers.dart';
 import 'core/auth/go_router_refresh_stream.dart';
+import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/paniers/paniers_screen.dart';
 import 'features/portefeuille/portefeuille_screen.dart';
@@ -19,14 +21,17 @@ import 'features/univers/univers_screen.dart';
 /// top-level) pour pouvoir lire `isLoggedInProvider` dans `redirect:` — le
 /// portail d'accès simple (Phase 9, voir CLAUDE.md section Auth) bascule
 /// vers `/login` si non connecté, ou loin de `/login` si déjà connecté.
-/// `refreshListenable` lit `authChangeStreamProvider` (pas
-/// `Supabase.instance` directement) pour redéclencher `redirect:` à chaque
-/// changement de session — et pour rester overridable dans les tests
-/// widget qui pompent `GeorgeApp` sans initialiser un vrai client Supabase.
+/// `refreshListenable` passe par `AuthRouterRefreshNotifier` (`ref.listen`
+/// sur `authStateProvider`), pas un abonnement séparé au stream Supabase
+/// brut — voir la docstring de cette classe pour la vraie course qu'un
+/// abonnement séparé provoquait (connexion réussie mais jamais de
+/// navigation, confirmé en direct sur appareil).
 final _goRouterProvider = Provider<GoRouter>((ref) {
+  final refreshNotifier = AuthRouterRefreshNotifier(ref);
+  ref.onDispose(refreshNotifier.dispose);
   return GoRouter(
     initialLocation: '/univers',
-    refreshListenable: GoRouterRefreshStream(ref.watch(authChangeStreamProvider)),
+    refreshListenable: refreshNotifier,
     redirect: (context, state) {
       final loggedIn = ref.read(isLoggedInProvider);
       final onLoginPage = state.matchedLocation == '/login';
@@ -62,22 +67,42 @@ class GeorgeApp extends ConsumerWidget {
     final router = ref.watch(_goRouterProvider);
     return MaterialApp.router(
       title: 'George',
-      theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+      theme: buildAppTheme(),
       routerConfig: router,
     );
   }
 }
 
-class _AppShell extends StatelessWidget {
+class _AppShell extends StatefulWidget {
   const _AppShell({required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
+  State<_AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<_AppShell> {
+  String? _appVersion;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    setState(() => _appVersion = '${info.version}+${info.buildNumber}');
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('George'),
+        // 22 (taille par défaut du titre d'AppBar, Material 3 titleLarge) * 1.25.
+        title: const Text('George', style: TextStyle(fontSize: 27.5, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_outline),
@@ -88,12 +113,25 @@ class _AppShell extends StatelessWidget {
           ),
         ],
       ),
-      body: navigationShell,
+      body: Stack(
+        children: [
+          widget.navigationShell,
+          if (_appVersion != null)
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: Text(
+                'George v$_appVersion',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+              ),
+            ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (index) => navigationShell.goBranch(
+        selectedIndex: widget.navigationShell.currentIndex,
+        onDestinationSelected: (index) => widget.navigationShell.goBranch(
           index,
-          initialLocation: index == navigationShell.currentIndex,
+          initialLocation: index == widget.navigationShell.currentIndex,
         ),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Univers'),

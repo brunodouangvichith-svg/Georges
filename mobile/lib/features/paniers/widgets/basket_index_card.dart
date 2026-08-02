@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../data/baskets_repository.dart';
 
 Color _scoreColor(double score) {
-  if (score >= 75) return Colors.green.shade400;
-  if (score >= 65) return Colors.amber.shade600;
-  return Colors.red.shade400;
+  if (score >= 75) return AppColors.positive;
+  if (score >= 65) return AppColors.warning;
+  return AppColors.negative;
 }
 
 /// Miroir de web/src/views/Paniers.jsx:BasketIndexRow — score + barre de
@@ -37,7 +38,7 @@ class BasketIndexCard extends ConsumerWidget {
                   Text(basketName, style: Theme.of(context).textTheme.bodySmall),
                   Text(
                     score != null ? score.round().toString() : '—',
-                    style: TextStyle(
+                    style: monoTextStyle(
                       fontWeight: FontWeight.bold,
                       color: score != null ? _scoreColor(score) : Theme.of(context).colorScheme.outline,
                     ),
@@ -84,14 +85,14 @@ class _PerformanceBadge extends StatelessWidget {
     final color = v == null
         ? Theme.of(context).colorScheme.outline
         : v >= 0
-            ? Colors.green.shade400
-            : Colors.red.shade400;
+            ? AppColors.positive
+            : AppColors.negative;
     final text = v == null ? '—' : '${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}%';
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text('$label ', style: Theme.of(context).textTheme.labelSmall),
-        Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11)),
+        Text(text, style: monoTextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11)),
       ],
     );
   }

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 9+ (API 28+) bloque le trafic HTTP en clair par défaut — le
+  backend George (ingestion/db.py, uvicorn) n'est servi qu'en http:// pour
+  le développement (localhost, 10.0.2.2, ou l'IP LAN de la machine hôte
+  selon l'environnement, voir mobile/README.md). Cette IP change d'un
+  réseau à l'autre, donc plutôt que de la coder en dur ici (fragile), le
+  cleartext est autorisé globalement — acceptable tant que l'app n'est
+  distribuée qu'en interne pour du test (voir CLAUDE.md, section Auth,
+  Mobile) ; Supabase et tout autre service en https:// n'est de toute
+  façon jamais concerné par cette restriction.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

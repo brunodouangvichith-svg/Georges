@@ -5,7 +5,7 @@ le modèle de confiance appris (Phase 2).
 Module volontairement sans accès DB — il ne travaille que sur des
 DataFrames OHLCV déjà chargés, pour rester testable sur des séries
 synthétiques (voir tests/test_backtest.py). Le chargement depuis
-PostgreSQL/TimescaleDB et l'assemblage du jeu de données complet sont faits
+PostgreSQL et l'assemblage du jeu de données complet sont faits
 par `engine/build_training_set.py` (script), pas ici.
 
 Paramètres :

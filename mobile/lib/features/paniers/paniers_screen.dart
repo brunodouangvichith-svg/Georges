@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../../data/baskets_repository.dart';
 import '../../data/decisions_repository.dart';
 import '../../data/portfolios_repository.dart';
@@ -21,15 +22,15 @@ const _statusLabels = {
 };
 
 Color _decisionColor(String type) {
-  if (type == 'Achat' || type == 'Renforcer') return Colors.green.shade400;
-  if (type == 'Surveiller') return Colors.amber.shade600;
-  return Colors.red.shade400;
+  if (type == 'Achat' || type == 'Renforcer') return AppColors.positive;
+  if (type == 'Surveiller') return AppColors.warning;
+  return AppColors.negative;
 }
 
 Color _scoreColor(double score) {
-  if (score >= 75) return Colors.green.shade400;
-  if (score >= 65) return Colors.amber.shade600;
-  return Colors.red.shade400;
+  if (score >= 75) return AppColors.positive;
+  if (score >= 65) return AppColors.warning;
+  return AppColors.negative;
 }
 
 /// Panier/décisions — miroir simplifié (pour mobile) de
@@ -163,9 +164,9 @@ class _PaniersScreenState extends ConsumerState<PaniersScreen> {
         children: [
           Row(
             children: [
-              Expanded(child: _KpiCard(label: 'Paniers', value: '${baskets.length}', color: Colors.green.shade400)),
+              Expanded(child: _KpiCard(label: 'Paniers', value: '${baskets.length}', color: Theme.of(context).colorScheme.onSurface)),
               const SizedBox(width: 8),
-              Expanded(child: _KpiCard(label: 'Titres suivis', value: '${securities.length}', color: Colors.amber.shade600)),
+              Expanded(child: _KpiCard(label: 'Titres suivis', value: '${securities.length}', color: Theme.of(context).colorScheme.onSurface)),
               const SizedBox(width: 8),
               Expanded(child: _KpiCard(label: 'Décisions', value: '${decisions.length}', color: Theme.of(context).colorScheme.onSurface)),
             ],
@@ -289,7 +290,7 @@ class _KpiCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: Theme.of(context).textTheme.labelSmall),
-          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(value, style: monoTextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
         ],
       ),
     );

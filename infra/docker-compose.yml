@@ -1,6 +1,12 @@
 services:
   db:
-    image: timescale/timescaledb:latest-pg16
+    # Postgres classique — plus TimescaleDB (voir CLAUDE.md : l'extension
+    # timescaledb n'est pas disponible sur Supabase, l'hébergement visé
+    # pour George). `pgvector/pgvector:pg17` (pas `postgres:17` nu) : pgvector
+    # reste nécessaire (migration 0004, Report.embedding) et était fourni
+    # gratuitement par l'ancienne image TimescaleDB. Version 17 pour matcher
+    # Supabase exactement.
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-george}

@@ -35,7 +35,17 @@ SMA_LONG = 200
 def volume_confirmation(volume: pd.Series, at_idx: int, lookback: int = VOLUME_LOOKBACK) -> float:
     """Ratio volume(at_idx) / moyenne(volume des `lookback` séances précédentes),
     saturé sur [0, 1] : un ratio de 0.5x ou moins vaut 0, un ratio de 2x ou
-    plus vaut 1, la relation est linéaire entre les deux."""
+    plus vaut 1, la relation est linéaire entre les deux.
+
+    Repli neutre (0.5) si le volume du jour visé est manquant (`NaN`) — un
+    vrai cas rencontré en réingérant en pleine séance (marché encore ouvert,
+    même bug de bar incomplète que `close` ailleurs dans le projet, voir
+    `api/routers/portfolios.py:_current_price_and_pnl`), qui produisait
+    silencieusement une confiance `NaN` en base sans ce garde-fou (attrapé
+    en essayant d'insérer une décision dessus : `decimal.InvalidOperation`
+    sur une comparaison `<` avec un `Decimal('NaN')`)."""
+    if pd.isna(volume.iloc[at_idx]):
+        return 0.5
     start = max(0, at_idx - lookback)
     baseline = volume.iloc[start:at_idx]
     if len(baseline) == 0 or baseline.mean() == 0:

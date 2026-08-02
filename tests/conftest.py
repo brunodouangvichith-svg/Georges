@@ -4,9 +4,19 @@ from testcontainers.community.postgres import PostgresContainer
 
 @pytest.fixture(scope="session")
 def postgres_container():
-    """Instance TimescaleDB jetable (nécessite un démon Docker local)."""
+    """Instance Postgres jetable (nécessite un démon Docker local).
+
+    Postgres classique, pas TimescaleDB : les migrations n'en dépendent
+    plus (voir CLAUDE.md — l'extension timescaledb n'est pas disponible sur
+    Supabase, l'hébergeur Postgres géré gratuit visé pour George). Image
+    `pgvector/pgvector:pg17` plutôt que `postgres:17` nu : pgvector était
+    fourni gratuitement par l'ancienne image TimescaleDB, migration `0004`
+    en a besoin (`CREATE EXTENSION vector`) — confirmé en perdant cette
+    extension au premier essai avec `postgres:17` seul. Version 17 pour
+    matcher exactement celle de Supabase.
+    """
     with PostgresContainer(
-        image="timescale/timescaledb:latest-pg16",
+        image="pgvector/pgvector:pg17",
         username="george",
         password="george",
         dbname="george",

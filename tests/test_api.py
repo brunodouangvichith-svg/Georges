@@ -1,7 +1,7 @@
 """Tests d'intégration de l'API FastAPI (Phase 3).
 
 Nécessite un démon Docker local (testcontainers lance une instance
-TimescaleDB jetable, migrée puis peuplée d'un jeu de données minimal) — voir
+Postgres jetable, migrée puis peuplée d'un jeu de données minimal) — voir
 `database_url` dans `conftest.py`. Le moteur SQLAlchemy partagé de
 `api.deps` (créé une fois à l'import, avant que l'URL de test soit connue)
 est remplacé pour la durée du test par un moteur pointant vers le conteneur.

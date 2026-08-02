@@ -1,9 +1,11 @@
-"""ajoute currency_pairs, fx_prices_ohlcv (hypertable), carry_rate_snapshots, cot_positioning (panier Carry Trade, ad hoc)
+"""ajoute currency_pairs, fx_prices_ohlcv, carry_rate_snapshots, cot_positioning (panier Carry Trade, ad hoc)
 
 Revision ID: 0009
 Revises: 0008
 Create Date: 2026-08-01
 
+TimescaleDB (hypertable sur fx_prices_ohlcv) retiré — même raison que la
+migration 0001, voir sa docstring et CLAUDE.md.
 """
 from typing import Sequence, Union
 
@@ -39,7 +41,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["symbol"], ["currency_pairs.symbol"]),
         sa.PrimaryKeyConstraint("symbol", "ts"),
     )
-    op.execute("SELECT create_hypertable('fx_prices_ohlcv', 'ts')")
 
     op.create_table(
         "carry_rate_snapshots",

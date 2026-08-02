@@ -37,7 +37,18 @@ def load_prices(engine, symbol: str) -> pd.DataFrame:
     if df.empty:
         return df
     df.index = pd.to_datetime(df.index)
-    return df.astype({"open": float, "high": float, "low": float, "close": float, "volume": "int64"})
+    df = df.astype({"open": float, "high": float, "low": float, "close": float, "volume": "int64"})
+    # Une séance encore en cours au moment de l'ingestion peut avoir un
+    # `close` NaN (open/high/low/volume réels par ailleurs — même piège déjà
+    # rencontré dans `api/routers/portfolios.py:_current_price_and_pnl`).
+    # Filtrée ici, à la source, plutôt que dans chaque consommateur
+    # individuellement (détecteurs de figures, `engine/confidence.py`,
+    # `engine/scoring.py`/`engine/features.py`) : un vrai bug découvert lors
+    # du premier déploiement, où une dernière bougie NaN a produit une
+    # confiance NaN (`patterns_detected`), puis un `entry_price` NaN
+    # (`decisions`), jusqu'à faire planter `engine.propose_decisions` sur
+    # une comparaison Postgres avec un `Decimal('NaN')`.
+    return df[df["close"].notna()]
 
 
 def run() -> int:

@@ -1,8 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Piège release-only déjà rencontré : Flutter injecte automatiquement
+         cette permission en build debug (flutter run), ce qui masque
+         totalement son absence pendant le développement ; mais un build
+         release (flutter build apk, distribué via Firebase App Distribution)
+         n'a AUCUN accès réseau sans elle, échouant sur chaque appel HTTP
+         avec "Failed host lookup" (SocketException), y compris vers
+         Supabase, quel que soit le domaine ou la connectivité réelle du
+         téléphone. Voir CLAUDE.md, section Auth. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="george_mobile"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
             android:exported="true"

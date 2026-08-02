@@ -1,13 +1,12 @@
 """Vérifie que les migrations Alembic s'appliquent proprement sur une base vide.
 
-Nécessite un démon Docker local (testcontainers lance une instance
-TimescaleDB jetable) — voir `postgres_container` / `database_url` dans
-conftest.py.
+Nécessite un démon Docker local (testcontainers lance une instance Postgres
+jetable) — voir `postgres_container` / `database_url` dans conftest.py.
 """
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, inspect
 
 EXPECTED_TABLES = {
     "securities",
@@ -36,15 +35,6 @@ def test_migrations_apply_cleanly_on_empty_database(database_url):
         engine = create_engine(database_url, future=True)
         tables = set(inspect(engine).get_table_names())
         assert EXPECTED_TABLES <= tables
-
-        with engine.connect() as conn:
-            hypertables = conn.execute(
-                text(
-                    "SELECT hypertable_name FROM timescaledb_information.hypertables "
-                    "WHERE hypertable_name = 'prices_ohlcv'"
-                )
-            ).fetchall()
-        assert len(hypertables) == 1
     finally:
         command.downgrade(cfg, "base")
 

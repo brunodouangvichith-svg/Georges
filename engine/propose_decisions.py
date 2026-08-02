@@ -69,7 +69,14 @@ def recompute_levels(engine, symbol: str, pattern_type: str, context: dict) -> t
     `POST /decisions/{id}/propose-levels` (tâche 2) pour rafraîchir des
     niveaux déjà proposés avant confirmation."""
     df = load_prices(engine, symbol)
-    entry_price = float(df["close"].iloc[-1])
+    # `.dropna()` avant `.iloc[-1]` : une séance encore en cours au moment de
+    # l'ingestion peut avoir un `close` NaN (même piège déjà rencontré dans
+    # `api/routers/portfolios.py:_current_price_and_pnl`) — sans ce filtre,
+    # `entry_price` devient NaN, ce qui a fait planter `select_candidates`
+    # en aval (`decimal.InvalidOperation` sur une comparaison Postgres avec
+    # un `Decimal('NaN')` stocké depuis une confiance NaN, découvert en même
+    # temps que ce bug lors du premier déploiement réel sur Supabase).
+    entry_price = float(df["close"].dropna().iloc[-1])
     take_profit, stop_loss = propose_levels(pattern_type, context, entry_price, df)
     return round(take_profit, 2), round(stop_loss, 2)
 
@@ -100,7 +107,7 @@ def run(as_of=None) -> list[dict]:
         df = load_prices(engine, symbol)
         if df.empty:
             continue
-        entry_price = float(df["close"].iloc[-1])
+        entry_price = float(df["close"].dropna().iloc[-1])
         try:
             take_profit, stop_loss = propose_levels(pattern.pattern_type, pattern.context, entry_price, df)
         except KeyError:

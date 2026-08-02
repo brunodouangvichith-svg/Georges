@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../../data/decisions_repository.dart';
 import '../../data/patterns_repository.dart';
 import '../../data/prices_repository.dart';
@@ -97,7 +98,7 @@ class DecisionDetailScreen extends ConsumerWidget {
                   child: _LevelCard(
                     label: 'Take-profit',
                     value: decision!.takeProfit,
-                    color: Colors.green.shade400,
+                    color: AppColors.positive,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -105,7 +106,7 @@ class DecisionDetailScreen extends ConsumerWidget {
                   child: _LevelCard(
                     label: 'Stop-loss',
                     value: decision!.stopLoss,
-                    color: Colors.red.shade400,
+                    color: AppColors.negative,
                   ),
                 ),
               ],
@@ -135,7 +136,7 @@ class _LevelCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value != null ? '${value!.toStringAsFixed(2)} €' : '—',
-            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 15),
+            style: monoTextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 15),
           ),
         ],
       ),

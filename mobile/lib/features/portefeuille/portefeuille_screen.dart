@@ -2,20 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../../data/portfolios_repository.dart';
 import '../../models/portfolio.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/response_dialog.dart';
 
 Color _decisionColor(String type) {
-  if (type == 'Achat' || type == 'Renforcer') return Colors.green.shade400;
-  if (type == 'Surveiller') return Colors.amber.shade600;
-  return Colors.red.shade400;
+  if (type == 'Achat' || type == 'Renforcer') return AppColors.positive;
+  if (type == 'Surveiller') return AppColors.warning;
+  return AppColors.negative;
 }
 
 Color _pnlColor(double? value) {
-  if (value == null) return Colors.grey;
-  return value >= 0 ? Colors.green.shade400 : Colors.red.shade400;
+  if (value == null) return AppColors.textDim;
+  return value >= 0 ? AppColors.positive : AppColors.negative;
 }
 
 String _formatPnlPct(double? value) => value == null ? '—' : '${value >= 0 ? '+' : ''}${value.toStringAsFixed(1)}%';
