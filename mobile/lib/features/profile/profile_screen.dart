@@ -49,6 +49,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String? _appVersion;
   SharedPreferences? _prefs;
   String? _avatarPath;
+  String _lastSavedName = '';
+  String _lastSavedBio = '';
 
   final _nameController = TextEditingController();
   final _bioController = TextEditingController();
@@ -82,8 +84,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     _prefs = prefs;
-    _nameController.text = prefs.getString(_prefsNameKey) ?? '';
-    _bioController.text = prefs.getString(_prefsBioKey) ?? '';
+    _lastSavedName = prefs.getString(_prefsNameKey) ?? '';
+    _lastSavedBio = prefs.getString(_prefsBioKey) ?? '';
+    _nameController.text = _lastSavedName;
+    _bioController.text = _lastSavedBio;
     final rawContacts = prefs.getString(_prefsContactsKey);
     final avatarPath = prefs.getString(_prefsAvatarPathKey);
     setState(() {
@@ -138,9 +142,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (source != null) await _pickAvatar(source);
   }
 
-  void _saveName(String value) => _prefs?.setString(_prefsNameKey, value);
+  void _saveProfileInfo() {
+    final name = _nameController.text;
+    final bio = _bioController.text;
+    _prefs?.setString(_prefsNameKey, name);
+    _prefs?.setString(_prefsBioKey, bio);
+    setState(() {
+      _lastSavedName = name;
+      _lastSavedBio = bio;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil enregistré.')));
+  }
 
-  void _saveBio(String value) => _prefs?.setString(_prefsBioKey, value);
+  void _cancelProfileEdits() {
+    setState(() {
+      _nameController.text = _lastSavedName;
+      _bioController.text = _lastSavedBio;
+    });
+  }
 
   void _saveContacts() {
     _prefs?.setString(_prefsContactsKey, jsonEncode(_contacts.map((c) => c.toJson()).toList()));
@@ -234,14 +253,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 TextField(
                   controller: _nameController,
                   decoration: const InputDecoration(labelText: 'Nom', border: OutlineInputBorder()),
-                  onChanged: _saveName,
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _bioController,
                   decoration: const InputDecoration(labelText: 'Bio', border: OutlineInputBorder()),
                   maxLines: 3,
-                  onChanged: _saveBio,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(onPressed: _cancelProfileEdits, child: const Text('❌ Annuler')),
+                    const SizedBox(width: 8),
+                    FilledButton(onPressed: _saveProfileInfo, child: const Text('✅ Enregistrer')),
+                  ],
                 ),
                 const SizedBox(height: 20),
                 Text('Contacts', style: Theme.of(context).textTheme.titleMedium),
