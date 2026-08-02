@@ -1,0 +1,49 @@
+services:
+  # Base Postgres + TimescaleDB — même image que infra/docker-compose.yml
+  # (timescale/timescaledb:latest-pg16). Render's managed Postgres n'inclut
+  # pas l'extension TimescaleDB, indispensable ici (create_hypertable sur
+  # prices_ohlcv/fx_prices_ohlcv, voir ingestion/migrations) : d'où un
+  # service Docker privé plutôt que l'addon Postgres standard. Nécessite un
+  # plan payant pour le disque persistant (le tier gratuit ne garde pas les
+  # données entre redémarrages).
+  - type: pserv
+    name: george-db
+    runtime: image
+    plan: starter
+    image:
+      url: docker.io/timescale/timescaledb:latest-pg16
+    envVars:
+      - key: POSTGRES_USER
+        value: george
+      - key: POSTGRES_PASSWORD
+        sync: false
+      - key: POSTGRES_DB
+        value: george
+    disk:
+      name: george-db-data
+      mountPath: /var/lib/postgresql/data
+      sizeGB: 1
+
+  # API FastAPI (api/main.py) — DATABASE_URL n'est pas câblé automatiquement
+  # ici (Render ne permet pas de composer une chaîne de connexion à partir
+  # des propriétés d'un service pserv générique dans render.yaml) : à
+  # renseigner manuellement dans le dashboard une fois george-db créé,
+  # avec l'hôte interne indiqué par Render et le mot de passe choisi
+  # ci-dessus — voir CLAUDE.md, section Auth, pour la procédure complète.
+  - type: web
+    name: george-api
+    env: python
+    plan: starter
+    buildCommand: pip install -e .
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: FINNHUB_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
