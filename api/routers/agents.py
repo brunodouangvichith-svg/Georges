@@ -44,14 +44,7 @@ def trigger_collection(request: CollectionTaskRequest, db: Session = Depends(get
         )
     if request.task_type == "synthese_document" and request.report_id is None:
         raise HTTPException(status_code=400, detail="report_id est requis pour task_type='synthese_document'.")
-    if request.task_type == "donnees_finnhub" and request.symbol is None:
-        raise HTTPException(status_code=400, detail="symbol est requis pour task_type='donnees_finnhub'.")
-    if request.report_id is not None:
-        scope = {"report_id": request.report_id}
-    elif request.symbol is not None:
-        scope = {"symbol": request.symbol}
-    else:
-        scope = None
+    scope = {"report_id": request.report_id} if request.report_id is not None else None
     try:
         result = run_collection_task(db, deps.engine, request.task_type, COLLECTORS[request.task_type], scope)
     except ValueError as exc:

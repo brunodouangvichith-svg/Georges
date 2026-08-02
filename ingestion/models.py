@@ -240,6 +240,48 @@ class PortfolioDecision(Base):
     quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
+class MacroIndicatorSnapshot(Base):
+    """Instantané d'un indicateur numérique collecté par un sous-agent de
+    veille (Phase 7 : `agents/collectors/macro.py` — taux OAT 10 ans,
+    EUR/USD, EUR/GBP, EUR/CHF ; `eurostat.py` — chômage, inflation HICP ;
+    `tic.py` — détention de Treasuries US par la France) — ad hoc, pas une
+    phase du roadmap. Remplace l'écriture uniquement dans `agent_events`/
+    `collected_info_quarantine` (toujours faite en parallèle, pour le flux
+    d'activité) par une vraie table interrogeable dans le temps, même
+    principe que `CarryRateSnapshot`/`CotPositioning` (panier Carry Trade)
+    et `CompanyFundamentals` (yfinance) déjà présents dans ce fichier.
+
+    `indicator` réutilise directement le `label` déjà défini dans chaque
+    collecteur (ex. "Taux de change EUR/USD") plutôt que d'inventer une
+    nouvelle taxonomie de slugs. `observed_at` reste du texte libre, pas une
+    vraie `Date` : le format varie selon la source (FRED : date ISO
+    complète ; Eurostat/TIC : simple période/mois) — même type que
+    `agents/orchestrator/types.py:CollectedItem.observed_at`, jamais
+    reparsé. Unique par (indicateur, source, date observée), pas juste
+    (indicateur, date) : un indicateur comme EUR/USD a plusieurs sources
+    indépendantes par cycle (FRED, BCE, Frankfurter) et chacune garde sa
+    propre valeur plutôt que de s'écraser mutuellement. Seuls les groupes
+    **validés** (jamais une quarantaine) sont écrits ici, voir
+    `agents/orchestrator/run.py:NUMERIC_INDICATOR_TASK_TYPES`."""
+
+    __tablename__ = "macro_indicator_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    indicator: Mapped[str] = mapped_column(Text, nullable=False)
+    value: Mapped[float] = mapped_column(Numeric, nullable=False)
+    unit: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_name: Mapped[str] = mapped_column(Text, nullable=False)
+    observed_at: Mapped[str] = mapped_column(Text, nullable=False)
+    reliability_score: Mapped[float] = mapped_column(Numeric, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("indicator", "source_name", "observed_at", name="uq_macro_indicator_snapshot"),
+    )
+
+
 class CurrencyPair(Base):
     """Univers des paires de devises suivies pour le panier Carry Trade (ad
     hoc, pas une phase du roadmap) — schéma FX dédié plutôt qu'une

@@ -28,6 +28,7 @@ from ingestion.models import (
     Decision,
     DecisionOutcome,
     Dividend,
+    MacroIndicatorSnapshot,
     PatternDetected,
     PriceOHLCV,
     Report,
@@ -869,6 +870,15 @@ def test_collect_donnees_macro_writes_validated_events_when_sources_agree(client
     activity = client.get("/agents/activity", params={"status": "validated"}).json()
     assert any("EUR/USD" in e["description"] for e in activity["items"])
 
+    # Un instantané par source, pas juste un par indicateur (EUR/USD a 2
+    # sources ici) — voir agents/orchestrator/run.py:_upsert_indicator_snapshots.
+    with deps.engine.begin() as conn:
+        rows = conn.execute(
+            select(MacroIndicatorSnapshot).where(MacroIndicatorSnapshot.indicator == "Taux de change EUR/USD")
+        ).all()
+    assert {r.source_name for r in rows} == {"FRED", "BCE"}
+    assert {float(r.value) for r in rows} == {1.1385, 1.1377}
+
 
 def test_collect_donnees_macro_quarantines_contradictory_sources(client, monkeypatch):
     import agents.collectors.macro as macro
@@ -887,6 +897,44 @@ def test_collect_donnees_macro_quarantines_contradictory_sources(client, monkeyp
         rows = conn.execute(select(CollectedInfoQuarantine).where(CollectedInfoQuarantine.task_type == "donnees_macro")).all()
     assert len(rows) == 1
     assert "FRED" in rows[0].reason and "BCE" in rows[0].reason
+
+    # Une donnée contradictoire ne doit jamais entrer dans
+    # macro_indicator_snapshots, seulement dans collected_info_quarantine.
+    with deps.engine.begin() as conn:
+        snapshot_rows = conn.execute(
+            select(MacroIndicatorSnapshot).where(MacroIndicatorSnapshot.indicator == "Taux de change EUR/USD")
+        ).all()
+    assert snapshot_rows == []
+
+
+def test_collect_donnees_eurostat_writes_indicator_snapshots(client, monkeypatch):
+    """Couvre le même chemin d'écriture (`run_collection_task`) sur un
+    `task_type` différent de `donnees_macro`, pour confirmer que ce n'est
+    pas câblé en dur pour un seul sous-agent."""
+    import agents.collectors.eurostat as eurostat
+
+    def _fake_eurostat_item(dataset, geo_code, params, label, source_name, unit):
+        from agents.orchestrator.types import CollectedItem
+
+        value = 6.2 if "chômage" in label.lower() else 2.1
+        return CollectedItem(
+            label=label, value=value, unit=unit, source_name=source_name, source_url="x", observed_at="2026-06"
+        )
+
+    monkeypatch.setattr(eurostat, "fetch_eurostat_series", _fake_eurostat_item)
+
+    response = client.post("/agents/collect", json={"task_type": "donnees_eurostat"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["quarantined_count"] == 0
+    assert len(body["validated"]) == 2  # chômage + inflation, chacun source unique
+
+    with deps.engine.begin() as conn:
+        rows = conn.execute(
+            select(MacroIndicatorSnapshot).where(MacroIndicatorSnapshot.source_name == "Eurostat")
+        ).all()
+    assert len(rows) == 2
+    assert {r.indicator for r in rows} == {"Taux de chômage (zone euro)", "Inflation HICP (zone euro)"}
 
 
 def test_collect_synthese_document_creates_a_validated_event_from_a_real_report(client, mock_llm):

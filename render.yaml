@@ -22,8 +22,6 @@ services:
         sync: false
       - key: MISTRAL_API_KEY
         sync: false
-      - key: FINNHUB_API_KEY
-        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
