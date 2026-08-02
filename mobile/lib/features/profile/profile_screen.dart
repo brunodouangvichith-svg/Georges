@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -37,10 +38,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     await Supabase.instance.client.auth.signOut();
     invalidateAllData(ref);
-    if (context.mounted) Navigator.of(context).pop();
-    // Le `redirect:` du routeur (voir app.dart) bascule automatiquement vers
-    // /login dès que authStateProvider voit l'événement signedOut — rien
-    // d'autre à faire ici.
+    if (!context.mounted) return;
+    // Un simple Navigator.pop() ici ne fait que révéler l'écran principal
+    // (_AppShell) déjà présent en dessous de ce Profil poussé — le
+    // `redirect:` du routeur (app.dart) ne rattrape le passage vers /login
+    // qu'après coup, une fois `authStateProvider` mis à jour de façon
+    // asynchrone, ce qui laissait l'app affichée sur l'écran principal au
+    // lieu de l'écran de connexion (bug observé en direct sur appareil).
+    // `context.go('/login')` navigue directement, sans dépendre de ce
+    // décalage de timing : go_router remplace toute la pile (y compris ce
+    // Profil poussé de façon impérative) par le seul écran de connexion.
+    context.go('/login');
   }
 
   @override

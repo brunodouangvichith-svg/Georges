@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -59,6 +60,14 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+      // Signale au gestionnaire de mots de passe natif (Google Password
+      // Manager sur Android) que la saisie est terminée avec succès — c'est
+      // ce qui déclenche sa propre popup "Enregistrer le mot de passe ?".
+      // Le champ email/mot de passe est déjà annoté via `autofillHints`
+      // (AutofillHints.email/.password) et regroupé dans un `AutofillGroup`
+      // ci-dessous ; sans cet appel, l'OS ne sait jamais que la saisie a
+      // abouti et ne propose jamais d'enregistrer.
+      TextInput.finishAutofillContext();
     } on AuthException catch (e) {
       setState(() => _errorMessage = e.message);
     } catch (e) {
@@ -216,38 +225,59 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'George',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold),
+                    Align(
+                      alignment: Alignment.center,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.lightBlue.shade100,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          'George',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                // 36 (taille par défaut Material 3 de displaySmall) * 1.20.
+                                fontSize: 43.2,
+                                color: Colors.black87,
+                              ),
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Text('Se connecter', textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 24),
                     if (_errorMessage != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16),
                         child: Text(_errorMessage!, style: TextStyle(color: colors.error), textAlign: TextAlign.center),
                       ),
-                    TextField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      autofillHints: const [AutofillHints.email],
-                      decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      autofillHints: const [AutofillHints.password],
-                      decoration: InputDecoration(
-                        labelText: 'Mot de passe',
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                          tooltip: _obscurePassword ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                        ),
+                    AutofillGroup(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
+                            decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            autofillHints: const [AutofillHints.password],
+                            decoration: InputDecoration(
+                              labelText: 'Mot de passe',
+                              border: const OutlineInputBorder(),
+                              suffixIcon: IconButton(
+                                icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                                tooltip: _obscurePassword ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
+                                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                              ),
+                            ),
+                            onSubmitted: (_) => _login(),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 20),
