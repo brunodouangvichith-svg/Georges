@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -13,6 +16,7 @@ import '../../data/invalidate_all.dart';
 const _prefsNameKey = 'profile_name';
 const _prefsBioKey = 'profile_bio';
 const _prefsContactsKey = 'profile_contacts';
+const _prefsAvatarPathKey = 'profile_avatar_path';
 
 class _Contact {
   _Contact(this.name, this.email);
@@ -44,6 +48,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String? _appVersion;
   SharedPreferences? _prefs;
+  String? _avatarPath;
 
   final _nameController = TextEditingController();
   final _bioController = TextEditingController();
@@ -80,13 +85,57 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _nameController.text = prefs.getString(_prefsNameKey) ?? '';
     _bioController.text = prefs.getString(_prefsBioKey) ?? '';
     final rawContacts = prefs.getString(_prefsContactsKey);
+    final avatarPath = prefs.getString(_prefsAvatarPathKey);
     setState(() {
       _contacts = rawContacts == null
           ? []
           : (jsonDecode(rawContacts) as List)
               .map((e) => _Contact.fromJson(e as Map<String, dynamic>))
               .toList();
+      // Le fichier peut avoir disparu (cache vidé par l'OS, désinstallation
+      // partielle...) — on ne fait confiance au chemin que s'il existe
+      // vraiment, sinon on retombe sur l'icône par défaut plutôt que sur une
+      // image cassée.
+      _avatarPath = avatarPath != null && File(avatarPath).existsSync() ? avatarPath : null;
     });
+  }
+
+  Future<void> _pickAvatar(ImageSource source) async {
+    final picked = await ImagePicker().pickImage(source: source, maxWidth: 512, imageQuality: 85);
+    if (picked == null || !mounted) return;
+    // Copié vers un nom de fichier stable dans le répertoire documents de
+    // l'app (pas le chemin renvoyé par image_picker, qui peut pointer vers
+    // un cache temporaire nettoyé par l'OS) pour survivre aux redémarrages.
+    final docsDir = await getApplicationDocumentsDirectory();
+    final savedPath = '${docsDir.path}/profile_avatar.jpg';
+    await File(picked.path).copy(savedPath);
+    await _prefs?.setString(_prefsAvatarPathKey, savedPath);
+    if (!mounted) return;
+    setState(() => _avatarPath = savedPath);
+  }
+
+  Future<void> _showAvatarPicker(BuildContext context) async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Prendre une photo'),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choisir dans la galerie'),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source != null) await _pickAvatar(source);
   }
 
   void _saveName(String value) => _prefs?.setString(_prefsNameKey, value);
@@ -148,10 +197,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 Center(
-                  child: CircleAvatar(
-                    radius: 40,
-                    backgroundColor: Colors.lightBlue.shade100,
-                    child: const Icon(Icons.person, size: 44, color: Colors.black87),
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 40,
+                        backgroundColor: Colors.lightBlue.shade100,
+                        backgroundImage: _avatarPath != null ? FileImage(File(_avatarPath!)) : null,
+                        child: _avatarPath == null ? const Icon(Icons.person, size: 44, color: Colors.black87) : null,
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Material(
+                          color: AppColors.accent,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () => _showAvatarPicker(context),
+                            child: const Padding(
+                              padding: EdgeInsets.all(6),
+                              child: Icon(Icons.photo_camera, size: 16, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 16),

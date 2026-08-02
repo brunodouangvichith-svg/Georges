@@ -135,7 +135,7 @@ class _AppShellState extends State<_AppShell> {
             borderRadius: BorderRadius.circular(10),
           ),
           child: Text(
-            'George',
+            'GeorGe',
             // 22 (taille par défaut du titre d'AppBar, Material 3 titleLarge) * 1.25 * 1.10 * 1.10.
             style: const TextStyle(fontSize: 33.275, fontWeight: FontWeight.bold, color: Colors.black87),
           ),

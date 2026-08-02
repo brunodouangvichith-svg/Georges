@@ -83,6 +83,16 @@ class DividendOut(BaseModel):
     amount: float
 
 
+class NewsItemOut(BaseModel):
+    """Voir `api/routers/news.py` — pas de `model_config(from_attributes=True)`
+    ici : construit directement depuis un dict yfinance, pas un objet ORM."""
+
+    title: str
+    source_name: str
+    published_at: datetime | None = None
+    url: str | None = None
+
+
 class BasketOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

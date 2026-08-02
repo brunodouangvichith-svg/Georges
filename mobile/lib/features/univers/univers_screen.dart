@@ -13,7 +13,7 @@ import '../../models/security.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/response_dialog.dart';
 import '../decision_detail/decision_detail_screen.dart';
-import 'widgets/agent_activity_card.dart';
+import 'widgets/breaking_news_tile.dart';
 import 'widgets/macro_tile.dart';
 
 const _filters = ['Tous', 'Achat', 'Surveiller', 'Alléger'];
@@ -168,7 +168,7 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
               children: const [
                 MacroTile(),
                 SizedBox(width: 8),
-                AgentActivityCard(),
+                BreakingNewsTile(),
               ],
             ),
           ),
@@ -224,14 +224,24 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: _chatController,
-                      decoration: const InputDecoration(
-                        hintText: 'Poser une question à George…',
-                        border: OutlineInputBorder(),
-                        isDense: true,
+                    child: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _chatController,
+                      builder: (context, value, _) => TextField(
+                        controller: _chatController,
+                        decoration: InputDecoration(
+                          hintText: 'Poser une question à George…',
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                          suffixIcon: value.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.close, size: 18),
+                                  tooltip: 'Effacer',
+                                  onPressed: _chatController.clear,
+                                ),
+                        ),
+                        onSubmitted: (_) => _askChat(),
                       ),
-                      onSubmitted: (_) => _askChat(),
                     ),
                   ),
                   const SizedBox(width: 4),

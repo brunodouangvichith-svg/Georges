@@ -201,6 +201,46 @@ def test_health(client):
     assert resp.json() == {"status": "ok"}
 
 
+def test_list_news_maps_the_real_yfinance_shape(client, monkeypatch):
+    import api.routers.news as news
+
+    class _FakeTicker:
+        news = [
+            {
+                "content": {
+                    "title": "FTSE 100 sets new record",
+                    "provider": {"displayName": "PA Media: Money"},
+                    "pubDate": "2026-07-29T16:45:52Z",
+                    "canonicalUrl": {"url": "https://example.test/a"},
+                }
+            },
+            # Un item sans titre exploitable doit être ignoré, pas planter.
+            {"content": {"title": None}},
+        ]
+
+    monkeypatch.setattr(news.yf, "Ticker", lambda symbol: _FakeTicker())
+
+    resp = client.get("/news")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["title"] == "FTSE 100 sets new record"
+    assert body[0]["source_name"] == "PA Media: Money"
+
+
+def test_list_news_returns_empty_list_on_yfinance_failure(client, monkeypatch):
+    import api.routers.news as news
+
+    def _raise(symbol):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(news.yf, "Ticker", _raise)
+
+    resp = client.get("/news")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 def test_list_securities(client):
     resp = client.get("/securities")
     assert resp.status_code == 200
