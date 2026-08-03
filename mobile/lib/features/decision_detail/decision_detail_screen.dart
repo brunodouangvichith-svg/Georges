@@ -185,6 +185,7 @@ class DecisionDetailScreen extends ConsumerWidget {
                   final result = await ref.read(decisionsRepositoryProvider).explain(decision!.id);
                   return result.explanation;
                 },
+                symbol: security.symbol,
               ),
               child: const Text('Demander une analyse à George'),
             ),

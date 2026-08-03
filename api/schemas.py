@@ -296,3 +296,19 @@ class CarryTradeRefreshResponse(BaseModel):
     rates_failed: list[str]
     cot_updated: list[str]
     cot_failed: list[str]
+
+
+class ShareEmailRequest(BaseModel):
+    """`symbol` optionnel : présent uniquement pour les popups associées à un
+    titre (ex. explication de décision) — voir `api/routers/share.py` pour ce
+    que son absence implique (pas de graphique joint, texte seul)."""
+
+    to_email: str
+    subject: str
+    text: str
+    symbol: str | None = None
+
+
+class ShareEmailResponse(BaseModel):
+    sent: bool
+    chart_attached: bool

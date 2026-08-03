@@ -1053,3 +1053,85 @@ def test_collect_synthese_document_without_report_id_returns_400(client):
 def test_collect_synthese_document_unknown_report_returns_404(client, mock_llm):
     response = client.post("/agents/collect", json={"task_type": "synthese_document", "report_id": 999999})
     assert response.status_code == 404
+
+
+def test_share_email_with_known_symbol_attaches_chart(client, mock_llm, monkeypatch):
+    import notifications.email_client as email_client
+
+    captured = {}
+    monkeypatch.setattr(
+        email_client,
+        "send_email",
+        lambda **kwargs: captured.update(kwargs),
+    )
+
+    response = client.post(
+        "/share/email",
+        json={"to_email": "investisseur@example.com", "subject": "George explique", "text": "Contenu réel.", "symbol": "AAA.PA"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {"sent": True, "chart_attached": True}
+    assert captured["to_email"] == "investisseur@example.com"
+    assert captured["attachment_bytes"] is not None
+    assert captured["attachment_filename"] == "AAA.PA.png"
+
+
+def test_share_email_without_symbol_sends_text_only(client, mock_llm, monkeypatch):
+    import notifications.email_client as email_client
+
+    captured = {}
+    monkeypatch.setattr(email_client, "send_email", lambda **kwargs: captured.update(kwargs))
+
+    response = client.post("/share/email", json={"to_email": "investisseur@example.com", "subject": "Sujet", "text": "Texte."})
+    assert response.status_code == 200
+    assert response.json() == {"sent": True, "chart_attached": False}
+    assert captured["attachment_bytes"] is None
+
+
+def test_share_email_with_symbol_without_price_history_sends_without_chart(client, mock_llm, monkeypatch):
+    import notifications.email_client as email_client
+
+    captured = {}
+    monkeypatch.setattr(email_client, "send_email", lambda **kwargs: captured.update(kwargs))
+
+    response = client.post(
+        "/share/email",
+        json={"to_email": "investisseur@example.com", "subject": "Sujet", "text": "Texte.", "symbol": "INCONNU.PA"},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"sent": True, "chart_attached": False}
+    assert captured["attachment_bytes"] is None
+
+
+def test_share_email_reformulates_text_via_mistral(client, mock_llm, monkeypatch):
+    """`mock_llm` remplace `mistral_client.complete` par `_fake_complete`
+    (renvoie le contexte reçu, préfixé du modèle) -- confirme que le texte
+    envoyé par email est bien passé par la reformulation, pas le texte brut
+    tel quel."""
+    import notifications.email_client as email_client
+
+    captured = {}
+    monkeypatch.setattr(email_client, "send_email", lambda **kwargs: captured.update(kwargs))
+
+    response = client.post("/share/email", json={"to_email": "investisseur@example.com", "subject": "Sujet", "text": "Texte brut original."})
+    assert response.status_code == 200
+    assert "Texte brut original." in captured["text"]  # _fake_complete échote le message reçu
+    assert captured["text"] != "Texte brut original."  # mais préfixé -- prouve que la reformulation a bien été appelée
+
+
+def test_share_email_service_unavailable_returns_503_with_cors_headers(client, mock_llm, monkeypatch):
+    import notifications.email_client as email_client
+
+    def _raise(**kwargs):
+        raise email_client.EmailUnavailableError("clé RESEND_API_KEY manquante")
+
+    monkeypatch.setattr(email_client, "send_email", _raise)
+
+    response = client.post(
+        "/share/email",
+        json={"to_email": "investisseur@example.com", "subject": "Sujet", "text": "Texte."},
+        headers={"Origin": "http://localhost:5173"},
+    )
+    assert response.status_code == 503
+    assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"

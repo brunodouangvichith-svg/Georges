@@ -16,7 +16,8 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from agents.mistral_client import MistralUnavailableError
 from api.auth import SupabaseUnavailableError, require_user
-from api.routers import agents, baskets, carry_trade, chat, decisions, energy, news, portfolios, prices, reports, securities
+from api.routers import agents, baskets, carry_trade, chat, decisions, energy, news, portfolios, prices, reports, securities, share
+from notifications.email_client import EmailUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,17 @@ async def supabase_exception_handler(request: Request, exc: SupabaseUnavailableE
     return JSONResponse(status_code=503, content={"detail": f"Service d'authentification indisponible : {exc}"})
 
 
+@app.exception_handler(EmailUnavailableError)
+async def email_exception_handler(request: Request, exc: EmailUnavailableError):
+    """Même piège Starlette que ci-dessus : une sous-classe précise plutôt
+    que `Exception` nue, pour rester sous `CORSMiddleware`. Couvre la clé
+    RESEND_API_KEY manquante, le service Resend injoignable, et un envoi
+    refusé par Resend (ex. compte en bac à sable envoyant vers une adresse
+    autre que celle du compte — voir `notifications/email_client.py`)."""
+    logger.exception("Erreur d'envoi email sur %s", request.url.path, exc_info=exc)
+    return JSONResponse(status_code=503, content={"detail": f"Service d'envoi d'email indisponible : {exc}"})
+
+
 # `dependencies=[Depends(require_user)]` protège chaque route de ces 9
 # routeurs sans que les fonctions de route aient à déclarer/consommer la
 # dépendance elles-mêmes — ce portail simple (Phase 9) n'a besoin ni de
@@ -97,6 +109,7 @@ app.include_router(prices.router, dependencies=[Depends(require_user)])
 app.include_router(carry_trade.router, dependencies=[Depends(require_user)])
 app.include_router(news.router, dependencies=[Depends(require_user)])
 app.include_router(energy.router, dependencies=[Depends(require_user)])
+app.include_router(share.router, dependencies=[Depends(require_user)])
 
 
 @app.get("/health", tags=["meta"])
