@@ -1,11 +1,20 @@
-name: Import hebdomadaire historique long terme (price_history_long)
+name: Import hebdomadaire historique long terme + détection + propositions
 
 # Demandé directement par l'utilisateur : price_history_long (10 ans
 # d'historique par titre, voir CLAUDE.md section "Long-term price history")
 # se met à jour une fois par semaine, pas quotidiennement comme prices_ohlcv
-# -- un backfill complet par titre coûte cher (102 titres x 10 ans) pour un
-# gain marginal si relancé tous les jours ; une cadence hebdomadaire suffit à
-# garder la table à jour pour la détection de figures.
+# avant lui -- un backfill complet par titre coûte cher (102 titres x 10 ans)
+# pour un gain marginal si relancé tous les jours ; une cadence hebdomadaire
+# suffit à garder la table à jour pour la détection de figures.
+#
+# engine.run_detection et engine.propose_decisions tournent ici, juste après
+# le rafraîchissement des prix, plutôt que dans le workflow quotidien
+# (daily_fundamentals_import.yml) où ils tournaient auparavant : demandé
+# directement par l'utilisateur pour aligner la cadence d'analyse sur la
+# cadence des données -- les relancer quotidiennement contre des prix
+# inchangés 6 jours sur 7 aurait réinséré les mêmes figures en double dans
+# patterns_detected, qui n'a pas de contrainte d'unicité sur
+# (symbol, pattern_type, detected_at).
 #
 # Dimanche 20h UTC = 22h heure française en été (CEST, UTC+2, en vigueur
 # actuellement) -- marchés fermés, capture la semaine jusqu'à la clôture de
@@ -28,5 +37,13 @@ jobs:
       - run: pip install -e .
       - name: Historique long terme (ingestion.price_history)
         run: python -m ingestion.price_history
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Détection de figures (engine.run_detection)
+        run: python -m engine.run_detection
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Propositions Achat/Alléger (engine.propose_decisions)
+        run: python -m engine.propose_decisions
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

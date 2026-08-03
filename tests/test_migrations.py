@@ -11,6 +11,7 @@ from sqlalchemy import create_engine, inspect
 EXPECTED_TABLES = {
     "securities",
     "prices_ohlcv",
+    "price_history_long",
     "patterns_detected",
     "decisions",
     "decision_outcomes",

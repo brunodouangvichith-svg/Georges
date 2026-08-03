@@ -45,7 +45,7 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
     showResponseDialog(
       context,
       title: 'Mise à jour des prix',
-      loadingText: "Téléchargement des prix en cours (jusqu'à une minute pour tout l'univers)…",
+      loadingText: "Téléchargement des prix en cours (jusqu'à 2 minutes pour tout l'univers, 10 ans d'historique par titre)…",
       action: () async {
         final result = await ref.read(pricesRefreshRepositoryProvider).refresh();
         invalidateAllData(ref);

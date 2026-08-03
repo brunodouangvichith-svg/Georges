@@ -17,21 +17,30 @@ from sqlalchemy import select
 from engine.detect import detect_all
 from engine.scoring import predict_confidence
 from ingestion.db import get_engine
-from ingestion.models import PatternDetected, PriceOHLCV, Security
+from ingestion.models import PatternDetected, PriceHistoryLong, Security
 
 
 def load_prices(engine, symbol: str) -> pd.DataFrame:
+    """Charge l'historique de prix d'un titre depuis `price_history_long`
+    (jusqu'à 10 ans, `ingestion/price_history.py`) plutôt que `prices_ohlcv`
+    (2 ans, `ingestion/ohlcv.py`) — demandé directement par l'utilisateur pour
+    que la détection de figures et tout ce qui en découle (propositions,
+    George Index, PnL du portefeuille, rapports) disposent d'un historique
+    bien plus profond. `prices_ohlcv` n'est plus lu par aucun consommateur
+    depuis ce changement (voir CLAUDE.md) — son ingestion quotidienne a été
+    retirée du workflow en conséquence, mais la table elle-même n'a pas été
+    supprimée."""
     stmt = (
         select(
-            PriceOHLCV.ts,
-            PriceOHLCV.open,
-            PriceOHLCV.high,
-            PriceOHLCV.low,
-            PriceOHLCV.close,
-            PriceOHLCV.volume,
+            PriceHistoryLong.ts,
+            PriceHistoryLong.open,
+            PriceHistoryLong.high,
+            PriceHistoryLong.low,
+            PriceHistoryLong.close,
+            PriceHistoryLong.volume,
         )
-        .where(PriceOHLCV.symbol == symbol)
-        .order_by(PriceOHLCV.ts)
+        .where(PriceHistoryLong.symbol == symbol)
+        .order_by(PriceHistoryLong.ts)
     )
     df = pd.read_sql(stmt, engine, index_col="ts")
     if df.empty:

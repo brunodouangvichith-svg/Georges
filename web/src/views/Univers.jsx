@@ -57,7 +57,7 @@ export default function Univers() {
       title: "Mise à jour des prix",
       status: "loading",
       text: null,
-      loadingText: "Téléchargement des prix en cours (jusqu'à une minute pour tout l'univers)…",
+      loadingText: "Téléchargement des prix en cours (jusqu'à 2 minutes pour tout l'univers, 10 ans d'historique par titre)…",
     });
     refreshPricesMutation.mutate(undefined, {
       onSuccess: (data) => {

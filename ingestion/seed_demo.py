@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from ingestion.db import get_engine
-from ingestion.models import AgentEvent, Basket, BasketSecurity, Decision, PriceOHLCV, Security
+from ingestion.models import AgentEvent, Basket, BasketSecurity, Decision, PriceHistoryLong, Security
 
 # (symbol, decision_type, take_profit_pct, stop_loss_pct, confidence, rationale)
 DEMO_DECISIONS = [
@@ -68,16 +68,20 @@ def seed_baskets_by_sector(engine) -> int:
 def _latest_close(engine, symbol: str) -> float | None:
     with engine.begin() as conn:
         row = conn.execute(
-            select(PriceOHLCV.close).where(PriceOHLCV.symbol == symbol).order_by(PriceOHLCV.ts.desc()).limit(1)
+            select(PriceHistoryLong.close)
+            .where(PriceHistoryLong.symbol == symbol)
+            .order_by(PriceHistoryLong.ts.desc())
+            .limit(1)
         ).first()
     return float(row.close) if row else None
 
 
 def seed_demo_decisions(engine) -> int:
     """N'invente jamais de prix : une décision de démonstration n'est
-    insérée que si `prices_ohlcv` a déjà un historique pour ce titre
-    (`python -m ingestion.ohlcv`). Ignore les titres ayant déjà une
-    décision, pour rester sans danger à relancer."""
+    insérée que si `price_history_long` a déjà un historique pour ce titre
+    (`python -m ingestion.price_history`) — repointé depuis `prices_ohlcv`
+    en même temps que le reste du moteur (voir CLAUDE.md). Ignore les titres
+    ayant déjà une décision, pour rester sans danger à relancer."""
     with engine.begin() as conn:
         existing_symbols = {row[0] for row in conn.execute(select(Decision.symbol).distinct())}
 

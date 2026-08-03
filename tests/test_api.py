@@ -31,7 +31,7 @@ from ingestion.models import (
     EnergyPriceSnapshot,
     MacroIndicatorSnapshot,
     PatternDetected,
-    PriceOHLCV,
+    PriceHistoryLong,
     Report,
     Security,
 )
@@ -96,7 +96,7 @@ def client(database_url, monkeypatch):
         )
         conn.execute(Basket.__table__.insert(), [{"id": 1, "name": "Tech FR", "type": "secteur"}])
         conn.execute(BasketSecurity.__table__.insert(), [{"basket_id": 1, "symbol": "AAA.PA", "weight": None}])
-        conn.execute(PriceOHLCV.__table__.insert(), price_rows)
+        conn.execute(PriceHistoryLong.__table__.insert(), price_rows)
         conn.execute(
             PatternDetected.__table__.insert(),
             [
@@ -609,7 +609,7 @@ def test_propose_confirm_and_propose_levels_flow(client):
             [{"symbol": "XXX.PA", "name": "Xylo SA", "country": "FR", "currency": "EUR", "sector": "Tech", "theme": None}],
         )
         conn.execute(
-            PriceOHLCV.__table__.insert(),
+            PriceHistoryLong.__table__.insert(),
             [
                 {
                     "symbol": "XXX.PA",
@@ -710,7 +710,7 @@ def test_monitor_and_confirm_exit_flow(client, mock_llm):
                 "volume": 3_000_000,
             }
         )
-        conn.execute(PriceOHLCV.__table__.insert(), price_rows)
+        conn.execute(PriceHistoryLong.__table__.insert(), price_rows)
         decision_id = conn.execute(
             Decision.__table__.insert()
             .values(
@@ -868,7 +868,7 @@ def test_portfolio_decisions_include_current_price_and_pnl(client):
                 "volume": 1_000_000,
             }
         )
-        conn.execute(PriceOHLCV.__table__.insert(), price_rows)
+        conn.execute(PriceHistoryLong.__table__.insert(), price_rows)
         decision_id = conn.execute(
             Decision.__table__.insert()
             .values(

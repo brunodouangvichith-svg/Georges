@@ -84,17 +84,19 @@ pytest
 
 Les tests (`tests/test_migrations.py`, `tests/test_seed.py`) utilisent [testcontainers](https://testcontainers.com/) pour démarrer une instance Postgres jetable et vérifier que les migrations s'appliquent (et se retirent) proprement sur une base vide, et que le seed charge bien les 40 valeurs de façon idempotente. **Ils nécessitent un démon Docker actif** (indépendamment de la stack `infra/docker-compose.yml`, qui n'a pas besoin d'être démarrée pour lancer les tests).
 
-## 6. Télécharger l'historique des prix (Phase 1)
+## 6. Télécharger l'historique des prix (Phase 1, table repointée vers price_history_long — ad hoc)
 
 Avec l'environnement Docker démarré et l'univers chargé (étapes 1 et 4) :
 
 ```bash
-python -m ingestion.ohlcv
+python -m ingestion.price_history
 ```
 
-Télécharge, via [yfinance](https://pypi.org/project/yfinance/), l'historique quotidien (2 ans par défaut) de chaque titre de `securities` et le charge dans `prices_ohlcv` (upsert, sans danger à relancer). Les échecs (ticker introuvable, erreur réseau — jusqu'à 3 tentatives par titre) sont listés à la fin sans bloquer les autres titres. Nécessite un accès réseau vers Yahoo Finance.
+Télécharge, via [yfinance](https://pypi.org/project/yfinance/), jusqu'à 10 ans d'historique quotidien de chaque titre de `securities` et le charge dans `price_history_long` (upsert, sans danger à relancer). Les échecs (ticker introuvable, erreur réseau — jusqu'à 3 tentatives par titre) sont listés à la fin sans bloquer les autres titres. Nécessite un accès réseau vers Yahoo Finance. **Table dont dépend toute la suite** (détection, propositions, George Index, graphique de l'écran Univers) — voir CLAUDE.md, section "Long-term price history".
 
-Aucune tâche planifiée n'existe encore (Phase 7) — même chose déclenchable depuis l'écran **Univers** via le bouton **🔄 Mise à jour des prix** sous « Univers » dans la navigation, qui appelle `POST /prices/refresh` (dure jusqu'à une minute pour tout l'univers).
+`python -m ingestion.ohlcv` existe toujours séparément (alimente `prices_ohlcv`, 2 ans) mais plus aucun code applicatif ne la lit depuis ce changement — gardée pour compatibilité/historique, pas requise pour suivre la suite de ce guide.
+
+Aucune tâche planifiée à fréquence fine n'existe encore (Phase 7) — un rafraîchissement hebdomadaire automatique existe (`weekly_price_history_import.yml`, dimanche), et la même chose est déclenchable manuellement depuis l'écran **Univers** via le bouton **🔄 Mise à jour des prix** sous « Univers » dans la navigation, qui appelle `POST /prices/refresh` (dure jusqu'à 2 minutes pour tout l'univers — 10 ans d'historique par titre).
 
 ## 7. Détecter les figures chartistes (Phase 1)
 
@@ -111,7 +113,7 @@ Les détecteurs eux-mêmes (`engine/patterns/`, `engine/detect.py`) ne dépenden
 ## 8. Score de confiance appris et George Index (Phase 2)
 
 ```bash
-python -m engine.build_training_set   # assemble engine/data/training_set.parquet depuis patterns_detected + prices_ohlcv
+python -m engine.build_training_set   # assemble engine/data/training_set.parquet depuis patterns_detected + price_history_long
 ```
 
 Puis, dans `engine/notebooks/train_confidence_model.ipynb` (offline — nécessite l'extra `notebook`) : entraîne un pipeline scikit-learn (imputation + one-hot) + `XGBClassifier` prédisant le succès d'une figure à horizon 10 séances, et sauvegarde le pipeline entraîné sous `engine/models/confidence_xgb_<date>.joblib` (+ métadonnées `.meta.json`). Si `engine/data/training_set.parquet` n'existe pas encore, le notebook retombe sur un jeu de données synthétique pour rester exécutable sans base peuplée.
@@ -143,7 +145,7 @@ Pour peupler un peu la base au-delà de l'univers CAC 40 et de son historique de
 python -m ingestion.seed_demo
 ```
 
-Crée un panier par secteur (équipondéré), et — seulement pour les titres ayant déjà un historique de prix (`ingestion.ohlcv`) — quelques décisions et événements d'agents **explicitement illustratifs** (`ingestion/seed_demo.py`), en attendant que les Phases 6/7 les génèrent réellement. Idempotent.
+Crée un panier par secteur (équipondéré), et — seulement pour les titres ayant déjà un historique de prix (`ingestion.price_history`) — quelques décisions et événements d'agents **explicitement illustratifs** (`ingestion/seed_demo.py`), en attendant que les Phases 6/7 les génèrent réellement. Idempotent.
 
 Tests d'intégration (`tests/test_api.py`, pytest + `fastapi.testclient`) : la plupart nécessitent Docker (testcontainers), mais `test_db_unreachable_returns_503_with_cors_headers` ne l'exige pas — il couvre spécifiquement un piège Starlette rencontré pendant le développement (voir `api/main.py:database_exception_handler`) où un handler enregistré pour la classe `Exception` nue est redirigé vers `ServerErrorMiddleware`, *au-dessus* de `CORSMiddleware`, produisant une erreur CORS trompeuse côté navigateur au lieu du vrai message d'erreur.
 

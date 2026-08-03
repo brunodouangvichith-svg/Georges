@@ -1,6 +1,7 @@
 """Assemble le jeu d'entraînement du modèle de confiance à partir de la base
-(`patterns_detected` + `prices_ohlcv` + `securities`) et l'écrit sur disque
-pour le notebook d'entraînement offline (Phase 2).
+(`patterns_detected` + `price_history_long` (via `engine.run_detection.load_prices`)
++ `securities`) et l'écrit sur disque pour le notebook d'entraînement offline
+(Phase 2).
 
 Usage :
     python -m engine.build_training_set

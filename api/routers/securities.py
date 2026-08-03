@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from api.deps import get_db
 from api.schemas import DividendOut, FundamentalsOut, Page, PatternOut, PriceBarOut, SecurityOut
-from ingestion.models import BasketSecurity, CompanyFundamentals, Dividend, PatternDetected, PriceOHLCV, Security
+from ingestion.models import BasketSecurity, CompanyFundamentals, Dividend, PatternDetected, PriceHistoryLong, Security
 
 router = APIRouter(prefix="/securities", tags=["securities"])
 
@@ -105,14 +105,18 @@ def list_security_dividends(
 @router.get("/{symbol}/prices", response_model=Page[PriceBarOut])
 def list_security_prices(
     symbol: str,
-    limit: int = Query(default=250, ge=1, le=2000, description="Nombre de séances les plus récentes"),
+    limit: int = Query(default=250, ge=1, le=3000, description="Nombre de séances les plus récentes"),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
     """Les `limit` séances les plus récentes (au-delà de `offset`),
-    renvoyées en ordre chronologique croissant — prêtes pour un graphique."""
+    renvoyées en ordre chronologique croissant — prêtes pour un graphique.
+    Lit `price_history_long` (jusqu'à 10 ans) plutôt que `prices_ohlcv`
+    (2 ans, plus alimentée depuis le passage à `price_history_long` — voir
+    CLAUDE.md) ; `le=3000` couvre large les ~2600 séances de 10 ans, contre
+    2000 (~8 ans) auparavant."""
     _get_security_or_404(symbol, db)
-    stmt = select(PriceOHLCV).where(PriceOHLCV.symbol == symbol)
+    stmt = select(PriceHistoryLong).where(PriceHistoryLong.symbol == symbol)
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
-    rows = db.execute(stmt.order_by(PriceOHLCV.ts.desc()).limit(limit).offset(offset)).scalars().all()
+    rows = db.execute(stmt.order_by(PriceHistoryLong.ts.desc()).limit(limit).offset(offset)).scalars().all()
     return Page(items=list(reversed(rows)), total=total or 0, limit=limit, offset=offset)
