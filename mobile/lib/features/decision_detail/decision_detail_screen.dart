@@ -186,6 +186,8 @@ class DecisionDetailScreen extends ConsumerWidget {
                   return result.explanation;
                 },
                 symbol: security.symbol,
+                takeProfit: decision!.takeProfit,
+                stopLoss: decision!.stopLoss,
               ),
               child: const Text('Demander une analyse à George'),
             ),

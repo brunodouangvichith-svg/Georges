@@ -117,6 +117,8 @@ class _FakeShareRepository implements ShareRepository {
     required String subject,
     required String text,
     String? symbol,
+    double? takeProfit,
+    double? stopLoss,
   }) async {
     onShare(toEmail, subject, text, symbol);
     return ShareEmailResult(sent: true, chartAttached: symbol != null);

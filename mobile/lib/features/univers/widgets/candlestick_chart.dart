@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../../models/price_bar.dart';
 
-const _levelKeys = {'resistance', 'support'};
+// `left_rim`/`right_rim`/`handle_low` (Cup & Handle) jouent le même rôle
+// conceptuel que resistance/support sous un nom différent -- ajoutés pour
+// que cette figure soit tracée en ligne elle aussi, pas seulement en
+// marqueurs (bug réel trouvé en recevant un email de partage montrant un
+// Cup & Handle sans aucune ligne, voir engine/chart_image.py et
+// web/src/components/CandlestickChart.jsx, tenus en synchronisation).
+const _levelKeys = {'resistance', 'support', 'left_rim', 'right_rim', 'handle_low'};
 
 class _Overlay {
   final List<(int, double)> markers;

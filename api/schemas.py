@@ -301,12 +301,17 @@ class CarryTradeRefreshResponse(BaseModel):
 class ShareEmailRequest(BaseModel):
     """`symbol` optionnel : présent uniquement pour les popups associées à un
     titre (ex. explication de décision) — voir `api/routers/share.py` pour ce
-    que son absence implique (pas de graphique joint, texte seul)."""
+    que son absence implique (pas de graphique joint, texte seul).
+    `take_profit`/`stop_loss` optionnels, tracés sur le graphique joint s'ils
+    sont fournis — sans effet si `symbol` est absent (pas de graphique du
+    tout dans ce cas)."""
 
     to_email: str
     subject: str
     text: str
     symbol: str | None = None
+    take_profit: float | None = None
+    stop_loss: float | None = None
 
 
 class ShareEmailResponse(BaseModel):

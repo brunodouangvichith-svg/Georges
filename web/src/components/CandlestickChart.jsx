@@ -5,8 +5,12 @@ import { useMemo } from "react";
 // les points {index, price} sont marqués, les niveaux nommés
 // resistance/support (bruts ou via un point) sont tracés en ligne
 // horizontale. Même logique que `engine/notebooks/pattern_validation.ipynb`
-// côté Python, portée ici pour l'UI.
-const LEVEL_KEYS = new Set(["resistance", "support"]);
+// côté Python, portée ici pour l'UI. `left_rim`/`right_rim`/`handle_low`
+// (Cup & Handle) jouent le même rôle conceptuel que resistance/support avec
+// un nom différent — ajoutés ici pour que cette figure soit tracée en ligne
+// elle aussi, pas seulement en marqueurs (bug réel trouvé en recevant un
+// email de partage montrant un Cup & Handle sans aucune ligne).
+const LEVEL_KEYS = new Set(["resistance", "support", "left_rim", "right_rim", "handle_low"]);
 
 function buildOverlay(context, indexOffset, candleCount) {
   const markers = [];

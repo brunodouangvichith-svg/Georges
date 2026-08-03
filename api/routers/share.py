@@ -59,7 +59,11 @@ def share_by_email(request: ShareEmailRequest, db: Session = Depends(get_db)):
         if not df.empty:
             pattern = _latest_pattern(db, request.symbol)
             attachment_bytes = chart_image.render_candlestick_png(
-                df, f"{request.symbol} — 10 ans", context=pattern.context if pattern else None
+                df,
+                f"{request.symbol} — 10 ans",
+                context=pattern.context if pattern else None,
+                take_profit=request.take_profit,
+                stop_loss=request.stop_loss,
             )
             chart_attached = True
 

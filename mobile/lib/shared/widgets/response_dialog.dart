@@ -14,27 +14,46 @@ import '../../data/share_repository.dart';
 /// au partage par email quand cette popup est associée à un titre (ex.
 /// explication de décision) — omis pour les popups sans titre associé
 /// (rafraîchissement des prix, collecte macro...), qui partagent alors le
-/// texte seul.
+/// texte seul. `takeProfit`/`stopLoss` (optionnels) : tracés sur ce même
+/// graphique joint s'ils sont fournis, sans effet si `symbol` est absent.
 Future<void> showResponseDialog(
   BuildContext context, {
   required String title,
   required String loadingText,
   required Future<String> Function() action,
   String? symbol,
+  double? takeProfit,
+  double? stopLoss,
 }) {
   return showDialog(
     context: context,
-    builder: (context) => _ResponseDialog(title: title, loadingText: loadingText, action: action, symbol: symbol),
+    builder: (context) => _ResponseDialog(
+      title: title,
+      loadingText: loadingText,
+      action: action,
+      symbol: symbol,
+      takeProfit: takeProfit,
+      stopLoss: stopLoss,
+    ),
   );
 }
 
 class _ResponseDialog extends ConsumerStatefulWidget {
-  const _ResponseDialog({required this.title, required this.loadingText, required this.action, this.symbol});
+  const _ResponseDialog({
+    required this.title,
+    required this.loadingText,
+    required this.action,
+    this.symbol,
+    this.takeProfit,
+    this.stopLoss,
+  });
 
   final String title;
   final String loadingText;
   final Future<String> Function() action;
   final String? symbol;
+  final double? takeProfit;
+  final double? stopLoss;
 
   @override
   ConsumerState<_ResponseDialog> createState() => _ResponseDialogState();
@@ -79,6 +98,8 @@ class _ResponseDialogState extends ConsumerState<_ResponseDialog> {
     final text = _text!;
     final title = widget.title;
     final symbol = widget.symbol;
+    final takeProfit = widget.takeProfit;
+    final stopLoss = widget.stopLoss;
     showResponseDialog(
       context,
       title: '📤 Partage par email',
@@ -89,6 +110,8 @@ class _ResponseDialogState extends ConsumerState<_ResponseDialog> {
               subject: title,
               text: text,
               symbol: symbol,
+              takeProfit: takeProfit,
+              stopLoss: stopLoss,
             );
         return result.chartAttached
             ? 'Email envoyé à $toEmail, avec le graphique en pièce jointe.'

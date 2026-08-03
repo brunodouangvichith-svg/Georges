@@ -25,11 +25,18 @@ class ShareRepository {
 
   final Ref _ref;
 
+  /// `takeProfit`/`stopLoss` : tracés sur le graphique joint s'ils sont
+  /// fournis (sans effet si `symbol` est absent, aucun graphique n'existe
+  /// alors) -- demandé directement par l'utilisateur après un premier email
+  /// de partage dont le graphique n'affichait ni le take-profit ni le
+  /// stop-loss de la décision.
   Future<ShareEmailResult> shareByEmail({
     required String toEmail,
     required String subject,
     required String text,
     String? symbol,
+    double? takeProfit,
+    double? stopLoss,
   }) async {
     final client = _ref.read(apiClientProvider);
     final json = await client.post(
@@ -39,6 +46,8 @@ class ShareRepository {
         'subject': subject,
         'text': text,
         if (symbol != null) 'symbol': symbol,
+        if (takeProfit != null) 'take_profit': takeProfit,
+        if (stopLoss != null) 'stop_loss': stopLoss,
       },
       receiveTimeout: const Duration(seconds: 90),
     );

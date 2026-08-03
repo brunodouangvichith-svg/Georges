@@ -30,8 +30,12 @@ import pandas as pd
 # dérive de la *forme* du `context` d'un détecteur (points {index/points,
 # price}, niveaux resistance/support), jamais du nom de la figure : une
 # quatrième copie de la même logique plutôt qu'un partage cross-langage
-# (Python/JS/Dart), même arbitrage que les trois précédentes.
-_LEVEL_KEYS = {"resistance", "support"}
+# (Python/JS/Dart), même arbitrage que les trois précédentes. `left_rim`/
+# `right_rim`/`handle_low` (Cup & Handle) jouent le même rôle conceptuel que
+# resistance/support sous un nom différent -- ajoutés ici et dans les deux
+# autres implémentations (JS/Dart, tenues en synchronisation) après qu'un
+# email de partage réel a montré un Cup & Handle sans aucune ligne tracée.
+_LEVEL_KEYS = {"resistance", "support", "left_rim", "right_rim", "handle_low"}
 
 
 def _build_overlay(context: dict | None) -> tuple[list[tuple[int, float]], list[float]]:
@@ -54,7 +58,13 @@ def _build_overlay(context: dict | None) -> tuple[list[tuple[int, float]], list[
     return markers, hlines
 
 
-def render_candlestick_png(df: pd.DataFrame, title: str, context: dict | None = None) -> bytes:
+def render_candlestick_png(
+    df: pd.DataFrame,
+    title: str,
+    context: dict | None = None,
+    take_profit: float | None = None,
+    stop_loss: float | None = None,
+) -> bytes:
     """`df` au format `engine.run_detection.load_prices` (colonnes
     minuscules open/high/low/close/volume, index DatetimeIndex) — mplfinance
     attend des colonnes capitalisées, renommées ici plutôt que de changer la
@@ -64,12 +74,18 @@ def render_candlestick_png(df: pd.DataFrame, title: str, context: dict | None = 
     récente pour ce titre — si fourni, surligne ses points clés (marqueurs)
     et niveaux (resistance/support/neckline, en ligne horizontale), pour que
     le graphique joint à l'email montre la même figure que celle déjà
-    affichée dans l'application, pas juste un historique de prix nu."""
+    affichée dans l'application, pas juste un historique de prix nu.
+
+    `take_profit`/`stop_loss` (optionnels) : niveaux de la décision associée
+    (`decisions.take_profit`/`stop_loss`), tracés en vert/rouge — mêmes
+    couleurs que `web/src/components/CandlestickChart.jsx`/
+    `mobile/.../candlestick_chart.dart`, distinctes du bleu des niveaux de
+    figure ci-dessus pour ne pas les confondre."""
     plot_df = df.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"})
 
     plot_kwargs = dict(type="candle", style="charles", title=title, volume=True)
 
-    markers, hlines = _build_overlay(context)
+    markers, pattern_hlines = _build_overlay(context)
     if markers:
         marker_series = pd.Series(np.nan, index=plot_df.index)
         for pos, price in markers:
@@ -78,11 +94,20 @@ def render_candlestick_png(df: pd.DataFrame, title: str, context: dict | None = 
         plot_kwargs["addplot"] = [
             mpf.make_addplot(marker_series, type="scatter", markersize=120, marker="o", color="orange")
         ]
+
+    hlines = list(pattern_hlines)
+    colors = ["tab:blue"] * len(pattern_hlines)
+    if take_profit is not None:
+        hlines.append(float(take_profit))
+        colors.append("tab:green")
+    if stop_loss is not None:
+        hlines.append(float(stop_loss))
+        colors.append("tab:red")
     # mplfinance rejette hlines=None : la clé doit être absente plutôt que
     # valoir None quand il n'y a aucun niveau à tracer (même piège déjà
     # documenté pour `engine/notebooks/pattern_validation.ipynb`).
     if hlines:
-        plot_kwargs["hlines"] = dict(hlines=hlines, colors=["tab:blue"] * len(hlines), linestyle="--")
+        plot_kwargs["hlines"] = dict(hlines=hlines, colors=colors, linestyle="--")
 
     buffer = io.BytesIO()
     mpf.plot(plot_df, **plot_kwargs, savefig=dict(fname=buffer, dpi=150, bbox_inches="tight"))
