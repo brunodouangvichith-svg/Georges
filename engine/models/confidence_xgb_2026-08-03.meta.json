@@ -1,0 +1,35 @@
+{
+  "trained_at": "2026-08-03",
+  "training_horizon_sessions": 10,
+  "feature_columns": [
+    "pattern_type",
+    "sector",
+    "relative_volume",
+    "atr_pct",
+    "market_trend",
+    "price_over_sma50",
+    "price_over_sma200",
+    "sma50_over_sma200",
+    "rsi_14"
+  ],
+  "numeric_feature_columns": [
+    "relative_volume",
+    "atr_pct",
+    "market_trend",
+    "price_over_sma50",
+    "price_over_sma200",
+    "sma50_over_sma200",
+    "rsi_14"
+  ],
+  "categorical_feature_columns": [
+    "pattern_type",
+    "sector"
+  ],
+  "dataset_source": "synthétique (démonstration)",
+  "n_train": 600,
+  "n_test": 200,
+  "metrics": {
+    "accuracy": 0.625,
+    "roc_auc": 0.6325530212084833
+  }
+}

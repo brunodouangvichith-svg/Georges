@@ -38,7 +38,7 @@ _cached_model = None
 _cached_feature_columns: list[str] | None = None
 
 
-def _latest_model_path() -> str | None:
+def latest_model_path() -> str | None:
     candidates = sorted(glob.glob(MODEL_GLOB))
     return candidates[-1] if candidates else None
 
@@ -52,7 +52,7 @@ def load_latest_model():
         return _cached_model, _cached_feature_columns
     _cache_loaded = True
 
-    path = _latest_model_path()
+    path = latest_model_path()
     if path is None:
         return None, None
 

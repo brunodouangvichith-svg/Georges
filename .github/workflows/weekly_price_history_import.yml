@@ -1,4 +1,4 @@
-name: Import hebdomadaire historique long terme + détection + propositions
+name: Import hebdomadaire historique long terme + détection + propositions + candidat ML
 
 # Demandé directement par l'utilisateur : price_history_long (10 ans
 # d'historique par titre, voir CLAUDE.md section "Long-term price history")
@@ -15,6 +15,17 @@ name: Import hebdomadaire historique long terme + détection + propositions
 # inchangés 6 jours sur 7 aurait réinséré les mêmes figures en double dans
 # patterns_detected, qui n'a pas de contrainte d'unicité sur
 # (symbol, pattern_type, detected_at).
+#
+# engine.build_training_set + engine.train_confidence_model (« auto-learn »,
+# demandé directement par l'utilisateur) tournent aussi ici chaque semaine :
+# un modèle *candidat* est entraîné et comparé au modèle actuellement en
+# production (voir CLAUDE.md, section "Auto-learn"), jamais déployé
+# automatiquement -- promotion humaine délibérée via
+# `python -m engine.promote_candidate_model` après revue des métriques dans
+# le log de ce job, puis commit/push manuel des fichiers promus. Le candidat
+# lui-même est éphémère sur ce runner (engine/models/candidates/ est
+# gitignoré) : téléversé comme artefact du workflow pour rester
+# téléchargeable/revuable après coup.
 #
 # Dimanche 20h UTC = 22h heure française en été (CEST, UTC+2, en vigueur
 # actuellement) -- marchés fermés, capture la semaine jusqu'à la clôture de
@@ -47,3 +58,15 @@ jobs:
         run: python -m engine.propose_decisions
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Jeu d'entraînement (engine.build_training_set)
+        run: python -m engine.build_training_set
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Modèle candidat + comparaison (engine.train_confidence_model)
+        run: python -m engine.train_confidence_model
+      - name: Téléverser le candidat pour revue
+        uses: actions/upload-artifact@v4
+        with:
+          name: confidence-model-candidate
+          path: engine/models/candidates/
+          retention-days: 30

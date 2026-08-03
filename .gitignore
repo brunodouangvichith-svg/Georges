@@ -9,11 +9,19 @@ __pycache__/
 .env
 infra/.env
 
-# Modèles entraînés et jeux de données dérivés (Phase 2) — régénérables via
-# engine/build_training_set.py + engine/notebooks/train_confidence_model.ipynb,
-# volontairement non versionnés (binaires, dépendants des données du moment).
-engine/models/
+# Jeu d'entraînement dérivé (Phase 2) — régénérable via
+# engine/build_training_set.py, volontairement non versionné (dépendant des
+# données du moment).
 engine/data/
+
+# Modèles *candidats* (engine/train_confidence_model.py) — jamais versionnés :
+# un candidat n'est qu'une proposition en attente de revue humaine avant
+# promotion (voir CLAUDE.md, section "Auto-learn"). Le modèle *promu*
+# (directement sous engine/models/, pas dans ce sous-dossier) EST versionné
+# depuis ce changement — c'est ce qui permet au workflow GitHub Actions
+# programmé (checkout Git vierge à chaque exécution) d'avoir accès à un vrai
+# modèle entraîné plutôt que de retomber systématiquement sur l'heuristique.
+engine/models/candidates/
 
 # Node / web (voir aussi web/.gitignore)
 web/node_modules/
