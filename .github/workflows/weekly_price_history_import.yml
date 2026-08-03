@@ -1,0 +1,32 @@
+name: Import hebdomadaire historique long terme (price_history_long)
+
+# Demandé directement par l'utilisateur : price_history_long (10 ans
+# d'historique par titre, voir CLAUDE.md section "Long-term price history")
+# se met à jour une fois par semaine, pas quotidiennement comme prices_ohlcv
+# -- un backfill complet par titre coûte cher (102 titres x 10 ans) pour un
+# gain marginal si relancé tous les jours ; une cadence hebdomadaire suffit à
+# garder la table à jour pour la détection de figures.
+#
+# Dimanche 20h UTC = 22h heure française en été (CEST, UTC+2, en vigueur
+# actuellement) -- marchés fermés, capture la semaine jusqu'à la clôture de
+# vendredi. Même limitation qu'ailleurs dans ce projet : GitHub Actions ne
+# gère pas nativement l'heure d'été, décalage d'1h assumé en hiver plutôt
+# qu'une 2e règle cron.
+on:
+  schedule:
+    - cron: "0 20 * * 0"
+  workflow_dispatch: {}
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Historique long terme (ingestion.price_history)
+        run: python -m ingestion.price_history
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
