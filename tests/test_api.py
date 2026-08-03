@@ -892,6 +892,9 @@ def test_portfolio_decisions_include_current_price_and_pnl(client):
     decision = portfolio["decisions"][0]
     assert decision["current_price"] == 110.0
     assert decision["pnl_pct"] == pytest.approx(10.0)  # (110 - 100) / 100 * 100
+    # day_change_pct compare aux deux dernières séances (100.0 puis 110.0),
+    # pas à entry_price -- non ajusté à la direction, contrairement à pnl_pct.
+    assert decision["day_change_pct"] == pytest.approx(10.0)  # (110 - 100) / 100 * 100
     assert portfolio["total_pnl_amount"] is None  # aucune quantité renseignée encore
     # price_updated_at = date de la dernière séance de prix (2020-01-06),
     # distincte de created_at de la décision (2020-01-01, old_ts).

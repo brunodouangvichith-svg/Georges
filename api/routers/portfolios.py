@@ -36,7 +36,9 @@ def _portfolio_decisions(db: Session, portfolio_id: int) -> list[tuple[Decision,
     )
 
 
-def _current_price_and_pnl(engine, decision: Decision) -> tuple[float | None, float | None, object | None]:
+def _current_price_and_pnl(
+    engine, decision: Decision
+) -> tuple[float | None, float | None, object | None, float | None]:
     """Prix le plus récent, rendement (%) courant depuis l'entrée, et
     horodatage de la séance de ce prix (`price_updated_at` — la date/heure
     de la dernière ingestion de prix, pas celle de la décision elle-même,
@@ -63,13 +65,18 @@ def _current_price_and_pnl(engine, decision: Decision) -> tuple[float | None, fl
     df = load_prices(engine, decision.symbol)
     closes = df["close"].dropna()
     if closes.empty:
-        return None, None, None
+        return None, None, None, None
     current_price = float(closes.iloc[-1])
     price_updated_at = closes.index[-1].to_pydatetime()
     entry = float(decision.entry_price)
     direction = 1 if decision.decision_type in BULLISH_DECISIONS else -1
     pnl_pct = (current_price - entry) / entry * 100 * direction
-    return current_price, pnl_pct, price_updated_at
+    day_change_pct = None
+    if len(closes) >= 2:
+        previous_close = float(closes.iloc[-2])
+        if previous_close != 0:
+            day_change_pct = (current_price - previous_close) / previous_close * 100
+    return current_price, pnl_pct, price_updated_at, day_change_pct
 
 
 def _portfolio_out(db: Session, engine, portfolio: Portfolio) -> PortfolioOut:
@@ -80,7 +87,7 @@ def _portfolio_out(db: Session, engine, portfolio: Portfolio) -> PortfolioOut:
     has_any_position = False
 
     for decision, quantity in rows:
-        current_price, pnl_pct, price_updated_at = _current_price_and_pnl(engine, decision)
+        current_price, pnl_pct, price_updated_at, day_change_pct = _current_price_and_pnl(engine, decision)
         decisions.append(
             PortfolioDecisionOut.model_validate(decision, from_attributes=True).model_copy(
                 update={
@@ -88,6 +95,7 @@ def _portfolio_out(db: Session, engine, portfolio: Portfolio) -> PortfolioOut:
                     "current_price": current_price,
                     "pnl_pct": pnl_pct,
                     "price_updated_at": price_updated_at,
+                    "day_change_pct": day_change_pct,
                 }
             )
         )

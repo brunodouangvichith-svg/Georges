@@ -10,6 +10,7 @@ class PortfolioDecision {
   final double? currentPrice;
   final double? pnlPct;
   final DateTime? priceUpdatedAt;
+  final double? dayChangePct;
 
   PortfolioDecision({
     required this.decision,
@@ -17,6 +18,7 @@ class PortfolioDecision {
     required this.currentPrice,
     required this.pnlPct,
     required this.priceUpdatedAt,
+    required this.dayChangePct,
   });
 
   factory PortfolioDecision.fromJson(Map<String, dynamic> json) => PortfolioDecision(
@@ -25,6 +27,7 @@ class PortfolioDecision {
         currentPrice: (json['current_price'] as num?)?.toDouble(),
         pnlPct: (json['pnl_pct'] as num?)?.toDouble(),
         priceUpdatedAt: json['price_updated_at'] != null ? DateTime.parse(json['price_updated_at'] as String) : null,
+        dayChangePct: (json['day_change_pct'] as num?)?.toDouble(),
       );
 }
 

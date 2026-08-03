@@ -21,6 +21,11 @@ Color _pnlColor(double? value) {
 
 String _formatPnlPct(double? value) => value == null ? '—' : '${value >= 0 ? '+' : ''}${value.toStringAsFixed(1)}%';
 
+Color _deltaColor(double? value) {
+  if (value == null) return AppColors.textDim;
+  return value >= 0 ? AppColors.positive : AppColors.negative;
+}
+
 String _formatAmount(double value) => '${value >= 0 ? '+' : ''}${value.toStringAsFixed(2)} €';
 
 /// Portefeuilles nommés créés depuis Paniers — miroir de
@@ -191,9 +196,11 @@ class _PortfolioSection extends ConsumerWidget {
                     DataColumn(label: Text('Ticker')),
                     DataColumn(label: Text('Entrée')),
                     DataColumn(label: Text('Prix')),
+                    DataColumn(label: Text('Delta veille')),
                     DataColumn(label: Text('TP')),
                     DataColumn(label: Text('SL')),
                     DataColumn(label: Text('PnL')),
+                    DataColumn(label: Text('Confiance')),
                     DataColumn(label: Text('Qté')),
                     DataColumn(label: Text('Date/Heure')),
                     DataColumn(label: Text('')),
@@ -205,9 +212,11 @@ class _PortfolioSection extends ConsumerWidget {
                             style: TextStyle(color: _decisionColor(pd.decision.decisionType), fontWeight: FontWeight.bold))),
                         DataCell(Text('${pd.decision.entryPrice.toStringAsFixed(2)} €')),
                         DataCell(Text(pd.currentPrice != null ? '${pd.currentPrice!.toStringAsFixed(2)} €' : '—')),
+                        DataCell(Text(_formatPnlPct(pd.dayChangePct), style: TextStyle(color: _deltaColor(pd.dayChangePct)))),
                         DataCell(Text(pd.decision.takeProfit != null ? '${pd.decision.takeProfit!.toStringAsFixed(2)} €' : '—')),
                         DataCell(Text(pd.decision.stopLoss != null ? '${pd.decision.stopLoss!.toStringAsFixed(2)} €' : '—')),
                         DataCell(Text(_formatPnlPct(pd.pnlPct), style: TextStyle(color: _pnlColor(pd.pnlPct), fontWeight: FontWeight.bold))),
+                        DataCell(Text('${pd.decision.confidence.toStringAsFixed(0)}%')),
                         DataCell(Text(pd.quantity?.toString() ?? '—')),
                         DataCell(Text(pd.priceUpdatedAt != null
                             ? '${dateFormat.format(pd.priceUpdatedAt!)} ${timeFormat.format(pd.priceUpdatedAt!)}'

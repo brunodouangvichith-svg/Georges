@@ -214,16 +214,22 @@ class PortfolioDecisionOut(DecisionOut):
     portefeuille (colonne de la table de liaison `portfolio_decisions`, pas
     de `decisions` elle-même : une même décision peut avoir des quantités
     différentes dans deux portefeuilles distincts) — et `current_price`/
-    `pnl_pct`/`price_updated_at`, calculés à la volée depuis le prix le plus
-    récent (pas des colonnes stockées), voir
+    `pnl_pct`/`price_updated_at`/`day_change_pct`, calculés à la volée depuis
+    le prix le plus récent (pas des colonnes stockées), voir
     `api/routers/portfolios.py:_current_price_and_pnl`. `price_updated_at`
     est la date/heure de la dernière ingestion de prix pour ce titre, pas
-    celle de la décision (`DecisionOut.created_at`, hérité)."""
+    celle de la décision (`DecisionOut.created_at`, hérité). `day_change_pct`
+    est l'évolution brute du cours par rapport à la séance précédente
+    ((clôture du jour - clôture de la veille) / clôture de la veille) —
+    volontairement *non* ajusté à la direction de la décision comme
+    `pnl_pct` : c'est une lecture du marché ("le titre a bougé de X% hier"),
+    pas un indicateur de performance de la position."""
 
     quantity: int | None = None
     current_price: float | None = None
     pnl_pct: float | None = None
     price_updated_at: datetime | None = None
+    day_change_pct: float | None = None
 
 
 class PortfolioOut(BaseModel):

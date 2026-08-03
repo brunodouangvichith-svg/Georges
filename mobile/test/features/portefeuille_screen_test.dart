@@ -28,6 +28,7 @@ void main() {
       currentPrice: 105,
       pnlPct: 5,
       priceUpdatedAt: DateTime(2026, 1, 2, 9, 30),
+      dayChangePct: 2.5,
     );
     final portfolio = Portfolio(
       id: 1,

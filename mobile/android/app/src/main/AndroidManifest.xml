@@ -8,9 +8,6 @@
          Supabase, quel que soit le domaine ou la connectivité réelle du
          téléphone. Voir CLAUDE.md, section Auth. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Nécessaire au bouton micro de l'onglet Univers (package speech_to_text,
-         reconnaissance vocale pour "Poser une question à George"). -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Nécessaire pour prendre une photo (avatar du Profil, package
          image_picker) — la sélection depuis la galerie n'a pas besoin de
          permission runtime sur Android récent (Photo Picker natif). -->

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../../data/chat_repository.dart';
 import '../../data/decisions_repository.dart';
@@ -35,41 +34,11 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
   // pour ça (contrairement aux données serveur ci-dessous).
   String _filter = 'Tous';
   final _chatController = TextEditingController();
-  final _speech = stt.SpeechToText();
-  bool _isListening = false;
 
   @override
   void dispose() {
     _chatController.dispose();
-    _speech.stop();
     super.dispose();
-  }
-
-  Future<void> _toggleVoiceCapture() async {
-    if (_isListening) {
-      await _speech.stop();
-      if (mounted) setState(() => _isListening = false);
-      return;
-    }
-    final available = await _speech.initialize(
-      onStatus: (status) {
-        if ((status == 'notListening' || status == 'done') && mounted) {
-          setState(() => _isListening = false);
-        }
-      },
-      onError: (_) {
-        if (mounted) setState(() => _isListening = false);
-      },
-    );
-    if (!available) return;
-    setState(() => _isListening = true);
-    await _speech.listen(
-      listenOptions: stt.SpeechListenOptions(localeId: 'fr_FR'),
-      onResult: (result) {
-        _chatController.text = result.recognizedWords;
-        _chatController.selection = TextSelection.collapsed(offset: _chatController.text.length);
-      },
-    );
   }
 
   void _refreshPrices() {
@@ -229,7 +198,7 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
                       builder: (context, value, _) => TextField(
                         controller: _chatController,
                         decoration: InputDecoration(
-                          hintText: 'Poser une question à George…',
+                          hintText: 'Les opportunités actuellement proposées par George',
                           border: const OutlineInputBorder(),
                           isDense: true,
                           suffixIcon: value.text.isEmpty
@@ -245,17 +214,6 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: _isListening ? Colors.lightBlueAccent : Colors.lightBlue.shade100,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: Icon(_isListening ? Icons.mic : Icons.mic_none, color: Colors.black87),
-                      tooltip: 'Commande vocale',
-                      onPressed: _toggleVoiceCapture,
-                    ),
-                  ),
                   IconButton(icon: const Icon(Icons.send), onPressed: _askChat),
                 ],
               ),
