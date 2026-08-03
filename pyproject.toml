@@ -22,7 +22,7 @@ dependencies = [
   "pgvector>=0.3",
   "requests>=2.31",
   "httpx>=0.27",
-  "mplfinance>=0.12",
+  "mplfinance>=0.12.10b0",  # mplfinance n'a jamais publié de release stable >=0.12 sur PyPI (que des alpha/beta) -- ">=0.12" seul échoue la résolution pip sur un environnement vierge (confirmé en direct : échec de build Render), qui exclut les pre-releases par défaut. Une borne basse contenant explicitement un identifiant de pre-release les autorise pour cette dépendance.
 ]
 
 [project.optional-dependencies]

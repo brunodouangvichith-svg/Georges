@@ -21,23 +21,69 @@ import matplotlib
 matplotlib.use("Agg")
 
 import mplfinance as mpf  # noqa: E402 -- doit suivre matplotlib.use("Agg")
+import numpy as np
 import pandas as pd
 
+# Même principe que `web/src/components/CandlestickChart.jsx`/
+# `mobile/lib/features/univers/widgets/candlestick_chart.dart`/
+# `engine/notebooks/pattern_validation.ipynb:plot_match` — l'overlay se
+# dérive de la *forme* du `context` d'un détecteur (points {index/points,
+# price}, niveaux resistance/support), jamais du nom de la figure : une
+# quatrième copie de la même logique plutôt qu'un partage cross-langage
+# (Python/JS/Dart), même arbitrage que les trois précédentes.
+_LEVEL_KEYS = {"resistance", "support"}
 
-def render_candlestick_png(df: pd.DataFrame, title: str) -> bytes:
+
+def _build_overlay(context: dict | None) -> tuple[list[tuple[int, float]], list[float]]:
+    markers: list[tuple[int, float]] = []
+    hlines: list[float] = []
+    if not context:
+        return markers, hlines
+
+    for key, value in context.items():
+        if isinstance(value, dict) and "price" in value:
+            price = float(value["price"])
+            if "index" in value:
+                markers.append((int(value["index"]), price))
+            if "points" in value:
+                markers.extend((int(i), price) for i in value["points"])
+            if "points" in value or key in _LEVEL_KEYS:
+                hlines.append(price)
+        elif key in _LEVEL_KEYS and isinstance(value, (int, float)):
+            hlines.append(float(value))
+    return markers, hlines
+
+
+def render_candlestick_png(df: pd.DataFrame, title: str, context: dict | None = None) -> bytes:
     """`df` au format `engine.run_detection.load_prices` (colonnes
     minuscules open/high/low/close/volume, index DatetimeIndex) — mplfinance
     attend des colonnes capitalisées, renommées ici plutôt que de changer la
-    convention partagée par tout le reste du moteur."""
+    convention partagée par tout le reste du moteur.
+
+    `context` (optionnel) : `patterns_detected.context` de la figure la plus
+    récente pour ce titre — si fourni, surligne ses points clés (marqueurs)
+    et niveaux (resistance/support/neckline, en ligne horizontale), pour que
+    le graphique joint à l'email montre la même figure que celle déjà
+    affichée dans l'application, pas juste un historique de prix nu."""
     plot_df = df.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"})
 
+    plot_kwargs = dict(type="candle", style="charles", title=title, volume=True)
+
+    markers, hlines = _build_overlay(context)
+    if markers:
+        marker_series = pd.Series(np.nan, index=plot_df.index)
+        for pos, price in markers:
+            if 0 <= pos < len(marker_series):
+                marker_series.iloc[pos] = price
+        plot_kwargs["addplot"] = [
+            mpf.make_addplot(marker_series, type="scatter", markersize=120, marker="o", color="orange")
+        ]
+    # mplfinance rejette hlines=None : la clé doit être absente plutôt que
+    # valoir None quand il n'y a aucun niveau à tracer (même piège déjà
+    # documenté pour `engine/notebooks/pattern_validation.ipynb`).
+    if hlines:
+        plot_kwargs["hlines"] = dict(hlines=hlines, colors=["tab:blue"] * len(hlines), linestyle="--")
+
     buffer = io.BytesIO()
-    mpf.plot(
-        plot_df,
-        type="candle",
-        style="charles",
-        title=title,
-        volume=True,
-        savefig=dict(fname=buffer, dpi=150, bbox_inches="tight"),
-    )
+    mpf.plot(plot_df, **plot_kwargs, savefig=dict(fname=buffer, dpi=150, bbox_inches="tight"))
     return buffer.getvalue()
