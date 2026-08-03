@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../data/energy_prices_repository.dart';
 import '../../../models/energy_price.dart';
@@ -25,7 +26,22 @@ class EnergyMarketTile extends ConsumerWidget {
   List<EnergyPrice> _sorted(List<EnergyPrice> prices) =>
       [for (final code in _energyOrder) prices.where((p) => p.commodityCode == code).firstOrNull].whereType<EnergyPrice>().toList();
 
+  /// Horodatage le plus récent parmi les matières premières affichées —
+  /// `priceObservedAt` (l'instant réel de la cotation côté OilPriceAPI) de
+  /// préférence, `snapshotDate` (le jour d'ingestion côté George) sinon.
+  /// Demandé directement par l'utilisateur pour savoir depuis l'écran si les
+  /// prix affichés sont frais, sans avoir à vérifier côté serveur.
+  DateTime? _latestTimestamp(List<EnergyPrice> prices) {
+    DateTime? latest;
+    for (final p in prices) {
+      final candidate = p.priceObservedAt ?? p.snapshotDate;
+      if (latest == null || candidate.isAfter(latest)) latest = candidate;
+    }
+    return latest;
+  }
+
   void _showDetail(BuildContext context, List<EnergyPrice> prices) {
+    final latestTimestamp = _latestTimestamp(prices);
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -33,6 +49,13 @@ class EnergyMarketTile extends ConsumerWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (latestTimestamp != null) ...[
+              Text(
+                'Mis à jour le ${DateFormat('dd/MM/yyyy HH:mm').format(latestTimestamp.toLocal())}',
+                style: Theme.of(dialogContext).textTheme.labelSmall,
+              ),
+              const SizedBox(height: 8),
+            ],
             for (final p in prices)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),

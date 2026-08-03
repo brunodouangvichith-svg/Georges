@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../data/news_repository.dart';
 import '../../../models/news_item.dart';
@@ -12,6 +13,43 @@ import '../../../models/news_item.dart';
 /// actualités récupérées via yfinance (`api/routers/news.py`, indice CAC 40).
 class BreakingNewsTile extends ConsumerWidget {
   const BreakingNewsTile({super.key});
+
+  /// Ouvre l'article dans un popup avec une WebView intégrée, plutôt que de
+  /// quitter l'application vers un navigateur externe — demandé directement
+  /// par l'utilisateur. `item.url` peut être absent (yfinance ne le fournit
+  /// pas toujours) : dans ce cas l'article reste listé mais non cliquable,
+  /// jamais un lien cassé.
+  void _openArticle(BuildContext context, NewsItem item) {
+    if (item.url == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: double.maxFinite,
+          height: MediaQuery.of(dialogContext).size.height * 0.8,
+          child: Column(
+            children: [
+              AppBar(
+                title: Text(item.sourceName, overflow: TextOverflow.ellipsis),
+                leading: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                ),
+              ),
+              Expanded(
+                child: WebViewWidget(
+                  controller: WebViewController()
+                    ..setJavaScriptMode(JavaScriptMode.unrestricted)
+                    ..loadRequest(Uri.parse(item.url!)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showAllNews(BuildContext context, List<NewsItem> items) {
     showDialog<void>(
@@ -26,20 +64,28 @@ class BreakingNewsTile extends ConsumerWidget {
             separatorBuilder: (_, _) => const Divider(),
             itemBuilder: (context, index) {
               final item = items[index];
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item.title, style: Theme.of(context).textTheme.bodyMedium),
-                    const SizedBox(height: 2),
-                    Text(
-                      item.publishedAt != null
-                          ? '${item.sourceName} · ${DateFormat('dd/MM HH:mm').format(item.publishedAt!.toLocal())}'
-                          : item.sourceName,
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                  ],
+              return InkWell(
+                onTap: item.url != null ? () => _openArticle(context, item) : null,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              decoration: item.url != null ? TextDecoration.underline : null,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        item.publishedAt != null
+                            ? '${item.sourceName} · ${DateFormat('dd/MM HH:mm').format(item.publishedAt!.toLocal())}'
+                            : item.sourceName,
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                    ],
+                  ),
                 ),
               );
             },

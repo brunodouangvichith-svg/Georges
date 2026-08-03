@@ -2,10 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
 import '../models/agent_event.dart';
-import '../models/collection_task_response.dart';
 import '../models/page.dart';
 
-/// Miroir de web/src/api/queries.js:useAgentActivity/useTriggerCollection.
+/// Miroir de web/src/api/queries.js:useAgentActivity. Le déclenchement
+/// manuel de collecte (`useTriggerCollection`/`POST /agents/collect`) n'a
+/// pas d'équivalent mobile — retiré ici à la demande directe de
+/// l'utilisateur (bouton "Collecte macro" de l'écran Univers) ; `web/`
+/// garde le sien.
 class AgentsRepository {
   AgentsRepository(this._ref);
 
@@ -15,18 +18,6 @@ class AgentsRepository {
     final client = _ref.read(apiClientProvider);
     final json = await client.get('/agents/activity', params: {'status': status, 'limit': limit});
     return Page.fromJson(json as Map<String, dynamic>, AgentEvent.fromJson);
-  }
-
-  /// Interroge FRED/BCE côté serveur — timeout allongé comme les autres
-  /// appels réseau lents (voir lib/core/api_client.dart).
-  Future<CollectionTaskResponse> collect(String taskType, {int? reportId}) async {
-    final client = _ref.read(apiClientProvider);
-    final json = await client.post(
-      '/agents/collect',
-      body: {'task_type': taskType, 'report_id': reportId},
-      receiveTimeout: const Duration(seconds: 90),
-    );
-    return CollectionTaskResponse.fromJson(json as Map<String, dynamic>);
   }
 }
 

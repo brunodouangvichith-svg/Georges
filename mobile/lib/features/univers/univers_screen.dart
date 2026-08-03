@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/chat_repository.dart';
 import '../../data/decisions_repository.dart';
 import '../../data/invalidate_all.dart';
-import '../../data/agents_repository.dart';
 import '../../data/prices_refresh_repository.dart';
 import '../../data/securities_repository.dart';
 import '../../models/decision.dart';
@@ -19,9 +18,11 @@ const _filters = ['Tous', 'Achat', 'Surveiller', 'Alléger'];
 
 /// Liste des titres suivis (CAC 40 & CAC Mid 60), filtrable par type de
 /// décision, avec accès au détail (graphique + explication) par tap sur une
-/// ligne, plus les actions globales de web/src/views/Univers.jsx : chat,
-/// activité des agents, tuile macro (fictive), rafraîchissement des prix et
-/// collecte macro. Distingue "API injoignable" de "liste vide".
+/// ligne, plus le chat et le rafraîchissement des prix. Le bouton "Collecte
+/// macro" (déclenchement manuel de FRED/BCE) a été retiré ici à la demande
+/// directe de l'utilisateur — `POST /agents/collect` reste appelable via
+/// l'API/curl (et depuis `web/`, qui garde son propre bouton), simplement
+/// plus depuis cet écran mobile. Distingue "API injoignable" de "liste vide".
 class UniversScreen extends ConsumerStatefulWidget {
   const UniversScreen({super.key});
 
@@ -51,19 +52,6 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
         invalidateAllData(ref);
         final failedText = result.failedSymbols.isEmpty ? '' : ' Échecs : ${result.failedSymbols.join(", ")}.';
         return '${result.updatedCount}/${result.total} titres mis à jour.$failedText';
-      },
-    );
-  }
-
-  void _triggerMacroCollection() {
-    showResponseDialog(
-      context,
-      title: 'Collecte macro',
-      loadingText: 'Interrogation de FRED et de la BCE en cours…',
-      action: () async {
-        final result = await ref.read(agentsRepositoryProvider).collect('donnees_macro');
-        ref.invalidate(agentActivityProvider);
-        return '${result.validated.length} validée(s), ${result.quarantinedCount} en quarantaine.';
       },
     );
   }
@@ -101,11 +89,6 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
             tooltip: 'Mise à jour des prix',
             icon: const Icon(Icons.refresh),
             onPressed: _refreshPrices,
-          ),
-          IconButton(
-            tooltip: 'Collecte macro',
-            icon: const Icon(Icons.public),
-            onPressed: _triggerMacroCollection,
           ),
         ],
       ),
