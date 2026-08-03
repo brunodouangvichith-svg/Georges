@@ -93,6 +93,10 @@ def detect_double_bottom(df) -> list[PatternMatch]:
                     "bottom_2": {"index": b2, "price": float(p2)},
                     "resistance": {"index": peak_idx, "price": float(peak)},
                     "rsi_14": _rsi_at_last(close),
+                    "geometry_quality": round(float(geometry_quality), 3),
+                    "volume_confirmation": round(float(volume_conf), 3),
+                    "trend_alignment": round(float(trend_conf), 3),
+                    "rsi_confirmation": round(float(rsi_conf), 3),
                 },
             )
         ]
@@ -140,6 +144,10 @@ def detect_double_top(df) -> list[PatternMatch]:
                     "top_2": {"index": t2, "price": float(p2)},
                     "support": {"index": trough_idx, "price": float(trough)},
                     "rsi_14": _rsi_at_last(close),
+                    "geometry_quality": round(float(geometry_quality), 3),
+                    "volume_confirmation": round(float(volume_conf), 3),
+                    "trend_alignment": round(float(trend_conf), 3),
+                    "rsi_confirmation": round(float(rsi_conf), 3),
                 },
             )
         ]
@@ -197,6 +205,10 @@ def detect_head_and_shoulders(df) -> list[PatternMatch]:
                     "right_shoulder": {"index": rs, "price": float(p_rs)},
                     "neckline": {"points": [n1, n2], "price": float(neckline)},
                     "rsi_14": _rsi_at_last(close),
+                    "geometry_quality": round(float(geometry_quality), 3),
+                    "volume_confirmation": round(float(volume_conf), 3),
+                    "trend_alignment": round(float(trend_conf), 3),
+                    "rsi_confirmation": round(float(rsi_conf), 3),
                 },
             )
         ]
@@ -254,6 +266,10 @@ def detect_inverse_head_and_shoulders(df) -> list[PatternMatch]:
                     "right_shoulder": {"index": rs, "price": float(p_rs)},
                     "neckline": {"points": [n1, n2], "price": float(neckline)},
                     "rsi_14": _rsi_at_last(close),
+                    "geometry_quality": round(float(geometry_quality), 3),
+                    "volume_confirmation": round(float(volume_conf), 3),
+                    "trend_alignment": round(float(trend_conf), 3),
+                    "rsi_confirmation": round(float(rsi_conf), 3),
                 },
             )
         ]
@@ -337,6 +353,10 @@ def detect_cup_and_handle(df) -> list[PatternMatch]:
                 "right_rim": {"index": right_rim_idx, "price": float(right_rim)},
                 "handle_low": float(handle_low),
                 "rsi_14": _rsi_at_last(close),
+                "geometry_quality": round(float(geometry_quality), 3),
+                "volume_confirmation": round(float(volume_conf), 3),
+                "trend_alignment": round(float(trend_conf), 3),
+                "rsi_confirmation": round(float(rsi_conf), 3),
             },
         )
     ]

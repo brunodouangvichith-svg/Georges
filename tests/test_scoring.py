@@ -40,8 +40,9 @@ def _match(confidence=42.0, pattern_type="Bull Flag"):
 def test_predict_confidence_falls_back_to_heuristic_when_no_model(monkeypatch, tmp_path):
     monkeypatch.setattr(scoring, "MODEL_GLOB", str(tmp_path / "confidence_xgb_*.joblib"))
     df = make_df(ramp(100, 150, 210))
-    result = scoring.predict_confidence(_match(confidence=42.0), df, sector="Technologie")
+    result, source = scoring.predict_confidence(_match(confidence=42.0), df, sector="Technologie")
     assert result == 42.0
+    assert source == "heuristique"
 
 
 def test_predict_confidence_falls_back_when_history_too_short(monkeypatch, tmp_path):
@@ -52,8 +53,9 @@ def test_predict_confidence_falls_back_when_history_too_short(monkeypatch, tmp_p
     monkeypatch.setattr(scoring, "MODEL_GLOB", str(tmp_path / "confidence_xgb_*.joblib"))
 
     df = make_df(ramp(100, 110, 50))  # < 200 séances : pas de SMA200 -> features indisponibles
-    result = scoring.predict_confidence(_match(confidence=17.0), df, sector="Technologie")
+    result, source = scoring.predict_confidence(_match(confidence=17.0), df, sector="Technologie")
     assert result == 17.0
+    assert source == "heuristique"
 
 
 def test_predict_confidence_uses_model_when_available(monkeypatch, tmp_path):
@@ -78,8 +80,9 @@ def test_predict_confidence_uses_model_when_available(monkeypatch, tmp_path):
     monkeypatch.setattr(scoring, "MODEL_GLOB", str(tmp_path / "confidence_xgb_*.joblib"))
 
     df = make_df(ramp(100, 150, 210))
-    result = scoring.predict_confidence(_match(confidence=42.0), df, sector="Technologie")
+    result, source = scoring.predict_confidence(_match(confidence=42.0), df, sector="Technologie")
     assert result == 83.0
+    assert source == "modele_appris"
 
 
 def test_predict_confidence_falls_back_on_prediction_error(monkeypatch, tmp_path):
@@ -90,8 +93,9 @@ def test_predict_confidence_falls_back_on_prediction_error(monkeypatch, tmp_path
     monkeypatch.setattr(scoring, "MODEL_GLOB", str(tmp_path / "confidence_xgb_*.joblib"))
 
     df = make_df(ramp(100, 150, 210))
-    result = scoring.predict_confidence(_match(confidence=55.0), df, sector="Technologie")
+    result, source = scoring.predict_confidence(_match(confidence=55.0), df, sector="Technologie")
     assert result == 55.0
+    assert source == "heuristique"
 
 
 def test_load_latest_model_picks_the_most_recent_by_filename(monkeypatch, tmp_path):

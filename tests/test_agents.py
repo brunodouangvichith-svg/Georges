@@ -72,6 +72,63 @@ def test_decision_context_rsi_is_none_when_absent_from_pattern_context():
     assert context["pattern"]["rsi_14"] is None
 
 
+def test_decision_context_carries_confidence_subscores_when_present():
+    pattern = _pattern()
+    pattern.context = {
+        "geometry_quality": 0.82,
+        "volume_confirmation": 1.0,
+        "trend_alignment": 0.5,
+        "rsi_confirmation": 1.0,
+    }
+    context = decision_context(_decision(), pattern, _security())
+    assert context["pattern"]["scores"] == {
+        "geometrie": 0.82,
+        "volume": 1.0,
+        "tendance": 0.5,
+        "rsi": 1.0,
+    }
+
+
+def test_decision_context_subscores_are_none_when_absent_from_pattern_context():
+    """Même précédent que rsi_14 : une figure détectée avant l'ajout de ce
+    détail n'a pas ces clés dans `context` — jamais inventé."""
+    context = decision_context(_decision(), _pattern(), _security())
+    assert context["pattern"]["scores"] == {
+        "geometrie": None,
+        "volume": None,
+        "tendance": None,
+        "rsi": None,
+    }
+
+
+def test_decision_context_carries_confidence_source_when_present():
+    pattern = _pattern()
+    pattern.context = {"confidence_source": "modele_appris"}
+    context = decision_context(_decision(), pattern, _security())
+    assert context["pattern"]["source_confiance"] == "modele_appris"
+
+
+def test_decision_context_confidence_source_is_none_when_absent_from_pattern_context():
+    context = decision_context(_decision(), _pattern(), _security())
+    assert context["pattern"]["source_confiance"] is None
+
+
+def test_decision_context_always_carries_the_real_confidence_weights():
+    """Les pondérations sont des constantes globales de engine.confidence,
+    pas propres à une figure -- toujours présentes, forwardées depuis la
+    source plutôt que recopiées à la main pour ne jamais se désynchroniser
+    d'un futur rebalancement."""
+    from engine.confidence import GEOMETRY_WEIGHT, RSI_WEIGHT, TREND_WEIGHT, VOLUME_WEIGHT
+
+    context = decision_context(_decision(), _pattern(), _security())
+    assert context["pattern"]["ponderations"] == {
+        "geometrie": GEOMETRY_WEIGHT,
+        "volume": VOLUME_WEIGHT,
+        "tendance": TREND_WEIGHT,
+        "rsi": RSI_WEIGHT,
+    }
+
+
 def test_decision_context_computes_fibonacci_levels_for_reversal_pattern():
     pattern = PatternDetected(
         symbol="AIR.PA",

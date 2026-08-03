@@ -32,8 +32,6 @@ gardant la géométrie comme facteur dominant.
 import numpy as np
 import pandas as pd
 
-from engine.patterns.common import RSI_NEUTRAL_ZONE, rsi, sma
-
 GEOMETRY_WEIGHT = 0.4
 VOLUME_WEIGHT = 0.2
 TREND_WEIGHT = 0.2
@@ -70,6 +68,22 @@ def trend_alignment(close: pd.Series, bullish: bool) -> float:
     """1.0 si la tendance de fond (SMA50 vs SMA200, prix vs SMA50) soutient
     le sens du pattern, 0.0 si elle s'y oppose totalement, 0.5 si
     l'historique est trop court pour juger."""
+    # Import différé, pas au niveau du module : `engine.patterns.common` vit
+    # dans le package `engine.patterns`, dont `__init__.py` importe les 25
+    # détecteurs — qui importent tous `engine.confidence` (ce module même).
+    # Un import en tête de fichier ici créait un cycle réel (pas seulement
+    # théorique) : si quoi que ce soit importe `engine.confidence` avant que
+    # `engine.patterns` ait déjà été chargé ailleurs (ex. `agents/context.py`
+    # important `GEOMETRY_WEIGHT` en tête de fichier), Python tombe sur
+    # `ImportError: cannot import name 'confidence_score' from partially
+    # initialized module` — `engine.confidence` est encore en cours
+    # d'exécution de son propre import de `engine.patterns.common` quand les
+    # détecteurs tentent de le réimporter. Repoussé en import différé ici :
+    # au moment où `trend_alignment`/`rsi_confirmation` sont réellement
+    # appelées, `engine.confidence` est déjà entièrement chargé, donc le
+    # cycle ne se referme jamais réellement.
+    from engine.patterns.common import sma
+
     if len(close) < SMA_LONG:
         return 0.5
     sma50 = sma(close, SMA_SHORT).iloc[-1]
@@ -91,6 +105,9 @@ def rsi_confirmation(close: pd.Series, at_idx: int, bullish: bool) -> float:
     50) pour le sens de la figure (au-dessus pour une figure haussière,
     en dessous pour une figure baissière), 0.0 sinon, 0.5 si l'historique est
     insuffisant (`RSI_WINDOW` séances) ou si la valeur est `NaN`."""
+    # Import différé — même raison que dans `trend_alignment` ci-dessus.
+    from engine.patterns.common import RSI_NEUTRAL_ZONE, rsi
+
     rsi_series = rsi(close)
     if at_idx >= len(rsi_series):
         return 0.5

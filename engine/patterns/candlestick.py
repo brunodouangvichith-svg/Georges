@@ -94,7 +94,15 @@ def _score_and_match(df, pattern_type, geometry_quality, bullish, signal_idx, ex
             pattern_type=pattern_type,
             detected_at=df.index[-1],
             confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
-            context={"signal_index": signal_idx, "rsi_14": _rsi_at_last(close), **extra_context},
+            context={
+                "signal_index": signal_idx,
+                "rsi_14": _rsi_at_last(close),
+                "geometry_quality": round(float(geometry_quality), 3),
+                "volume_confirmation": round(float(volume_conf), 3),
+                "trend_alignment": round(float(trend_conf), 3),
+                "rsi_confirmation": round(float(rsi_conf), 3),
+                **extra_context,
+            },
         )
     ]
 

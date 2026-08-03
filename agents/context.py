@@ -11,8 +11,21 @@ pour que le contexte soit directement sérialisable en JSON.
 """
 from __future__ import annotations
 
+from engine.confidence import GEOMETRY_WEIGHT, RSI_WEIGHT, TREND_WEIGHT, VOLUME_WEIGHT
 from engine.exit_levels import fibonacci_retracement_levels
 from ingestion.models import Basket, Decision, PatternDetected, Security
+
+# Poids fixes de engine/confidence.py:confidence_score, forwardés tels quels
+# (jamais recopiés à la main) pour que la section "Confidence scoring" de
+# l'explication ne se désynchronise jamais d'un futur rebalancement des
+# poids — même discipline anti-hallucination que le reste de ce fichier :
+# aucun chiffre cité par le LLM ne doit vivre ailleurs que dans ce contexte.
+_CONFIDENCE_WEIGHTS = {
+    "geometrie": GEOMETRY_WEIGHT,
+    "volume": VOLUME_WEIGHT,
+    "tendance": TREND_WEIGHT,
+    "rsi": RSI_WEIGHT,
+}
 
 # Pour les figures de retournement dont `context` stocke déjà un creux/sommet
 # absolu (voir `engine/patterns/reversal.py`), extrait (swing_low, swing_high)
@@ -72,12 +85,35 @@ def decision_context(
         # explicitement (pas un passthrough brut de `pattern.context`, qui
         # contient aussi des index/prix internes non pertinents pour
         # l'explication) plutôt qu'un dict entier non filtré.
+        pattern_ctx = pattern.context or {}
         context["pattern"] = {
             "type": pattern.pattern_type,
             "detecte_le": pattern.detected_at.isoformat(),
             "confiance": float(pattern.confidence),
-            "rsi_14": (pattern.context or {}).get("rsi_14"),
+            "rsi_14": pattern_ctx.get("rsi_14"),
             "niveaux_fibonacci": _fibonacci_context(pattern),
+            # Sous-scores réels (0-1) qui composent la confiance finale
+            # ci-dessus, demandés par l'utilisateur pour que la section
+            # "Confidence scoring" cite les vrais chiffres calculés pour
+            # CETTE figure plutôt que de reformuler la confiance globale.
+            # `None` pour une figure détectée avant cet ajout (`context` n'a
+            # pas encore ces clés) — jamais inventé, même logique que
+            # `rsi_14` ci-dessus.
+            "scores": {
+                "geometrie": pattern_ctx.get("geometry_quality"),
+                "volume": pattern_ctx.get("volume_confirmation"),
+                "tendance": pattern_ctx.get("trend_alignment"),
+                "rsi": pattern_ctx.get("rsi_confirmation"),
+            },
+            "ponderations": _CONFIDENCE_WEIGHTS,
+            # "heuristique" : `confiance` ci-dessus EST la somme pondérée des
+            # 4 scores par `ponderations` (engine.confidence.confidence_score).
+            # "modele_appris" : `confiance` vient du modèle XGBoost entraîné
+            # (engine/scoring.py) — un modèle appris sur l'historique complet
+            # peut corriger l'heuristique, pas seulement la confirmer, donc
+            # `confiance` peut diverger nettement de cette somme pondérée.
+            # `None` pour une figure détectée avant l'ajout de ce champ.
+            "source_confiance": pattern_ctx.get("confidence_source"),
         }
     return context
 

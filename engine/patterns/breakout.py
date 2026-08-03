@@ -68,7 +68,15 @@ def detect_breakout(df) -> list[PatternMatch]:
             pattern_type="Breakout",
             detected_at=df.index[-1],
             confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
-            context={"resistance": float(resistance), "touches": touches, "rsi_14": _rsi_at_last(df["close"])},
+            context={
+                "resistance": float(resistance),
+                "touches": touches,
+                "rsi_14": _rsi_at_last(df["close"]),
+                "geometry_quality": round(float(geometry_quality), 3),
+                "volume_confirmation": round(float(volume_conf), 3),
+                "trend_alignment": round(float(trend_conf), 3),
+                "rsi_confirmation": round(float(rsi_conf), 3),
+            },
         )
     ]
 
@@ -102,6 +110,14 @@ def detect_breakdown(df) -> list[PatternMatch]:
             pattern_type="Breakdown",
             detected_at=df.index[-1],
             confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
-            context={"support": float(support), "touches": touches, "rsi_14": _rsi_at_last(df["close"])},
+            context={
+                "support": float(support),
+                "touches": touches,
+                "rsi_14": _rsi_at_last(df["close"]),
+                "geometry_quality": round(float(geometry_quality), 3),
+                "volume_confirmation": round(float(volume_conf), 3),
+                "trend_alignment": round(float(trend_conf), 3),
+                "rsi_confirmation": round(float(rsi_conf), 3),
+            },
         )
     ]

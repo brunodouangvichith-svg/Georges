@@ -120,21 +120,29 @@ def predict_confidence(
     df: pd.DataFrame,
     sector: str,
     price_frames: dict[str, pd.DataFrame] | None = None,
-) -> float:
-    """Score 0-100 pour `match` : probabilité prédite par le modèle appris
-    si possible, sinon `match.confidence` (heuristique de la Phase 1)."""
+) -> tuple[float, str]:
+    """Score 0-100 pour `match` (probabilité prédite par le modèle appris si
+    possible, sinon `match.confidence`, l'heuristique de la Phase 1) et la
+    source de ce score (`"modele_appris"` ou `"heuristique"`) — cette
+    deuxième valeur est stockée dans `patterns_detected.context` par
+    `engine.run_detection.run` et forwardée jusqu'à l'explication LLM
+    (`agents/context.py`), pour que George ne prétende jamais que le score
+    final est la somme pondérée des 4 sous-scores de `engine.confidence`
+    quand il vient en réalité du modèle appris (les deux peuvent diverger
+    fortement — un modèle entraîné sur l'historique complet peut corriger
+    l'heuristique, pas seulement la confirmer)."""
     model, feature_columns = load_latest_model()
     if model is None:
-        return match.confidence
+        return match.confidence, "heuristique"
 
     at_idx = len(df) - 1  # les détecteurs ne confirment qu'au dernier bar disponible
     features = build_feature_row(df, at_idx, match.pattern_type, sector, price_frames, match.detected_at)
     if features is None:
-        return match.confidence
+        return match.confidence, "heuristique"
 
     try:
         row = pd.DataFrame([features])[feature_columns]
         proba = model.predict_proba(row)[0, 1]
     except Exception:
-        return match.confidence
-    return round(float(proba) * 100, 1)
+        return match.confidence, "heuristique"
+    return round(float(proba) * 100, 1), "modele_appris"

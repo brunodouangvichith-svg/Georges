@@ -104,6 +104,10 @@ def detect_ascending_triangle(df) -> list[PatternMatch]:
                 "resistance": resistance_level,
                 "support_slope": support_slope,
                 "rsi_14": _rsi_at_last(df["close"]),
+                "geometry_quality": round(float(geometry_quality), 3),
+                "volume_confirmation": round(float(volume_conf), 3),
+                "trend_alignment": round(float(trend_conf), 3),
+                "rsi_confirmation": round(float(rsi_conf), 3),
             },
         )
     ]
@@ -146,6 +150,10 @@ def detect_descending_triangle(df) -> list[PatternMatch]:
                 "support": support_level,
                 "resistance_slope": resistance_slope,
                 "rsi_14": _rsi_at_last(df["close"]),
+                "geometry_quality": round(float(geometry_quality), 3),
+                "volume_confirmation": round(float(volume_conf), 3),
+                "trend_alignment": round(float(trend_conf), 3),
+                "rsi_confirmation": round(float(rsi_conf), 3),
             },
         )
     ]
@@ -211,6 +219,10 @@ def _wedge(df, bullish: bool) -> list[PatternMatch]:
                 "lower_slope": lower_slope,
                 "convergence_ratio": convergence_ratio,
                 "rsi_14": _rsi_at_last(df["close"]),
+                "geometry_quality": round(float(geometry_quality), 3),
+                "volume_confirmation": round(float(volume_conf), 3),
+                "trend_alignment": round(float(trend_conf), 3),
+                "rsi_confirmation": round(float(rsi_conf), 3),
             },
         )
     ]
@@ -292,6 +304,10 @@ def _flag(df, bullish: bool) -> list[PatternMatch]:
                 "flag_low": float(flag.min()),
                 "flag_high": float(flag.max()),
                 "rsi_14": _rsi_at_last(df["close"]),
+                "geometry_quality": round(float(geometry_quality), 3),
+                "volume_confirmation": round(float(volume_conf), 3),
+                "trend_alignment": round(float(trend_conf), 3),
+                "rsi_confirmation": round(float(rsi_conf), 3),
             },
         )
     ]

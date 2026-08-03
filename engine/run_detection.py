@@ -81,14 +81,21 @@ def run() -> int:
             continue
         with engine.begin() as conn:
             for match in matches:
-                confidence = predict_confidence(match, df, sectors[symbol], price_frames)
+                confidence, confidence_source = predict_confidence(match, df, sectors[symbol], price_frames)
                 conn.execute(
                     PatternDetected.__table__.insert().values(
                         symbol=symbol,
                         pattern_type=match.pattern_type,
                         detected_at=match.detected_at,
                         confidence=confidence,
-                        context=match.context,
+                        # `confidence_source` documente si `confidence`
+                        # ci-dessus vient du modèle appris ou de la formule
+                        # heuristique (`engine.confidence.confidence_score`)
+                        # — les sous-scores stockés par le détecteur
+                        # (`geometry_quality` etc.) ne redonnent le score
+                        # final par leur somme pondérée QUE dans ce second
+                        # cas ; voir `agents/context.py`/`explainer_system.txt`.
+                        context={**match.context, "confidence_source": confidence_source},
                     )
                 )
                 inserted += 1
