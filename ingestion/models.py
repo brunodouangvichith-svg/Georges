@@ -454,3 +454,24 @@ class CotPositioning(Base):
     )
 
     __table_args__ = (UniqueConstraint("currency", "report_date", name="uq_cot_positioning_currency_date"),)
+
+
+class PriceHistoryLong(Base):
+    """Historique de prix long terme par titre (`ingestion/price_history.py`,
+    via yfinance `period="10y"`) — ad hoc, pas une phase du roadmap. Table
+    dédiée, distincte de `prices_ohlcv` (qui ne garde que 2 ans, la fenêtre
+    utilisée par la détection de figures, Phase 1) : demandé directement par
+    l'utilisateur pour disposer de 6 mois/1 an/3 ans/5 ans/10 ans de recul.
+    Une seule ligne par (titre, séance) couvrant les 10 ans, plutôt que 5
+    lignes redondantes par durée demandée — 10 ans contient déjà les 4 autres
+    durées, filtrables à la demande sur `ts` plutôt que stockées 5 fois."""
+
+    __tablename__ = "price_history_long"
+
+    symbol: Mapped[str] = mapped_column(ForeignKey("securities.symbol"), primary_key=True)
+    ts: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), primary_key=True)
+    open: Mapped[float] = mapped_column(Numeric, nullable=False)
+    high: Mapped[float] = mapped_column(Numeric, nullable=False)
+    low: Mapped[float] = mapped_column(Numeric, nullable=False)
+    close: Mapped[float] = mapped_column(Numeric, nullable=False)
+    volume: Mapped[int] = mapped_column(BigInteger, nullable=False)
