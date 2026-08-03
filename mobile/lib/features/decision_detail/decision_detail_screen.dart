@@ -79,7 +79,11 @@ class DecisionDetailScreen extends ConsumerWidget {
           ),
           if (decision != null) ...[
             const SizedBox(height: 12),
-            OutlinedButton(
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.accentLight,
+                foregroundColor: AppColors.bg,
+              ),
               onPressed: () => showResponseDialog(
                 context,
                 title: 'George explique — ${security.symbol}',

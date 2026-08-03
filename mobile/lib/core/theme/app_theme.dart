@@ -18,6 +18,7 @@ class AppColors {
   static const textDim = Color(0xFF8B96B8);
   static const accent = Color(0xFF4D7FE0);
   static const accentDim = Color(0xFF2C3F6E);
+  static const accentLight = Color(0xFFBFDBFE);
   static const positive = Color(0xFF2FBF82);
   static const warning = Color(0xFFE3A344);
   static const negative = Color(0xFFE2555F);

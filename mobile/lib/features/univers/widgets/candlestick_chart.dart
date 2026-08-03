@@ -88,16 +88,25 @@ class CandlestickChart extends StatelessWidget {
     return SizedBox(
       width: width,
       height: height,
-      child: CustomPaint(
-        painter: _CandlestickPainter(
-          candles: candles,
-          overlay: overlay,
-          takeProfit: takeProfit,
-          stopLoss: stopLoss,
-          positiveColor: Colors.green.shade400,
-          negativeColor: Colors.red.shade400,
-          accentColor: Theme.of(context).colorScheme.primary,
-          textDimColor: Theme.of(context).colorScheme.outline,
+      // Pincer-zoomer sur la courbe des prix — `InteractiveViewer` gère
+      // nativement le pinch/pan sans toucher au `CustomPainter`, contenu
+      // borné à sa taille d'origine (pas de `boundaryMargin`) pour qu'un
+      // zoom arrière ne fasse jamais apparaître de vide autour du graphique.
+      child: InteractiveViewer(
+        minScale: 1.0,
+        maxScale: 4.0,
+        child: CustomPaint(
+          size: Size(width, height),
+          painter: _CandlestickPainter(
+            candles: candles,
+            overlay: overlay,
+            takeProfit: takeProfit,
+            stopLoss: stopLoss,
+            positiveColor: Colors.green.shade400,
+            negativeColor: Colors.red.shade400,
+            accentColor: Theme.of(context).colorScheme.primary,
+            textDimColor: Theme.of(context).colorScheme.outline,
+          ),
         ),
       ),
     );
