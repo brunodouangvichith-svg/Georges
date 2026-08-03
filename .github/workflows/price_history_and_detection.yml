@@ -1,0 +1,57 @@
+name: Historique long terme + détection + propositions (2x/semaine)
+
+# price_history_long (10 ans d'historique par titre, voir CLAUDE.md section
+# "Long-term price history") + engine.run_detection + engine.propose_decisions
+# tournent ensemble ici, deux fois par semaine (lundi et mercredi) plutôt
+# qu'une seule fois -- demandé directement par l'utilisateur pour que la
+# détection profite de prix plus frais sans attendre toute la semaine.
+#
+# Les trois étapes restent dans le MÊME workflow, au MÊME rythme, pour la
+# même raison qu'avant (une seule fois par semaine, cf. l'historique de ce
+# fichier, ex-weekly_price_history_import.yml) : détecter contre des prix
+# qui n'ont pas changé depuis la dernière exécution réinsérerait les mêmes
+# figures en double dans patterns_detected (pas de contrainte d'unicité sur
+# (symbol, pattern_type, detected_at)) -- la cadence de détection doit donc
+# toujours suivre exactement la cadence de rafraîchissement des prix, quelle
+# qu'elle soit.
+#
+# L'entraînement du modèle de confiance candidat (engine.build_training_set
+# + engine.train_confidence_model, « auto-learn ») reste volontairement à
+# part, dans weekly_confidence_model_training.yml, à une cadence
+# hebdomadaire inchangée : contrairement à la détection, il ne bénéficie pas
+# d'une fréquence plus élevée -- un pattern ne devient backtestable qu'après
+# TRAINING_HORIZON (10 séances) de recul, une contrainte de temps de marché
+# qu'exécuter l'entraînement plus souvent ne contourne pas ; le re-lancer
+# deux fois par semaine ne ferait que produire des candidats quasi
+# identiques plus souvent, sans plus de signal réel.
+#
+# Lundi/mercredi 20h UTC = 22h heure française en été (CEST, UTC+2, en
+# vigueur actuellement) -- marchés fermés. Même limitation qu'ailleurs dans
+# ce projet : GitHub Actions ne gère pas nativement l'heure d'été, décalage
+# d'1h assumé en hiver plutôt qu'une 2e règle cron.
+on:
+  schedule:
+    - cron: "0 20 * * 1,3"
+  workflow_dispatch: {}
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Historique long terme (ingestion.price_history)
+        run: python -m ingestion.price_history
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Détection de figures (engine.run_detection)
+        run: python -m engine.run_detection
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Propositions Achat/Alléger (engine.propose_decisions)
+        run: python -m engine.propose_decisions
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

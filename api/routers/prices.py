@@ -6,9 +6,9 @@ jour des prix » de la sidebar). Repointé de `ingestion.ohlcv.run`
 rafraîchir une table que plus aucun code ne lit, silencieusement inerte du
 point de vue de l'utilisateur. Aucune tâche planifiée à fréquence fine
 n'existe encore (Celery/Redis, Airflow — Phase 7) ; ce bouton reste le seul
-moyen de rafraîchir manuellement en dehors du cron hebdomadaire
-(`weekly_price_history_import.yml`) ou de `python -m ingestion.price_history`
-en ligne de commande."""
+moyen de rafraîchir manuellement en dehors du cron bihebdomadaire
+(`price_history_and_detection.yml`, lundi/mercredi) ou de
+`python -m ingestion.price_history` en ligne de commande."""
 
 from fastapi import APIRouter
 

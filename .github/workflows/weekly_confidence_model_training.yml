@@ -1,0 +1,52 @@
+name: Modèle de confiance candidat (auto-learn, hebdomadaire)
+
+# engine.build_training_set + engine.train_confidence_model (« auto-learn »,
+# demandé directement par l'utilisateur -- voir CLAUDE.md, section
+# "Auto-learn") tournent ici, séparément de price_history_and_detection.yml
+# qui est passé à deux fois par semaine : l'entraînement, lui, ne bénéficie
+# pas d'une fréquence plus élevée -- un pattern ne devient backtestable
+# qu'après TRAINING_HORIZON (10 séances) de recul, une contrainte de temps
+# de marché qu'exécuter l'entraînement plus souvent ne contourne pas. Le
+# relancer plus fréquemment ne produirait que des candidats quasi
+# identiques, sans plus de signal réel -- gardé à une cadence hebdomadaire.
+#
+# Un modèle *candidat* est entraîné et comparé au modèle actuellement en
+# production, jamais déployé automatiquement -- promotion humaine délibérée
+# via `python -m engine.promote_candidate_model` après revue des métriques
+# dans le log de ce job, puis commit/push manuel des fichiers promus. Le
+# candidat lui-même est éphémère sur ce runner (engine/models/candidates/
+# est gitignoré) : téléversé comme artefact du workflow pour rester
+# téléchargeable/revuable après coup.
+#
+# Dimanche 20h UTC = 22h heure française en été (CEST, UTC+2, en vigueur
+# actuellement) -- marchés fermés, capture la semaine jusqu'à la clôture de
+# vendredi (et les deux exécutions de price_history_and_detection.yml,
+# lundi et mercredi). Même limitation qu'ailleurs dans ce projet : GitHub
+# Actions ne gère pas nativement l'heure d'été, décalage d'1h assumé en
+# hiver plutôt qu'une 2e règle cron.
+on:
+  schedule:
+    - cron: "0 20 * * 0"
+  workflow_dispatch: {}
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Jeu d'entraînement (engine.build_training_set)
+        run: python -m engine.build_training_set
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Modèle candidat + comparaison (engine.train_confidence_model)
+        run: python -m engine.train_confidence_model
+      - name: Téléverser le candidat pour revue
+        uses: actions/upload-artifact@v4
+        with:
+          name: confidence-model-candidate
+          path: engine/models/candidates/
+          retention-days: 30

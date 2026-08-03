@@ -12,7 +12,7 @@ name: Import quotidien fondamentaux (yfinance)
 # -- plus aucun code ne lit cette table depuis le passage de la détection à
 # `price_history_long` (10 ans, voir CLAUDE.md section "Long-term price
 # history"). `engine.run_detection`/`engine.propose_decisions` ont été
-# déplacés dans `weekly_price_history_import.yml`, juste après le
+# déplacés dans `price_history_and_detection.yml`, juste après le
 # rafraîchissement hebdomadaire de `price_history_long` -- demandé
 # directement par l'utilisateur pour éviter que la détection tourne
 # quotidiennement contre des prix inchangés 6 jours sur 7 (ce qui aurait
