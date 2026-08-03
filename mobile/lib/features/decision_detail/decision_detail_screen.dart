@@ -8,19 +8,20 @@ import '../../data/fundamentals_repository.dart';
 import '../../data/patterns_repository.dart';
 import '../../data/prices_repository.dart';
 import '../../models/decision.dart';
-import '../../models/price_bar.dart';
 import '../../models/security.dart';
 import '../../shared/widgets/response_dialog.dart';
 import '../univers/widgets/candlestick_chart.dart';
 
 /// Agrandit la courbe dans un popup au tap — même patron "tap pour le détail"
 /// que les tuiles de l'écran Univers (énergie, actualités), plutôt qu'un
-/// simple graphique statique inline.
+/// simple graphique statique inline. Contrairement au petit graphique en
+/// ligne (limité à 250 séances, voir `securityPricesProvider`), le popup
+/// charge et affiche l'historique complet (`securityFullPricesProvider`,
+/// jusqu'à 10 ans via `price_history_long`) — une vraie courbe sur toute sa
+/// profondeur disponible, pas un simple extrait déjà chargé ailleurs.
 void _showChartPopup(
   BuildContext context, {
-  required List<PriceBar> candles,
   required Map<String, dynamic>? patternContext,
-  required int indexOffset,
   required double? takeProfit,
   required double? stopLoss,
   required String symbol,
@@ -37,14 +38,29 @@ void _showChartPopup(
           children: [
             Text(symbol, style: Theme.of(dialogContext).textTheme.titleMedium, textAlign: TextAlign.center),
             const SizedBox(height: 12),
-            CandlestickChart(
-              candles: candles,
-              context: patternContext,
-              indexOffset: indexOffset,
-              takeProfit: takeProfit,
-              stopLoss: stopLoss,
-              width: MediaQuery.of(dialogContext).size.width - 64,
-              height: 320,
+            Consumer(
+              builder: (context, ref, _) {
+                final fullPricesAsync = ref.watch(securityFullPricesProvider(symbol));
+                return fullPricesAsync.when(
+                  loading: () => const SizedBox(
+                    height: 320,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  error: (e, st) => const SizedBox(
+                    height: 320,
+                    child: Center(child: Text("Impossible de charger l'historique complet.")),
+                  ),
+                  data: (pricesPage) => CandlestickChart(
+                    candles: pricesPage.items,
+                    context: patternContext,
+                    indexOffset: pricesPage.total - pricesPage.items.length,
+                    takeProfit: takeProfit,
+                    stopLoss: stopLoss,
+                    width: MediaQuery.of(dialogContext).size.width - 64,
+                    height: 320,
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 12),
             TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Fermer')),
@@ -90,9 +106,7 @@ class DecisionDetailScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(8),
                   onTap: () => _showChartPopup(
                     context,
-                    candles: pricesPage.items,
                     patternContext: pattern?.context,
-                    indexOffset: indexOffset,
                     takeProfit: decision?.takeProfit,
                     stopLoss: decision?.stopLoss,
                     symbol: security.symbol,
