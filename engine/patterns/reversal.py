@@ -23,8 +23,9 @@ clôture), pas tout l'historique des appariements possibles.
 """
 
 import numpy as np
+import pandas as pd
 
-from engine.confidence import confidence_score, trend_alignment, volume_confirmation
+from engine.confidence import confidence_score, rsi_confirmation, trend_alignment, volume_confirmation
 from engine.patterns.common import (
     BREAKOUT_BUFFER,
     MIN_PATTERN_BARS,
@@ -34,8 +35,17 @@ from engine.patterns.common import (
     local_minima_idx,
     prominence_score,
     relative_diff,
+    rsi,
     within_tolerance,
 )
+
+
+def _rsi_at_last(close) -> float | None:
+    """Valeur RSI (14) à la dernière séance, `None` si `NaN` (historique
+    insuffisant) — stockée dans `context` pour que l'explication LLM
+    (`agents/context.py`) puisse la citer sans recalcul."""
+    value = rsi(close).iloc[-1]
+    return None if pd.isna(value) else float(value)
 
 MIN_PEAK_PROMINENCE = 0.05
 MIN_CUP_DEPTH = 0.08
@@ -71,16 +81,18 @@ def detect_double_bottom(df) -> list[PatternMatch]:
         geometry_quality = 0.5 * closeness_score(p1, p2) + 0.5 * prominence_score(prominence, MIN_PEAK_PROMINENCE)
         volume_conf = volume_confirmation(df["volume"], len(close) - 1)
         trend_conf = trend_alignment(close, bullish=True)
+        rsi_conf = rsi_confirmation(close, len(close) - 1, bullish=True)
 
         return [
             PatternMatch(
                 pattern_type="Double Bottom",
                 detected_at=df.index[-1],
-                confidence=confidence_score(geometry_quality, volume_conf, trend_conf),
+                confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
                 context={
                     "bottom_1": {"index": b1, "price": float(p1)},
                     "bottom_2": {"index": b2, "price": float(p2)},
                     "resistance": {"index": peak_idx, "price": float(peak)},
+                    "rsi_14": _rsi_at_last(close),
                 },
             )
         ]
@@ -116,16 +128,18 @@ def detect_double_top(df) -> list[PatternMatch]:
         geometry_quality = 0.5 * closeness_score(p1, p2) + 0.5 * prominence_score(prominence, MIN_PEAK_PROMINENCE)
         volume_conf = volume_confirmation(df["volume"], len(close) - 1)
         trend_conf = trend_alignment(close, bullish=False)
+        rsi_conf = rsi_confirmation(close, len(close) - 1, bullish=False)
 
         return [
             PatternMatch(
                 pattern_type="Double Top",
                 detected_at=df.index[-1],
-                confidence=confidence_score(geometry_quality, volume_conf, trend_conf),
+                confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
                 context={
                     "top_1": {"index": t1, "price": float(p1)},
                     "top_2": {"index": t2, "price": float(p2)},
                     "support": {"index": trough_idx, "price": float(trough)},
+                    "rsi_14": _rsi_at_last(close),
                 },
             )
         ]
@@ -170,17 +184,19 @@ def detect_head_and_shoulders(df) -> list[PatternMatch]:
         )
         volume_conf = volume_confirmation(df["volume"], len(close) - 1)
         trend_conf = trend_alignment(close, bullish=False)
+        rsi_conf = rsi_confirmation(close, len(close) - 1, bullish=False)
 
         return [
             PatternMatch(
                 pattern_type="Head & Shoulders",
                 detected_at=df.index[-1],
-                confidence=confidence_score(geometry_quality, volume_conf, trend_conf),
+                confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
                 context={
                     "left_shoulder": {"index": ls, "price": float(p_ls)},
                     "head": {"index": head, "price": float(p_head)},
                     "right_shoulder": {"index": rs, "price": float(p_rs)},
                     "neckline": {"points": [n1, n2], "price": float(neckline)},
+                    "rsi_14": _rsi_at_last(close),
                 },
             )
         ]
@@ -225,17 +241,19 @@ def detect_inverse_head_and_shoulders(df) -> list[PatternMatch]:
         )
         volume_conf = volume_confirmation(df["volume"], len(close) - 1)
         trend_conf = trend_alignment(close, bullish=True)
+        rsi_conf = rsi_confirmation(close, len(close) - 1, bullish=True)
 
         return [
             PatternMatch(
                 pattern_type="Inverse Head & Shoulders",
                 detected_at=df.index[-1],
-                confidence=confidence_score(geometry_quality, volume_conf, trend_conf),
+                confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
                 context={
                     "left_shoulder": {"index": ls, "price": float(p_ls)},
                     "head": {"index": head, "price": float(p_head)},
                     "right_shoulder": {"index": rs, "price": float(p_rs)},
                     "neckline": {"points": [n1, n2], "price": float(neckline)},
+                    "rsi_14": _rsi_at_last(close),
                 },
             )
         ]
@@ -306,17 +324,19 @@ def detect_cup_and_handle(df) -> list[PatternMatch]:
     )
     volume_conf = volume_confirmation(df["volume"], n - 1)
     trend_conf = trend_alignment(close, bullish=True)
+    rsi_conf = rsi_confirmation(close, n - 1, bullish=True)
 
     return [
         PatternMatch(
             pattern_type="Cup & Handle",
             detected_at=df.index[-1],
-            confidence=confidence_score(geometry_quality, volume_conf, trend_conf),
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
             context={
                 "left_rim": {"index": left_rim_idx, "price": float(left_rim)},
                 "cup_bottom": {"index": cup_bottom_idx, "price": float(cup_bottom)},
                 "right_rim": {"index": right_rim_idx, "price": float(right_rim)},
                 "handle_low": float(handle_low),
+                "rsi_14": _rsi_at_last(close),
             },
         )
     ]

@@ -25,8 +25,9 @@ Paramètres géométriques :
 """
 
 import numpy as np
+import pandas as pd
 
-from engine.confidence import confidence_score, trend_alignment, volume_confirmation
+from engine.confidence import confidence_score, rsi_confirmation, trend_alignment, volume_confirmation
 from engine.patterns.common import (
     BREAKOUT_BUFFER,
     LEVEL_TOLERANCE,
@@ -36,8 +37,17 @@ from engine.patterns.common import (
     local_maxima_idx,
     local_minima_idx,
     relative_diff,
+    rsi,
     tail_window,
 )
+
+
+def _rsi_at_last(close) -> float | None:
+    """Même helper que `reversal.py` — dupliqué plutôt que partagé pour
+    éviter un import croisé entre modules de détection indépendants (aucun
+    des deux ne dépend de l'autre aujourd'hui)."""
+    value = rsi(close).iloc[-1]
+    return None if pd.isna(value) else float(value)
 
 WINDOW = 30
 FLAG_WINDOW = 25
@@ -83,13 +93,18 @@ def detect_ascending_triangle(df) -> list[PatternMatch]:
     geometry_quality = 0.5 * flatness_quality + 0.5 * _slope_quality(normalized_slope)
     volume_conf = volume_confirmation(df["volume"], len(df) - 1)
     trend_conf = trend_alignment(df["close"], bullish=True)
+    rsi_conf = rsi_confirmation(df["close"], len(df) - 1, bullish=True)
 
     return [
         PatternMatch(
             pattern_type="Ascending Triangle",
             detected_at=df.index[-1],
-            confidence=confidence_score(geometry_quality, volume_conf, trend_conf),
-            context={"resistance": resistance_level, "support_slope": support_slope},
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
+            context={
+                "resistance": resistance_level,
+                "support_slope": support_slope,
+                "rsi_14": _rsi_at_last(df["close"]),
+            },
         )
     ]
 
@@ -120,13 +135,18 @@ def detect_descending_triangle(df) -> list[PatternMatch]:
     geometry_quality = 0.5 * flatness_quality + 0.5 * _slope_quality(normalized_slope)
     volume_conf = volume_confirmation(df["volume"], len(df) - 1)
     trend_conf = trend_alignment(df["close"], bullish=False)
+    rsi_conf = rsi_confirmation(df["close"], len(df) - 1, bullish=False)
 
     return [
         PatternMatch(
             pattern_type="Descending Triangle",
             detected_at=df.index[-1],
-            confidence=confidence_score(geometry_quality, volume_conf, trend_conf),
-            context={"support": support_level, "resistance_slope": resistance_slope},
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
+            context={
+                "support": support_level,
+                "resistance_slope": resistance_slope,
+                "rsi_14": _rsi_at_last(df["close"]),
+            },
         )
     ]
 
@@ -179,13 +199,19 @@ def _wedge(df, bullish: bool) -> list[PatternMatch]:
     geometry_quality = 0.5 * slope_quality + 0.5 * float(np.clip(convergence_ratio / (2 * MIN_CONVERGENCE), 0.0, 1.0))
     volume_conf = volume_confirmation(df["volume"], len(df) - 1)
     trend_conf = trend_alignment(df["close"], bullish=bullish)
+    rsi_conf = rsi_confirmation(df["close"], len(df) - 1, bullish=bullish)
 
     return [
         PatternMatch(
             pattern_type="Falling Wedge" if bullish else "Rising Wedge",
             detected_at=df.index[-1],
-            confidence=confidence_score(geometry_quality, volume_conf, trend_conf),
-            context={"upper_slope": upper_slope, "lower_slope": lower_slope, "convergence_ratio": convergence_ratio},
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
+            context={
+                "upper_slope": upper_slope,
+                "lower_slope": lower_slope,
+                "convergence_ratio": convergence_ratio,
+                "rsi_14": _rsi_at_last(df["close"]),
+            },
         )
     ]
 
@@ -252,18 +278,20 @@ def _flag(df, bullish: bool) -> list[PatternMatch]:
     geometry_quality = 0.5 * pole_quality + 0.5 * tightness_quality
     volume_conf = volume_confirmation(df["volume"], len(df) - 1)
     trend_conf = trend_alignment(df["close"], bullish=bullish)
+    rsi_conf = rsi_confirmation(df["close"], len(df) - 1, bullish=bullish)
 
     return [
         PatternMatch(
             pattern_type="Bull Flag" if bullish else "Bear Flag",
             detected_at=df.index[-1],
-            confidence=confidence_score(geometry_quality, volume_conf, trend_conf),
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
             context={
                 "pole_return": pole_return,
                 "pole_amplitude": float(pole_amplitude),
                 "flag_amplitude": float(flag_amplitude),
                 "flag_low": float(flag.min()),
                 "flag_high": float(flag.max()),
+                "rsi_14": _rsi_at_last(df["close"]),
             },
         )
     ]

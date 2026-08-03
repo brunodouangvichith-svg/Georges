@@ -17,15 +17,23 @@ range-puis-cassure.
 """
 
 import numpy as np
+import pandas as pd
 
-from engine.confidence import confidence_score, trend_alignment, volume_confirmation
+from engine.confidence import confidence_score, rsi_confirmation, trend_alignment, volume_confirmation
 from engine.patterns.common import (
     BREAKOUT_BUFFER,
     LEVEL_TOLERANCE,
     MIN_PATTERN_BARS,
     PatternMatch,
+    rsi,
     tail_window,
 )
+
+
+def _rsi_at_last(close) -> float | None:
+    """Même helper que `reversal.py`/`continuation.py` — voir leur docstring."""
+    value = rsi(close).iloc[-1]
+    return None if pd.isna(value) else float(value)
 
 WINDOW = 20
 MIN_TOUCHES = 2
@@ -53,13 +61,14 @@ def detect_breakout(df) -> list[PatternMatch]:
     geometry_quality = 0.5 * touch_quality + 0.5 * strength_quality
     volume_conf = volume_confirmation(df["volume"], len(df) - 1)
     trend_conf = trend_alignment(df["close"], bullish=True)
+    rsi_conf = rsi_confirmation(df["close"], len(df) - 1, bullish=True)
 
     return [
         PatternMatch(
             pattern_type="Breakout",
             detected_at=df.index[-1],
-            confidence=confidence_score(geometry_quality, volume_conf, trend_conf),
-            context={"resistance": float(resistance), "touches": touches},
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
+            context={"resistance": float(resistance), "touches": touches, "rsi_14": _rsi_at_last(df["close"])},
         )
     ]
 
@@ -86,12 +95,13 @@ def detect_breakdown(df) -> list[PatternMatch]:
     geometry_quality = 0.5 * touch_quality + 0.5 * strength_quality
     volume_conf = volume_confirmation(df["volume"], len(df) - 1)
     trend_conf = trend_alignment(df["close"], bullish=False)
+    rsi_conf = rsi_confirmation(df["close"], len(df) - 1, bullish=False)
 
     return [
         PatternMatch(
             pattern_type="Breakdown",
             detected_at=df.index[-1],
-            confidence=confidence_score(geometry_quality, volume_conf, trend_conf),
-            context={"support": float(support), "touches": touches},
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
+            context={"support": float(support), "touches": touches, "rsi_14": _rsi_at_last(df["close"])},
         )
     ]

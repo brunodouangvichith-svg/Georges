@@ -34,6 +34,8 @@ EXTREMA_ORDER = 3
 LEVEL_TOLERANCE = 0.03
 MIN_PATTERN_BARS = 10
 BREAKOUT_BUFFER = 0.002
+RSI_WINDOW = 14
+RSI_NEUTRAL_ZONE = 50.0
 
 
 @dataclass
@@ -102,6 +104,32 @@ def fit_trendline(x_idx, y_vals) -> tuple[float, float]:
 
 def sma(series: pd.Series, window: int) -> pd.Series:
     return series.rolling(window=window, min_periods=window).mean()
+
+
+def rsi(series: pd.Series, window: int = RSI_WINDOW) -> pd.Series:
+    """RSI de Wilder (1978) : ``100 - 100/(1+RS)``, RS = moyenne lissée des
+    hausses / moyenne lissée des baisses sur `window` séances. Lissage de
+    Wilder (``ewm(alpha=1/window, adjust=False)``), pas une simple moyenne
+    mobile — c'est la formule exacte citée dans `George_AnalyseTechnique_
+    Kabbaj_Synthese.md` §4. `NaN` tant que moins de `window` observations ne
+    sont disponibles (comme `sma` ci-dessus) ; une moyenne de baisses nulle
+    (hausse ininterrompue) donne un RS infini, donc un RSI de 100 — géré via
+    `replace(0, np.nan)` puis une division par NaN, jamais une exception."""
+    delta = series.diff()
+    gains = delta.clip(lower=0)
+    losses = -delta.clip(upper=0)
+    avg_gain = gains.ewm(alpha=1 / window, min_periods=window, adjust=False).mean()
+    avg_loss = losses.ewm(alpha=1 / window, min_periods=window, adjust=False).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    result = 100 - (100 / (1 + rs))
+    # avg_loss nul (hausse ininterrompue sur la fenêtre) : RS infini -> RSI
+    # doit être 100, pas NaN (`avg_gain.notna()` exclut les lignes de tête où
+    # la fenêtre n'est pas encore remplie, où avg_loss vaut aussi NaN).
+    zero_loss = avg_loss.eq(0) & avg_gain.notna()
+    result = result.where(~zero_loss, 100.0)
+    # Prix parfaitement plat (aucune hausse ni baisse) : neutre, pas 100.
+    flat = avg_loss.eq(0) & avg_gain.eq(0)
+    return result.where(~flat, 50.0)
 
 
 def last_row(df: pd.DataFrame):

@@ -58,6 +58,45 @@ def test_decision_context_carries_jane_note_verbatim():
     assert context["jane_note"] == "Corrélation macro à surveiller."
 
 
+def test_decision_context_carries_rsi_when_present():
+    pattern = _pattern()
+    pattern.context = {"rsi_14": 62.3}
+    context = decision_context(_decision(), pattern, _security())
+    assert context["pattern"]["rsi_14"] == 62.3
+
+
+def test_decision_context_rsi_is_none_when_absent_from_pattern_context():
+    """Figures détectées avant l'ajout du RSI (§ synthèse Kabbaj) : `context`
+    n'a pas la clé `rsi_14` — ne doit jamais planter, ni en inventer un."""
+    context = decision_context(_decision(), _pattern(), _security())
+    assert context["pattern"]["rsi_14"] is None
+
+
+def test_decision_context_computes_fibonacci_levels_for_reversal_pattern():
+    pattern = PatternDetected(
+        symbol="AIR.PA",
+        pattern_type="Double Bottom",
+        detected_at=datetime.datetime(2026, 7, 20, tzinfo=datetime.timezone.utc),
+        confidence=77.0,
+        context={
+            "bottom_1": {"index": 1, "price": 90.0},
+            "bottom_2": {"index": 10, "price": 91.0},
+            "resistance": {"index": 5, "price": 110.0},
+        },
+    )
+    context = decision_context(_decision(), pattern, _security())
+    levels = context["pattern"]["niveaux_fibonacci"]
+    assert levels is not None
+    assert set(levels) == {"38.2%", "50.0%", "61.8%", "76.4%"}
+
+
+def test_decision_context_fibonacci_is_none_for_pattern_without_absolute_swing():
+    """Bull Flag (comme les autres figures de continuation/bougies) n'a pas
+    de creux/sommet absolu dans son `context` — jamais de niveaux inventés."""
+    context = decision_context(_decision(), _pattern(), _security())
+    assert context["pattern"]["niveaux_fibonacci"] is None
+
+
 def test_security_snapshot_with_no_decision_or_pattern_stays_none():
     snapshot = security_snapshot(_security(), None, None)
     assert snapshot["derniere_decision"] is None

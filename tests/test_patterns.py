@@ -225,8 +225,10 @@ class TestBreakdown:
         assert_single_confident_match(matches, "Breakdown")
 
 
-def test_registry_matches_the_thirteen_documented_patterns():
-    assert len(DETECTORS) == 13
+def test_registry_matches_the_documented_patterns():
+    # 13 figures chartistes (Phase 1) + 12 figures en bougies japonaises
+    # (ad hoc, voir George_AnalyseTechnique_Kabbaj_Synthese.md).
+    assert len(DETECTORS) == 25
 
 
 def test_detect_all_finds_nothing_on_a_smooth_monotonic_trend():

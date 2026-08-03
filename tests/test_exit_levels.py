@@ -1,12 +1,19 @@
-"""Teste `engine/exit_levels.py` sur les 13 types de figures, en réutilisant
-les séries synthétiques et le détecteur réel de `tests/test_patterns.py`
+"""Teste `engine/exit_levels.py` sur les 25 types de figures (13 chartistes +
+12 bougies japonaises), en réutilisant les séries synthétiques et le
+détecteur réel de `tests/test_patterns.py`/`tests/test_candlestick.py`
 plutôt que des `context` reconstruits à la main — la même figure sert à
 vérifier la détection (Phase 1) et les niveaux de sortie qui en découlent
 (Phase 6), garantissant que les deux restent cohérents."""
 import pytest
 
-from engine.exit_levels import is_bullish, propose_levels
+from engine.exit_levels import (
+    CANDLESTICK_RISK_REWARD_RATIO,
+    fibonacci_retracement_levels,
+    is_bullish,
+    propose_levels,
+)
 from engine.patterns import DETECTORS
+from tests.test_candlestick import DOWNTREND, UPTREND, _candle_df
 from tests.test_patterns import make_df, path, ramp
 
 CASES = {
@@ -122,10 +129,96 @@ CASES = {
         lambda: make_df([105, 104, 103, 102, 101, 100, 102, 104, 106, 104, 102, 101, 100, 102, 104, 106, 103, 101, 102, 95]),
         False,
     ),
+    "Bullish Doji": (
+        lambda: _candle_df(DOWNTREND, [{"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.05}]),
+        True,
+    ),
+    "Bearish Doji": (
+        lambda: _candle_df(UPTREND, [{"open": 120.0, "high": 121.0, "low": 119.0, "close": 119.95}]),
+        False,
+    ),
+    "Hammer": (
+        lambda: _candle_df(DOWNTREND, [{"open": 99.8, "high": 100.5, "low": 96.0, "close": 100.2}]),
+        True,
+    ),
+    "Hanging Man": (
+        lambda: _candle_df(UPTREND, [{"open": 119.8, "high": 120.5, "low": 116.0, "close": 120.2}]),
+        False,
+    ),
+    "Inverted Hammer": (
+        lambda: _candle_df(DOWNTREND, [{"open": 99.8, "high": 104.0, "low": 99.6, "close": 100.0}]),
+        True,
+    ),
+    "Shooting Star": (
+        lambda: _candle_df(UPTREND, [{"open": 119.8, "high": 124.0, "low": 119.6, "close": 120.0}]),
+        False,
+    ),
+    "Bullish Engulfing": (
+        lambda: _candle_df(
+            DOWNTREND,
+            [
+                {"open": 101.0, "high": 101.2, "low": 98.8, "close": 99.0},
+                {"open": 98.5, "high": 101.7, "low": 98.3, "close": 101.5},
+            ],
+        ),
+        True,
+    ),
+    "Bearish Engulfing": (
+        lambda: _candle_df(
+            UPTREND,
+            [
+                {"open": 119.0, "high": 121.2, "low": 118.8, "close": 121.0},
+                {"open": 121.5, "high": 121.7, "low": 118.3, "close": 118.5},
+            ],
+        ),
+        False,
+    ),
+    "Morning Star": (
+        lambda: _candle_df(
+            DOWNTREND,
+            [
+                {"open": 105.0, "high": 105.2, "low": 99.8, "close": 100.0},
+                {"open": 98.0, "high": 98.4, "low": 97.7, "close": 98.2},
+                {"open": 98.5, "high": 103.2, "low": 98.3, "close": 103.0},
+            ],
+        ),
+        True,
+    ),
+    "Evening Star": (
+        lambda: _candle_df(
+            UPTREND,
+            [
+                {"open": 115.0, "high": 120.2, "low": 114.8, "close": 120.0},
+                {"open": 122.0, "high": 122.3, "low": 121.6, "close": 121.8},
+                {"open": 121.5, "high": 121.7, "low": 116.8, "close": 117.0},
+            ],
+        ),
+        False,
+    ),
+    "Dark Cloud Cover": (
+        lambda: _candle_df(
+            UPTREND,
+            [
+                {"open": 100.0, "high": 105.2, "low": 99.8, "close": 105.0},
+                {"open": 106.0, "high": 106.2, "low": 100.8, "close": 101.0},
+            ],
+        ),
+        False,
+    ),
+    "Piercing Line": (
+        lambda: _candle_df(
+            DOWNTREND,
+            [
+                {"open": 105.0, "high": 105.2, "low": 99.8, "close": 100.0},
+                {"open": 99.0, "high": 104.2, "low": 98.8, "close": 104.0},
+            ],
+        ),
+        True,
+    ),
 }
 
 
-def test_all_thirteen_detectors_are_covered():
+def test_all_pattern_types_are_covered():
     assert set(CASES) == set(DETECTORS)
 
 
@@ -153,3 +246,34 @@ def test_propose_levels_respects_direction(pattern_type):
 def test_propose_levels_raises_on_unknown_pattern():
     with pytest.raises(KeyError):
         propose_levels("Pattern Inexistant", {}, 100.0, make_df(ramp(100, 110, 20)))
+
+
+def test_fibonacci_retracement_levels_are_ordered_between_swing_points():
+    levels = fibonacci_retracement_levels(swing_low=90.0, swing_high=110.0)
+    assert set(levels) == {"38.2%", "50.0%", "61.8%", "76.4%"}
+    # Chaque niveau doit se trouver strictement entre le creux et le sommet,
+    # et plus le ratio est élevé, plus le niveau est proche du creux.
+    assert 90.0 < levels["76.4%"] < levels["61.8%"] < levels["50.0%"] < levels["38.2%"] < 110.0
+
+
+@pytest.mark.parametrize("pattern_type", sorted(CASES))
+def test_candlestick_levels_respect_minimum_risk_reward_ratio(pattern_type):
+    """Les 12 figures en bougies utilisent `_candlestick_levels`, dont le
+    take-profit est explicitement dérivé du ratio risque/rendement minimal
+    documenté par Kabbaj (2011, §5 de la synthèse) — vérifié ici pour
+    confirmer qu'aucun changement futur ne le fait dériver silencieusement."""
+    if pattern_type not in {
+        "Bullish Doji", "Bearish Doji", "Hammer", "Hanging Man", "Inverted Hammer", "Shooting Star",
+        "Bullish Engulfing", "Bearish Engulfing", "Morning Star", "Evening Star", "Dark Cloud Cover", "Piercing Line",
+    }:
+        pytest.skip("figure chartiste classique, pas une bougie — pas de ratio risque/rendement fixe")
+
+    make_series, bullish = CASES[pattern_type]
+    df = make_series()
+    match = DETECTORS[pattern_type](df)[0]
+    entry_price = float(df["close"].iloc[-1])
+
+    take_profit, stop_loss = propose_levels(pattern_type, match.context, entry_price, df)
+    risk = abs(entry_price - stop_loss)
+    reward = abs(take_profit - entry_price)
+    assert reward == pytest.approx(risk * CANDLESTICK_RISK_REWARD_RATIO, rel=1e-6)

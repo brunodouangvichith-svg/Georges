@@ -11,7 +11,37 @@ pour que le contexte soit directement sérialisable en JSON.
 """
 from __future__ import annotations
 
+from engine.exit_levels import fibonacci_retracement_levels
 from ingestion.models import Basket, Decision, PatternDetected, Security
+
+# Pour les figures de retournement dont `context` stocke déjà un creux/sommet
+# absolu (voir `engine/patterns/reversal.py`), extrait (swing_low, swing_high)
+# pour calculer des niveaux de Fibonacci informationnels — voir
+# `engine/exit_levels.py:fibonacci_retracement_levels` pour pourquoi ceci ne
+# remplace jamais take_profit/stop_loss déjà calculés. Les figures de
+# continuation/breakout/bougies ne sont pas couvertes ici : leur `context` ne
+# garde pas de creux/sommet absolu (continuation) ou n'a pas de "hauteur de
+# figure" comparable (bougies) — voir la synthèse Kabbaj §7.5/§4.
+_FIBONACCI_SWING_EXTRACTORS = {
+    "Double Bottom": lambda c: (min(c["bottom_1"]["price"], c["bottom_2"]["price"]), c["resistance"]["price"]),
+    "Double Top": lambda c: (c["support"]["price"], max(c["top_1"]["price"], c["top_2"]["price"])),
+    "Head & Shoulders": lambda c: (c["neckline"]["price"], c["head"]["price"]),
+    "Inverse Head & Shoulders": lambda c: (c["head"]["price"], c["neckline"]["price"]),
+    "Cup & Handle": lambda c: (c["cup_bottom"]["price"], max(c["left_rim"]["price"], c["right_rim"]["price"])),
+}
+
+
+def _fibonacci_context(pattern: PatternDetected) -> dict | None:
+    extractor = _FIBONACCI_SWING_EXTRACTORS.get(pattern.pattern_type)
+    if extractor is None:
+        return None
+    try:
+        swing_low, swing_high = extractor(pattern.context)
+    except (KeyError, TypeError):
+        return None
+    if swing_low >= swing_high:
+        return None
+    return fibonacci_retracement_levels(swing_low, swing_high)
 
 
 def decision_context(
@@ -37,10 +67,17 @@ def decision_context(
         "jane_note": jane_note,
     }
     if pattern is not None:
+        # `rsi_14`/niveaux de Fibonacci sont ajoutés après lecture de
+        # George_AnalyseTechnique_Kabbaj_Synthese.md — champs choisis
+        # explicitement (pas un passthrough brut de `pattern.context`, qui
+        # contient aussi des index/prix internes non pertinents pour
+        # l'explication) plutôt qu'un dict entier non filtré.
         context["pattern"] = {
             "type": pattern.pattern_type,
             "detecte_le": pattern.detected_at.isoformat(),
             "confiance": float(pattern.confidence),
+            "rsi_14": (pattern.context or {}).get("rsi_14"),
+            "niveaux_fibonacci": _fibonacci_context(pattern),
         }
     return context
 

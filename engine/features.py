@@ -17,7 +17,7 @@ Paramètres :
 
 import pandas as pd
 
-from engine.patterns.common import sma
+from engine.patterns.common import RSI_WINDOW, rsi, sma
 
 VOLUME_LOOKBACK = 20
 ATR_WINDOW = 14
@@ -27,7 +27,10 @@ SMA_LONG = 200
 # Colonnes de features partagées entre l'entraînement
 # (engine/notebooks/train_confidence_model.ipynb) et l'inférence
 # (engine/scoring.py) — toute figure/titre produisant ces colonnes peut être
-# scoré par le modèle appris.
+# scoré par le modèle appris. `rsi_14` ajoutée après lecture de
+# George_AnalyseTechnique_Kabbaj_Synthese.md — voir `rsi_at` ci-dessous pour
+# pourquoi elle n'est volontairement pas une feature "gatante" comme les
+# autres (`build_feature_row` dans `engine/scoring.py`).
 CATEGORICAL_FEATURE_COLUMNS = ["pattern_type", "sector"]
 NUMERIC_FEATURE_COLUMNS = [
     "relative_volume",
@@ -36,6 +39,7 @@ NUMERIC_FEATURE_COLUMNS = [
     "price_over_sma50",
     "price_over_sma200",
     "sma50_over_sma200",
+    "rsi_14",
 ]
 FEATURE_COLUMNS = CATEGORICAL_FEATURE_COLUMNS + NUMERIC_FEATURE_COLUMNS
 
@@ -89,3 +93,14 @@ def position_vs_moving_averages(df: pd.DataFrame, at_idx: int) -> dict | None:
         "price_over_sma200": float(price / sma200),
         "sma50_over_sma200": float(sma50 / sma200),
     }
+
+
+def rsi_at(df: pd.DataFrame, at_idx: int, window: int = RSI_WINDOW) -> float | None:
+    """RSI (14) à `at_idx`. Ne nécessite que `window` séances d'historique —
+    nettement moins que la SMA200 déjà gatante de `position_vs_moving_averages`
+    — donc volontairement traitée comme `market_trend` dans
+    `engine/scoring.py:build_feature_row` (imputée si absente), pas comme
+    `atr_pct`/`relative_volume`/les moyennes mobiles ci-dessus (qui bloquent
+    le scoring appris s'ils manquent)."""
+    value = rsi(df["close"], window=window).iloc[at_idx]
+    return None if pd.isna(value) else float(value)

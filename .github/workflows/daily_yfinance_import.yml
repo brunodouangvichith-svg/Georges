@@ -1,12 +1,16 @@
-name: Import quotidien yfinance (prix, fondamentaux, dividendes)
+name: Import quotidien yfinance + détection + propositions
 
 # Aucun scheduler n'existe dans le projet (Celery/Redis/Airflow explicitement
 # reportés à la Phase 7 ; le plan gratuit Render n'offre pas de vrai Cron
 # Job). GitHub Actions tourne directement les scripts d'ingestion existants
 # contre la base Supabase (DATABASE_URL en secret du dépôt), gratuit à ce
-# volume (quelques minutes/jour). Ne relance pas engine.run_detection /
-# engine.propose_decisions : cette planification ne couvre que l'ingestion
-# yfinance elle-même, pas la détection de figures/propositions.
+# volume (quelques minutes/jour). Relance aussi engine.run_detection puis
+# engine.propose_decisions après l'ingestion des prix : jusqu'ici ces deux
+# scripts ne tournaient que manuellement, ce qui voulait dire qu'aucune
+# nouvelle figure/proposition Achat-Alléger n'apparaissait sans déclenchement
+# à la main — demandé directement par l'utilisateur (« George doit analyser
+# les 102 actions et proposer des opportunités automatiquement, une fois par
+# jour », voir CLAUDE.md section Kabbaj).
 #
 # 20h UTC = 22h heure française en été (CEST, UTC+2, en vigueur actuellement).
 # GitHub Actions ne gère pas nativement les fuseaux horaires/l'heure d'été :
@@ -32,5 +36,13 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - name: Fondamentaux + dividendes (ingestion.fundamentals)
         run: python -m ingestion.fundamentals
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Détection de figures (engine.run_detection)
+        run: python -m engine.run_detection
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Propositions Achat/Alléger (engine.propose_decisions)
+        run: python -m engine.propose_decisions
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

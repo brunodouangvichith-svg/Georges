@@ -38,6 +38,12 @@ BULLISH_PATTERNS = {
     "Falling Wedge",
     "Bull Flag",
     "Breakout",
+    "Bullish Doji",
+    "Hammer",
+    "Inverted Hammer",
+    "Bullish Engulfing",
+    "Morning Star",
+    "Piercing Line",
 }
 BEARISH_PATTERNS = {
     "Double Top",
@@ -46,6 +52,12 @@ BEARISH_PATTERNS = {
     "Rising Wedge",
     "Bear Flag",
     "Breakdown",
+    "Bearish Doji",
+    "Hanging Man",
+    "Shooting Star",
+    "Bearish Engulfing",
+    "Evening Star",
+    "Dark Cloud Cover",
 }
 
 
@@ -149,6 +161,37 @@ def _breakdown(context, entry_price, df):
     return entry_price - depth, support * (1 + BREAKOUT_BUFFER)
 
 
+# Ratio risque/rendement minimal explicitement recommandé par Kabbaj (2011,
+# §5 de la synthèse) — appliqué ici comme règle de calcul du take-profit des
+# figures en bougies, qui n'ont pas de "hauteur de figure" comme les figures
+# chartistes classiques ci-dessus.
+CANDLESTICK_RISK_REWARD_RATIO = 3.0
+
+
+def _candlestick_levels(context, entry_price, df, bullish: bool):
+    """Stop-loss à l'extrême (mèche) de la bougie de signal ; take-profit
+    dérivé du ratio risque/rendement `CANDLESTICK_RISK_REWARD_RATIO` appliqué
+    à cette distance. Simplification assumée pour les figures à 2-3 bougies
+    (avalement, étoiles, nuage/pénétrante) : seule la mèche de la **dernière**
+    bougie sert de référence, pas l'extremum de la formation entière."""
+    signal_row = df.iloc[context["signal_index"]]
+    if bullish:
+        stop_loss = float(signal_row["low"]) * (1 - BREAKOUT_BUFFER)
+        risk = entry_price - stop_loss
+        return entry_price + risk * CANDLESTICK_RISK_REWARD_RATIO, stop_loss
+    stop_loss = float(signal_row["high"]) * (1 + BREAKOUT_BUFFER)
+    risk = stop_loss - entry_price
+    return entry_price - risk * CANDLESTICK_RISK_REWARD_RATIO, stop_loss
+
+
+def _bullish_candlestick_levels(context, entry_price, df):
+    return _candlestick_levels(context, entry_price, df, bullish=True)
+
+
+def _bearish_candlestick_levels(context, entry_price, df):
+    return _candlestick_levels(context, entry_price, df, bullish=False)
+
+
 _LEVEL_FUNCTIONS = {
     "Double Bottom": _double_bottom,
     "Double Top": _double_top,
@@ -163,6 +206,18 @@ _LEVEL_FUNCTIONS = {
     "Bear Flag": _bear_flag,
     "Breakout": _breakout,
     "Breakdown": _breakdown,
+    "Bullish Doji": _bullish_candlestick_levels,
+    "Bearish Doji": _bearish_candlestick_levels,
+    "Hammer": _bullish_candlestick_levels,
+    "Hanging Man": _bearish_candlestick_levels,
+    "Inverted Hammer": _bullish_candlestick_levels,
+    "Shooting Star": _bearish_candlestick_levels,
+    "Bullish Engulfing": _bullish_candlestick_levels,
+    "Bearish Engulfing": _bearish_candlestick_levels,
+    "Morning Star": _bullish_candlestick_levels,
+    "Evening Star": _bearish_candlestick_levels,
+    "Dark Cloud Cover": _bearish_candlestick_levels,
+    "Piercing Line": _bullish_candlestick_levels,
 }
 
 
@@ -171,3 +226,24 @@ def propose_levels(pattern_type: str, context: dict, entry_price: float, df: pd.
     `KeyError` si `pattern_type` n'est pas géré (ne devrait pas arriver : les
     13 types de `engine/patterns/__init__.py:DETECTORS` sont tous couverts)."""
     return _LEVEL_FUNCTIONS[pattern_type](context, entry_price, df)
+
+
+# Ratios cités dans George_AnalyseTechnique_Kabbaj_Synthese.md §2.3 (retracements
+# de Fibonacci) — 61,8 %/38,2 %/50 %/76,4 % sont les niveaux qu'utilise Kabbaj
+# pour placer entrées/stops le long des vagues d'Elliott (hors périmètre ici,
+# voir la synthèse). Repris ici comme repère informationnel indépendant du
+# type de figure, PAS comme remplacement des formules de measured-move
+# ci-dessus : la synthèse (§7.5) confirme ces dernières sur plusieurs exemples
+# chiffrés du livre (Alcan, Thomson, Zodiac) — rien à corriger.
+FIBONACCI_RATIOS = [0.382, 0.5, 0.618, 0.764]
+
+
+def fibonacci_retracement_levels(swing_low: float, swing_high: float) -> dict[str, float]:
+    """Niveaux de retracement entre un creux et un sommet (`swing_low` <
+    `swing_high`), à titre informationnel pour l'explication LLM
+    (`agents/context.py`) — un stop-loss/take-profit déjà calculé qui se
+    trouve proche d'un de ces niveaux est une corroboration supplémentaire,
+    pas un signal recalculé. Clés nommées par pourcentage (`"61.8%"`) plutôt
+    que par ratio brut, pour un rendu direct dans un contexte JSON lisible."""
+    amplitude = swing_high - swing_low
+    return {f"{ratio * 100:.1f}%": swing_high - amplitude * ratio for ratio in FIBONACCI_RATIOS}

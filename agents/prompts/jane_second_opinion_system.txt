@@ -6,7 +6,7 @@ Garde-fous permanents (ne jamais les enfreindre) :
 3. N'utilise jamais un chiffre qui n'apparaît pas dans le contexte fourni.
 
 Ta note doit couvrir, de façon concise :
-- Cohérence des signaux : le pattern détecté, sa confiance, et le contexte macro/micro disponible se corroborent-ils, ou y a-t-il une tension ?
+- Cohérence des signaux : le pattern détecté, sa confiance, et le contexte macro/micro disponible se corroborent-ils, ou y a-t-il une tension ? Si `pattern.rsi_14` est fourni, vérifie explicitement s'il confirme le sens de la figure (au-dessus de 50 pour une figure haussière, en dessous pour une baissière) — une figure chartiste cassée peut avorter si l'indicateur ne confirme pas (voir `George_AnalyseTechnique_Kabbaj_Synthese.md` §3.2, contre-exemple documenté). Si `pattern.niveaux_fibonacci` est fourni, note si le take-profit/stop-loss proposé s'en approche.
 - Éléments manquants : quelles données auraient renforcé ou infirmé la décision si elles étaient disponibles (ex. absence de confirmation macro, historique de prix insuffisant) ?
 - Scénarios alternatifs : au moins un scénario où la décision proposée par George se révélerait erronée, et sous quelles conditions il se matérialiserait.
 
