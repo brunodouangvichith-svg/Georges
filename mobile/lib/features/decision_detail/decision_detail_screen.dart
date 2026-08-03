@@ -50,15 +50,39 @@ void _showChartPopup(
                     height: 320,
                     child: Center(child: Text("Impossible de charger l'historique complet.")),
                   ),
-                  data: (pricesPage) => CandlestickChart(
-                    candles: pricesPage.items,
-                    context: patternContext,
-                    indexOffset: pricesPage.total - pricesPage.items.length,
-                    takeProfit: takeProfit,
-                    stopLoss: stopLoss,
-                    width: MediaQuery.of(dialogContext).size.width - 64,
-                    height: 320,
-                  ),
+                  data: (pricesPage) {
+                    final candles = pricesPage.items;
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CandlestickChart(
+                          candles: candles,
+                          context: patternContext,
+                          indexOffset: pricesPage.total - candles.length,
+                          takeProfit: takeProfit,
+                          stopLoss: stopLoss,
+                          width: MediaQuery.of(dialogContext).size.width - 64,
+                          height: 320,
+                        ),
+                        if (candles.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          // Rend visible la profondeur réelle de l'historique
+                          // affiché — le graphique lui-même n'a pas d'axe de
+                          // dates, demandé directement par l'utilisateur pour
+                          // pouvoir vérifier depuis l'écran que le popup montre
+                          // bien les 10 ans disponibles (price_history_long),
+                          // pas seulement un extrait.
+                          Text(
+                            '${DateFormat('dd/MM/yyyy').format(candles.first.ts)} '
+                            '→ ${DateFormat('dd/MM/yyyy').format(candles.last.ts)} '
+                            '(${candles.length} séances)',
+                            style: Theme.of(dialogContext).textTheme.labelSmall,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ],
+                    );
+                  },
                 );
               },
             ),
