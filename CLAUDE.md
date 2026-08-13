@@ -15,6 +15,16 @@ Root-level reference material (not code to run):
 - `whitelist_journaux.md` / `whitelist_journaux.json` — per-country reference list of national newspapers for the future "pilier 7" geopolitical-events agent (Phase 7). Not wired into any code yet.
 - `George_Pitch_*.pdf`, `George_Portefeuille_*.docx`, `George_Stack_Technique.*` — pitch deck and stack-decision documents.
 
+## Quality conventions (standing instruction, applies to every change)
+
+Before considering any non-trivial change finished (new endpoint, new detector, new mobile screen, anything touching auth/money/external services) — not for a one-line fix or a docs-only edit:
+
+- Run `/code-review` on the diff. This project's own history includes real bugs caught this way (see e.g. the stale-`engine`-reference bug in `api/routers/baskets.py`/`agents/reports.py`, or the `ponderations` bug caught while adding MACD/Bollinger/Stochastic) — treat that as the expected value of this step, not an optional extra.
+- Run `/security-review` on anything touching `api/auth.py`, Supabase/Mistral/Resend credentials, the OAuth flows (`login_screen.dart`), or financial calculations (`engine/exit_levels.py`, `engine/propose_decisions.py`, `api/routers/portfolios.py`) — this app proposes real buy/sell decisions and now holds real user accounts, so an auth or a money-math bug is not a cosmetic one.
+- For `web/` changes touching a page real users see (not an internal/admin view): run `/accessibility-review`.
+
+Skipping these is a deliberate choice to make under time pressure, not a silent default — if skipped, say so explicitly rather than letting "done" imply "reviewed."
+
 ## Python backend (`ingestion/`, `infra/`, `tests/`) — Phase 0
 
 ### Commands
