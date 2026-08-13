@@ -15,6 +15,7 @@ import pandas as pd
 from sqlalchemy import select
 
 from engine.detect import detect_all
+from engine.exit_levels import bollinger_band_levels
 from engine.scoring import predict_confidence
 from ingestion.db import get_engine
 from ingestion.models import PatternDetected, PriceHistoryLong, Security
@@ -95,7 +96,16 @@ def run() -> int:
                         # (`geometry_quality` etc.) ne redonnent le score
                         # final par leur somme pondérée QUE dans ce second
                         # cas ; voir `agents/context.py`/`explainer_system.txt`.
-                        context={**match.context, "confidence_source": confidence_source},
+                        # `niveaux_bollinger` calculé ici (pas par le
+                        # détecteur) car il a besoin de l'historique complet
+                        # `df` — jamais stocké tel quel dans `patterns_detected`
+                        # (seule la géométrie de la figure l'est) — voir
+                        # `engine/exit_levels.py:bollinger_band_levels`.
+                        context={
+                            **match.context,
+                            "confidence_source": confidence_source,
+                            "niveaux_bollinger": bollinger_band_levels(df, len(df) - 1),
+                        },
                     )
                 )
                 inserted += 1

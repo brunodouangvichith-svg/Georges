@@ -36,6 +36,15 @@ MIN_PATTERN_BARS = 10
 BREAKOUT_BUFFER = 0.002
 RSI_WINDOW = 14
 RSI_NEUTRAL_ZONE = 50.0
+MACD_FAST_SPAN = 12
+MACD_SLOW_SPAN = 26
+MACD_SIGNAL_SPAN = 9
+BOLLINGER_WINDOW = 20
+BOLLINGER_NUM_STD = 2.0
+STOCHASTIC_WINDOW = 14
+STOCHASTIC_SIGNAL_WINDOW = 3
+STOCHASTIC_OVERSOLD = 20.0
+STOCHASTIC_OVERBOUGHT = 80.0
 
 
 @dataclass
@@ -130,6 +139,81 @@ def rsi(series: pd.Series, window: int = RSI_WINDOW) -> pd.Series:
     # Prix parfaitement plat (aucune hausse ni baisse) : neutre, pas 100.
     flat = avg_loss.eq(0) & avg_gain.eq(0)
     return result.where(~flat, 50.0)
+
+
+def ema(series: pd.Series, span: int) -> pd.Series:
+    """Moyenne mobile exponentielle (lissage ``2/(span+1)``), utilisée par
+    `macd` ci-dessous. `min_periods=span` comme `sma` — ne renvoie une valeur
+    qu'une fois `span` observations réellement disponibles (pandas
+    calculerait sinon un EMA "chauffant" dès la 1ère observation, biaisé vers
+    la valeur de départ)."""
+    return series.ewm(span=span, min_periods=span, adjust=False).mean()
+
+
+def macd(
+    series: pd.Series,
+    fast: int = MACD_FAST_SPAN,
+    slow: int = MACD_SLOW_SPAN,
+    signal: int = MACD_SIGNAL_SPAN,
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """MACD (Gerald Appel) : ``(ligne MACD, ligne de signal, histogramme)``.
+    Ligne MACD = EMA(`fast`) - EMA(`slow`) ; ligne de signal = EMA(`signal`)
+    de la ligne MACD ; histogramme = ligne MACD - ligne de signal. La ligne
+    du zéro joue, pour le MACD, le même rôle que la zone de neutralité (50)
+    pour le RSI : au-dessus = tendance haussière, en dessous = tendance
+    baissière — voir `George_AnalyseTechnique_Kabbaj_Synthese.md` §4 et
+    `engine/confidence.py:macd_confirmation`."""
+    macd_line = ema(series, fast) - ema(series, slow)
+    signal_line = ema(macd_line, signal)
+    histogram = macd_line - signal_line
+    return macd_line, signal_line, histogram
+
+
+def bollinger_bands(
+    series: pd.Series,
+    window: int = BOLLINGER_WINDOW,
+    num_std: float = BOLLINGER_NUM_STD,
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Bandes de Bollinger : ``(bande médiane, bande haute, bande basse)``.
+    Médiane = SMA(`window`) ; les bandes s'écartent de `num_std` écarts-types
+    (population — ``ddof=0``, cohérent avec la convention documentée dans
+    `George_AnalyseTechnique_Kabbaj_Synthese.md`) des `window` dernières
+    clôtures. Le livre les cite (§4) pour ajuster le placement d'un stop à la
+    volatilité réelle du titre plutôt qu'au seul niveau support/résistance —
+    voir `engine/exit_levels.py:bollinger_band_levels`, qui les utilise à
+    titre informationnel, jamais pour remplacer les formules de measured-move
+    déjà en place."""
+    mid = sma(series, window)
+    std = series.rolling(window=window, min_periods=window).std(ddof=0)
+    upper = mid + num_std * std
+    lower = mid - num_std * std
+    return mid, upper, lower
+
+
+def stochastic_oscillator(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    window: int = STOCHASTIC_WINDOW,
+    signal: int = STOCHASTIC_SIGNAL_WINDOW,
+) -> tuple[pd.Series, pd.Series]:
+    """Oscillateur stochastique (George Lane) : ``(%K, %D)``.
+    %K = 100 * (clôture - plus bas sur `window`) / (plus haut - plus bas sur
+    `window`) ; %D = SMA(`signal`) de %K. Zones de surachat/survente à
+    `STOCHASTIC_OVERBOUGHT`/`STOCHASTIC_OVERSOLD` (80/20) — utilisé dans
+    `George_AnalyseTechnique_Kabbaj_Synthese.md` §2.7/§4 en combinaison avec
+    les figures en bougies japonaises pour confirmer un retournement (sortie
+    de zone de surachat/survente + figure de bougie), voir
+    `engine/confidence.py:stochastic_confirmation`. `NaN` si `high == low` sur
+    toute la fenêtre (amplitude nulle, division par zéro évitée via
+    `replace(0, np.nan)`, même garde-fou que `rsi` ci-dessus pour une baisse
+    ininterrompue)."""
+    lowest_low = low.rolling(window=window, min_periods=window).min()
+    highest_high = high.rolling(window=window, min_periods=window).max()
+    denom = (highest_high - lowest_low).replace(0, np.nan)
+    percent_k = 100 * (close - lowest_low) / denom
+    percent_d = percent_k.rolling(window=signal, min_periods=signal).mean()
+    return percent_k, percent_d
 
 
 def last_row(df: pd.DataFrame):

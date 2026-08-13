@@ -11,7 +11,7 @@ pour que le contexte soit directement sérialisable en JSON.
 """
 from __future__ import annotations
 
-from engine.confidence import GEOMETRY_WEIGHT, RSI_WEIGHT, TREND_WEIGHT, VOLUME_WEIGHT
+from engine.confidence import GEOMETRY_WEIGHT, MACD_WEIGHT, RSI_WEIGHT, STOCH_WEIGHT, TREND_WEIGHT, VOLUME_WEIGHT
 from engine.exit_levels import fibonacci_retracement_levels
 from ingestion.models import Basket, Decision, PatternDetected, Security
 
@@ -20,11 +20,21 @@ from ingestion.models import Basket, Decision, PatternDetected, Security
 # l'explication ne se désynchronise jamais d'un futur rebalancement des
 # poids — même discipline anti-hallucination que le reste de ce fichier :
 # aucun chiffre cité par le LLM ne doit vivre ailleurs que dans ce contexte.
+# `stochastique` n'est ajoutée à `pattern["ponderations"]` que pour les
+# figures en bougies japonaises (voir `decision_context` ci-dessous) — c'est
+# la seule famille de détecteurs qui calcule réellement `stoch_conf`
+# (`engine/patterns/candlestick.py`), donc la seule où ce poids s'applique
+# vraiment (voir `engine/confidence.py:confidence_score`).
 _CONFIDENCE_WEIGHTS = {
     "geometrie": GEOMETRY_WEIGHT,
     "volume": VOLUME_WEIGHT,
     "tendance": TREND_WEIGHT,
     "rsi": RSI_WEIGHT,
+    "macd": MACD_WEIGHT,
+}
+_CANDLESTICK_PATTERN_TYPES = {
+    "Bullish Doji", "Bearish Doji", "Hammer", "Hanging Man", "Inverted Hammer", "Shooting Star",
+    "Bullish Engulfing", "Bearish Engulfing", "Morning Star", "Evening Star", "Dark Cloud Cover", "Piercing Line",
 }
 
 # Pour les figures de retournement dont `context` stocke déjà un creux/sommet
@@ -84,14 +94,25 @@ def decision_context(
         # George_AnalyseTechnique_Kabbaj_Synthese.md — champs choisis
         # explicitement (pas un passthrough brut de `pattern.context`, qui
         # contient aussi des index/prix internes non pertinents pour
-        # l'explication) plutôt qu'un dict entier non filtré.
+        # l'explication) plutôt qu'un dict entier non filtré. `macd_line`/
+        # `niveaux_bollinger` suivent le même principe ; `niveaux_bollinger`
+        # est déjà calculé et stocké par `engine/run_detection.py:run` (pas
+        # recalculé ici, aucune figure ne garde l'historique de prix complet
+        # dans `context` — voir `engine/exit_levels.py:bollinger_band_levels`).
         pattern_ctx = pattern.context or {}
+        # `stochastique` n'existe dans `context` que pour les figures en
+        # bougies japonaises (`engine/patterns/candlestick.py`) — absent
+        # (`None`) pour les 13 figures chartistes, jamais inventé.
+        is_candlestick = pattern.pattern_type in _CANDLESTICK_PATTERN_TYPES
+        weights = {**_CONFIDENCE_WEIGHTS, "stochastique": STOCH_WEIGHT} if is_candlestick else _CONFIDENCE_WEIGHTS
         context["pattern"] = {
             "type": pattern.pattern_type,
             "detecte_le": pattern.detected_at.isoformat(),
             "confiance": float(pattern.confidence),
             "rsi_14": pattern_ctx.get("rsi_14"),
+            "macd_line": pattern_ctx.get("macd_line"),
             "niveaux_fibonacci": _fibonacci_context(pattern),
+            "niveaux_bollinger": pattern_ctx.get("niveaux_bollinger"),
             # Sous-scores réels (0-1) qui composent la confiance finale
             # ci-dessus, demandés par l'utilisateur pour que la section
             # "Confidence scoring" cite les vrais chiffres calculés pour
@@ -104,8 +125,10 @@ def decision_context(
                 "volume": pattern_ctx.get("volume_confirmation"),
                 "tendance": pattern_ctx.get("trend_alignment"),
                 "rsi": pattern_ctx.get("rsi_confirmation"),
+                "macd": pattern_ctx.get("macd_confirmation"),
+                "stochastique": pattern_ctx.get("stochastic_confirmation"),
             },
-            "ponderations": _CONFIDENCE_WEIGHTS,
+            "ponderations": weights,
             # "heuristique" : `confiance` ci-dessus EST la somme pondérée des
             # 4 scores par `ponderations` (engine.confidence.confidence_score).
             # "modele_appris" : `confiance` vient du modèle XGBoost entraîné

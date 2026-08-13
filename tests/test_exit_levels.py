@@ -8,6 +8,7 @@ import pytest
 
 from engine.exit_levels import (
     CANDLESTICK_RISK_REWARD_RATIO,
+    bollinger_band_levels,
     fibonacci_retracement_levels,
     is_bullish,
     propose_levels,
@@ -254,6 +255,19 @@ def test_fibonacci_retracement_levels_are_ordered_between_swing_points():
     # Chaque niveau doit se trouver strictement entre le creux et le sommet,
     # et plus le ratio est élevé, plus le niveau est proche du creux.
     assert 90.0 < levels["76.4%"] < levels["61.8%"] < levels["50.0%"] < levels["38.2%"] < 110.0
+
+
+def test_bollinger_band_levels_none_before_window_warms_up():
+    df = make_df(ramp(100, 110, 10))
+    assert bollinger_band_levels(df, 5) is None
+
+
+def test_bollinger_band_levels_are_ordered_around_the_median():
+    df = make_df(ramp(100, 130, 30))
+    levels = bollinger_band_levels(df, len(df) - 1)
+    assert levels is not None
+    assert set(levels) == {"bande_basse", "bande_mediane", "bande_haute"}
+    assert levels["bande_basse"] < levels["bande_mediane"] < levels["bande_haute"]
 
 
 @pytest.mark.parametrize("pattern_type", sorted(CASES))

@@ -27,7 +27,15 @@ import joblib
 import pandas as pd
 
 from engine.backtest import compute_market_trend
-from engine.features import atr_pct, position_vs_moving_averages, relative_volume, rsi_at
+from engine.features import (
+    atr_pct,
+    bb_percent_b,
+    macd_hist_pct,
+    position_vs_moving_averages,
+    relative_volume,
+    rsi_at,
+    stochastic_k_at,
+)
 from engine.patterns.common import PatternMatch
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
@@ -90,11 +98,12 @@ def build_feature_row(
     des features fiables (volume relatif, ATR ou position vs moyennes
     mobiles indisponibles) — c'est ce signal que `predict_confidence`
     utilise pour retomber sur l'heuristique. `market_trend` (contexte de
-    marché) et `rsi_14` sont en revanche optionnels : leur absence ne bloque
-    pas l'inférence, ils seront simplement imputés par le pipeline entraîné
-    (`rsi_14` ne nécessite que `engine.features.RSI_WINDOW` séances,
-    nettement moins que la SMA200 déjà gatante ci-dessus — pas de raison de
-    la faire bloquer aussi)."""
+    marché), `rsi_14`, `macd_hist_pct`, `bb_percent_b` et `stochastic_k` sont
+    en revanche optionnels : leur absence ne bloque pas l'inférence, ils
+    seront simplement imputés par le pipeline entraîné (aucun ne nécessite
+    plus qu'une fenêtre de quelques dizaines de séances au maximum, nettement
+    moins que la SMA200 déjà gatante ci-dessus — pas de raison de les faire
+    bloquer aussi)."""
     ma_features = position_vs_moving_averages(df, at_idx)
     rel_vol = relative_volume(df, at_idx)
     atr = atr_pct(df, at_idx)
@@ -103,6 +112,9 @@ def build_feature_row(
 
     market_trend = compute_market_trend(price_frames, at_date) if price_frames and at_date is not None else None
     rsi_value = rsi_at(df, at_idx)
+    macd_value = macd_hist_pct(df, at_idx)
+    bb_value = bb_percent_b(df, at_idx)
+    stoch_value = stochastic_k_at(df, at_idx)
 
     return {
         "pattern_type": pattern_type,
@@ -111,6 +123,9 @@ def build_feature_row(
         "atr_pct": atr,
         "market_trend": market_trend if market_trend is not None else math.nan,
         "rsi_14": rsi_value if rsi_value is not None else math.nan,
+        "macd_hist_pct": macd_value if macd_value is not None else math.nan,
+        "bb_percent_b": bb_value if bb_value is not None else math.nan,
+        "stochastic_k": stoch_value if stoch_value is not None else math.nan,
         **ma_features,
     }
 

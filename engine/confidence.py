@@ -22,20 +22,35 @@ Combine quatre composantes, chacune normalisée sur [0, 1] :
   figures graphiques »*. Applique le même filtre uniformément aux 13
   détecteurs déjà existants (pas seulement aux figures de retournement),
   cohérent avec le fait que volume/tendance s'appliquent déjà à tous.
+- **confirmation MACD** (`macd_confirmation`) : même principe que le RSI, mais
+  sur la ligne du zéro du MACD — la synthèse Kabbaj §4 la présente comme
+  *« l'équivalent de la zone de neutralité du RSI pour repérer le sens de la
+  tendance »*. Appliquée uniformément aux mêmes détecteurs que le RSI, pour
+  la même raison.
+- **confirmation stochastique** (`stochastic_confirmation`) : réservée aux
+  détecteurs de bougies japonaises (`engine/patterns/candlestick.py`) — le
+  livre ne documente le stochastique qu'en combinaison avec elles (§2.7/§4 :
+  sortie de zone de surachat/survente + figure de bougie pour confirmer un
+  retournement), jamais comme confirmation générale des 13 figures
+  chartistes. Voir `confidence_score` ci-dessous pour comment son poids est
+  redistribué sur les autres composantes quand elle ne s'applique pas.
 
-Pondération : ``GEOMETRY_WEIGHT`` (0.4) + ``VOLUME_WEIGHT`` (0.2) +
-``TREND_WEIGHT`` (0.2) + ``RSI_WEIGHT`` (0.2) = 1.0. Rebalancée par rapport
-aux poids précédents (0.5/0.25/0.25) pour faire de la place au RSI tout en
+Pondération : ``GEOMETRY_WEIGHT`` (0.30) + ``VOLUME_WEIGHT`` (0.15) +
+``TREND_WEIGHT`` (0.15) + ``RSI_WEIGHT`` (0.15) + ``MACD_WEIGHT`` (0.15) +
+``STOCH_WEIGHT`` (0.10) = 1.0. Rebalancée par rapport aux poids précédents
+(0.4/0.2/0.2/0.2) pour faire de la place au MACD et au stochastique tout en
 gardant la géométrie comme facteur dominant.
 """
 
 import numpy as np
 import pandas as pd
 
-GEOMETRY_WEIGHT = 0.4
-VOLUME_WEIGHT = 0.2
-TREND_WEIGHT = 0.2
-RSI_WEIGHT = 0.2
+GEOMETRY_WEIGHT = 0.30
+VOLUME_WEIGHT = 0.15
+TREND_WEIGHT = 0.15
+RSI_WEIGHT = 0.15
+MACD_WEIGHT = 0.15
+STOCH_WEIGHT = 0.10
 
 VOLUME_LOOKBACK = 20
 SMA_SHORT = 50
@@ -118,12 +133,80 @@ def rsi_confirmation(close: pd.Series, at_idx: int, bullish: bool) -> float:
     return 1.0 if above_neutral == bullish else 0.0
 
 
-def confidence_score(geometry_quality: float, volume_conf: float, trend_conf: float, rsi_conf: float) -> float:
-    """Combine les quatre composantes en un score final 0-100 (1 décimale)."""
-    raw = (
-        GEOMETRY_WEIGHT * geometry_quality
-        + VOLUME_WEIGHT * volume_conf
-        + TREND_WEIGHT * trend_conf
-        + RSI_WEIGHT * rsi_conf
-    )
+def macd_confirmation(close: pd.Series, at_idx: int, bullish: bool) -> float:
+    """1.0 si la ligne MACD est du bon côté de sa ligne du zéro (au-dessus
+    pour une figure haussière, en dessous pour une figure baissière), 0.0
+    sinon, 0.5 si l'historique est insuffisant (`MACD_SLOW_SPAN` séances) ou
+    si la valeur est `NaN` — même logique que `rsi_confirmation` ci-dessus,
+    appliquée à la ligne du zéro du MACD plutôt qu'à la zone de neutralité du
+    RSI (`George_AnalyseTechnique_Kabbaj_Synthese.md` §4)."""
+    # Import différé — même raison que dans `trend_alignment`/`rsi_confirmation`.
+    from engine.patterns.common import macd
+
+    macd_line, _, _ = macd(close)
+    if at_idx >= len(macd_line):
+        return 0.5
+    value = macd_line.iloc[at_idx]
+    if pd.isna(value):
+        return 0.5
+    above_zero = value > 0
+    return 1.0 if above_zero == bullish else 0.0
+
+
+def stochastic_confirmation(high: pd.Series, low: pd.Series, close: pd.Series, at_idx: int, bullish: bool) -> float:
+    """1.0 si le %K stochastique est dans la zone qui confirme le sens de la
+    figure (survente pour une figure haussière, surachat pour une figure
+    baissière), 0.0 sinon, 0.5 si l'historique est insuffisant
+    (`STOCHASTIC_WINDOW` séances) ou si la valeur est `NaN`. Réservée aux
+    détecteurs de `engine/patterns/candlestick.py` — voir la docstring de
+    `confidence_score`."""
+    # Import différé — même raison que dans `trend_alignment`/`rsi_confirmation`.
+    from engine.patterns.common import STOCHASTIC_OVERBOUGHT, STOCHASTIC_OVERSOLD, stochastic_oscillator
+
+    percent_k, _ = stochastic_oscillator(high, low, close)
+    if at_idx >= len(percent_k):
+        return 0.5
+    value = percent_k.iloc[at_idx]
+    if pd.isna(value):
+        return 0.5
+    if bullish:
+        return 1.0 if value < STOCHASTIC_OVERSOLD else 0.0
+    return 1.0 if value > STOCHASTIC_OVERBOUGHT else 0.0
+
+
+def confidence_score(
+    geometry_quality: float,
+    volume_conf: float,
+    trend_conf: float,
+    rsi_conf: float,
+    macd_conf: float,
+    stoch_conf: float | None = None,
+) -> float:
+    """Combine les composantes en un score final 0-100 (1 décimale).
+
+    `stoch_conf` est optionnel : seuls les détecteurs de bougies japonaises
+    (`engine/patterns/candlestick.py`) le calculent (voir sa docstring
+    ci-dessus). Quand il est absent, son poids (`STOCH_WEIGHT`) est
+    redistribué proportionnellement sur les 5 autres composantes plutôt que
+    de pénaliser silencieusement une figure pour une dimension qui ne
+    s'applique pas à elle — même philosophie que `engine/george_index.py`
+    (`None` plutôt qu'un 0 pour un cas hors périmètre)."""
+    if stoch_conf is None:
+        scale = 1.0 / (1.0 - STOCH_WEIGHT)
+        raw = scale * (
+            GEOMETRY_WEIGHT * geometry_quality
+            + VOLUME_WEIGHT * volume_conf
+            + TREND_WEIGHT * trend_conf
+            + RSI_WEIGHT * rsi_conf
+            + MACD_WEIGHT * macd_conf
+        )
+    else:
+        raw = (
+            GEOMETRY_WEIGHT * geometry_quality
+            + VOLUME_WEIGHT * volume_conf
+            + TREND_WEIGHT * trend_conf
+            + RSI_WEIGHT * rsi_conf
+            + MACD_WEIGHT * macd_conf
+            + STOCH_WEIGHT * stoch_conf
+        )
     return round(float(np.clip(raw, 0.0, 1.0)) * 100, 1)

@@ -17,7 +17,16 @@ Paramètres :
 
 import pandas as pd
 
-from engine.patterns.common import RSI_WINDOW, rsi, sma
+from engine.patterns.common import (
+    BOLLINGER_WINDOW,
+    RSI_WINDOW,
+    STOCHASTIC_WINDOW,
+    bollinger_bands,
+    macd,
+    rsi,
+    sma,
+    stochastic_oscillator,
+)
 
 VOLUME_LOOKBACK = 20
 ATR_WINDOW = 14
@@ -27,10 +36,12 @@ SMA_LONG = 200
 # Colonnes de features partagées entre l'entraînement
 # (engine/notebooks/train_confidence_model.ipynb) et l'inférence
 # (engine/scoring.py) — toute figure/titre produisant ces colonnes peut être
-# scoré par le modèle appris. `rsi_14` ajoutée après lecture de
+# scoré par le modèle appris. `rsi_14`, puis `macd_hist_pct`/`bb_percent_b`/
+# `stochastic_k` ajoutées après lecture de
 # George_AnalyseTechnique_Kabbaj_Synthese.md — voir `rsi_at` ci-dessous pour
-# pourquoi elle n'est volontairement pas une feature "gatante" comme les
-# autres (`build_feature_row` dans `engine/scoring.py`).
+# pourquoi elles ne sont volontairement pas des features "gatantes" comme les
+# autres (`build_feature_row` dans `engine/scoring.py`) : elles nécessitent
+# nettement moins d'historique que la SMA200 déjà gatante.
 CATEGORICAL_FEATURE_COLUMNS = ["pattern_type", "sector"]
 NUMERIC_FEATURE_COLUMNS = [
     "relative_volume",
@@ -40,6 +51,9 @@ NUMERIC_FEATURE_COLUMNS = [
     "price_over_sma200",
     "sma50_over_sma200",
     "rsi_14",
+    "macd_hist_pct",
+    "bb_percent_b",
+    "stochastic_k",
 ]
 FEATURE_COLUMNS = CATEGORICAL_FEATURE_COLUMNS + NUMERIC_FEATURE_COLUMNS
 
@@ -103,4 +117,39 @@ def rsi_at(df: pd.DataFrame, at_idx: int, window: int = RSI_WINDOW) -> float | N
     `atr_pct`/`relative_volume`/les moyennes mobiles ci-dessus (qui bloquent
     le scoring appris s'ils manquent)."""
     value = rsi(df["close"], window=window).iloc[at_idx]
+    return None if pd.isna(value) else float(value)
+
+
+def macd_hist_pct(df: pd.DataFrame, at_idx: int) -> float | None:
+    """Histogramme MACD (ligne MACD - ligne de signal) à `at_idx`, exprimé en
+    % du prix de clôture — même normalisation que `atr_pct`, pour rester
+    comparable entre titres à des échelles de prix différentes. Traitée comme
+    `rsi_14` ci-dessus (non gatante) dans `engine/scoring.py:build_feature_row`."""
+    _, _, histogram = macd(df["close"])
+    value = histogram.iloc[at_idx]
+    close = df["close"].iloc[at_idx]
+    if pd.isna(value) or close == 0:
+        return None
+    return float(value / close)
+
+
+def bb_percent_b(df: pd.DataFrame, at_idx: int, window: int = BOLLINGER_WINDOW) -> float | None:
+    """Position du prix dans les bandes de Bollinger à `at_idx` (« %b ») :
+    0.0 sur la bande basse, 1.0 sur la bande haute, 0.5 sur la médiane — peut
+    sortir de [0, 1] lors d'une cassure des bandes elles-mêmes. `None` si la
+    fenêtre `window` n'est pas encore pleine ou si les bandes sont plates
+    (aucune volatilité, division par zéro). Traitée comme `rsi_14` ci-dessus
+    (non gatante) dans `engine/scoring.py:build_feature_row`."""
+    _, upper, lower = bollinger_bands(df["close"], window=window)
+    up, low = upper.iloc[at_idx], lower.iloc[at_idx]
+    if pd.isna(up) or pd.isna(low) or up == low:
+        return None
+    return float((df["close"].iloc[at_idx] - low) / (up - low))
+
+
+def stochastic_k_at(df: pd.DataFrame, at_idx: int, window: int = STOCHASTIC_WINDOW) -> float | None:
+    """%K de l'oscillateur stochastique à `at_idx` (0-100). Traitée comme
+    `rsi_14` ci-dessus (non gatante) dans `engine/scoring.py:build_feature_row`."""
+    percent_k, _ = stochastic_oscillator(df["high"], df["low"], df["close"], window=window)
+    value = percent_k.iloc[at_idx]
     return None if pd.isna(value) else float(value)

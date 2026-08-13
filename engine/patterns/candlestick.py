@@ -15,10 +15,14 @@ donc, en plus de la géométrie OHLC, que la **tendance récente** (les
 `TREND_CONTEXT_BARS` séances précédant la bougie de signal, hors bougie(s) de
 signal elle(s)-même(s)) aille dans le sens attendu par la figure — sinon `[]`,
 même si la géométrie seule serait valide. C'est un filtre dur (avant même de
-calculer une confiance), distinct des facteurs `trend_conf`/`rsi_conf` de
-`engine/confidence.py` qui, eux, continuent de pondérer la confiance finale
-exactement comme pour les 13 détecteurs existants (même architecture, mêmes
-poids GEOMETRY/VOLUME/TREND/RSI).
+calculer une confiance), distinct des facteurs `trend_conf`/`rsi_conf`/
+`macd_conf` de `engine/confidence.py` qui, eux, continuent de pondérer la
+confiance finale exactement comme pour les 13 détecteurs existants (même
+architecture, mêmes poids GEOMETRY/VOLUME/TREND/RSI/MACD). Le stochastique
+(`stoch_conf`) est en revanche spécifique à ce module : la synthèse Kabbaj
+(§2.7/§4) ne le documente qu'en combinaison avec les bougies japonaises, donc
+`confidence_score` ne le reçoit que d'ici (voir sa docstring pour comment son
+poids est redistribué ailleurs).
 
 Chaque paire de figures (marteau/pendu, marteau inversé/étoile filante) a la
 **même géométrie**, seule la tendance précédente et le sens qui en découle
@@ -31,8 +35,15 @@ confirmer que le contexte est propice à un retournement.
 import numpy as np
 import pandas as pd
 
-from engine.confidence import confidence_score, rsi_confirmation, trend_alignment, volume_confirmation
-from engine.patterns.common import PatternMatch, relative_slope, rsi
+from engine.confidence import (
+    confidence_score,
+    macd_confirmation,
+    rsi_confirmation,
+    stochastic_confirmation,
+    trend_alignment,
+    volume_confirmation,
+)
+from engine.patterns.common import PatternMatch, macd, relative_slope, rsi
 
 TREND_CONTEXT_BARS = 10
 MIN_TREND_SLOPE_FOR_CANDLESTICK = 0.001  # même ordre de grandeur que continuation.py:MIN_TREND_SLOPE
@@ -46,6 +57,14 @@ MIN_PIERCING_PENETRATION = 0.5  # pénétration minimale dans le corps précéde
 
 def _rsi_at_last(close) -> float | None:
     value = rsi(close).iloc[-1]
+    return None if pd.isna(value) else float(value)
+
+
+def _macd_line_at_last(close) -> float | None:
+    """Même helper que `reversal.py`/`continuation.py`/`breakout.py` — voir
+    leur docstring."""
+    macd_line, _, _ = macd(close)
+    value = macd_line.iloc[-1]
     return None if pd.isna(value) else float(value)
 
 
@@ -89,18 +108,26 @@ def _score_and_match(df, pattern_type, geometry_quality, bullish, signal_idx, ex
     volume_conf = volume_confirmation(df["volume"], at_idx)
     trend_conf = trend_alignment(close, bullish=bullish)
     rsi_conf = rsi_confirmation(close, at_idx, bullish=bullish)
+    macd_conf = macd_confirmation(close, at_idx, bullish=bullish)
+    # Stochastique : voir `engine/confidence.py:stochastic_confirmation` —
+    # réservé aux bougies japonaises (§2.7/§4 de la synthèse Kabbaj), donc
+    # calculé uniquement ici parmi les 22 détecteurs de `engine/patterns/`.
+    stoch_conf = stochastic_confirmation(df["high"], df["low"], close, at_idx, bullish=bullish)
     return [
         PatternMatch(
             pattern_type=pattern_type,
             detected_at=df.index[-1],
-            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf, macd_conf, stoch_conf),
             context={
                 "signal_index": signal_idx,
                 "rsi_14": _rsi_at_last(close),
+                "macd_line": _macd_line_at_last(close),
                 "geometry_quality": round(float(geometry_quality), 3),
                 "volume_confirmation": round(float(volume_conf), 3),
                 "trend_alignment": round(float(trend_conf), 3),
                 "rsi_confirmation": round(float(rsi_conf), 3),
+                "macd_confirmation": round(float(macd_conf), 3),
+                "stochastic_confirmation": round(float(stoch_conf), 3),
                 **extra_context,
             },
         )

@@ -79,6 +79,7 @@ def test_decision_context_carries_confidence_subscores_when_present():
         "volume_confirmation": 1.0,
         "trend_alignment": 0.5,
         "rsi_confirmation": 1.0,
+        "macd_confirmation": 0.7,
     }
     context = decision_context(_decision(), pattern, _security())
     assert context["pattern"]["scores"] == {
@@ -86,6 +87,11 @@ def test_decision_context_carries_confidence_subscores_when_present():
         "volume": 1.0,
         "tendance": 0.5,
         "rsi": 1.0,
+        "macd": 0.7,
+        # `_pattern()` est un "Bull Flag" (figure chartiste classique), pas
+        # une bougie japonaise -- `stochastic_confirmation` n'existe donc
+        # jamais dans son `context` (voir `engine/patterns/candlestick.py`).
+        "stochastique": None,
     }
 
 
@@ -98,6 +104,8 @@ def test_decision_context_subscores_are_none_when_absent_from_pattern_context():
         "volume": None,
         "tendance": None,
         "rsi": None,
+        "macd": None,
+        "stochastique": None,
     }
 
 
@@ -118,15 +126,31 @@ def test_decision_context_always_carries_the_real_confidence_weights():
     pas propres à une figure -- toujours présentes, forwardées depuis la
     source plutôt que recopiées à la main pour ne jamais se désynchroniser
     d'un futur rebalancement."""
-    from engine.confidence import GEOMETRY_WEIGHT, RSI_WEIGHT, TREND_WEIGHT, VOLUME_WEIGHT
+    from engine.confidence import GEOMETRY_WEIGHT, MACD_WEIGHT, RSI_WEIGHT, TREND_WEIGHT, VOLUME_WEIGHT
 
+    # `_pattern()` est un "Bull Flag" -- pas de clé "stochastique" ici, voir
+    # `test_decision_context_carries_the_stochastic_weight_for_candlesticks`.
     context = decision_context(_decision(), _pattern(), _security())
     assert context["pattern"]["ponderations"] == {
         "geometrie": GEOMETRY_WEIGHT,
         "volume": VOLUME_WEIGHT,
         "tendance": TREND_WEIGHT,
         "rsi": RSI_WEIGHT,
+        "macd": MACD_WEIGHT,
     }
+
+
+def test_decision_context_carries_the_stochastic_weight_for_candlesticks():
+    """Le stochastique n'est documenté (synthèse Kabbaj §2.7/§4) qu'en
+    combinaison avec les bougies japonaises -- son poids n'apparaît donc dans
+    `ponderations` que pour ces 12 types de figures, jamais pour les 13
+    figures chartistes classiques (voir le test ci-dessus)."""
+    from engine.confidence import STOCH_WEIGHT
+
+    pattern = _pattern()
+    pattern.pattern_type = "Hammer"
+    context = decision_context(_decision(), pattern, _security())
+    assert context["pattern"]["ponderations"]["stochastique"] == STOCH_WEIGHT
 
 
 def test_decision_context_computes_fibonacci_levels_for_reversal_pattern():

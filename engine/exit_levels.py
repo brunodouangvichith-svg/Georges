@@ -27,7 +27,7 @@ from __future__ import annotations
 import pandas as pd
 
 from engine.patterns.breakout import WINDOW as BREAKOUT_WINDOW
-from engine.patterns.common import BREAKOUT_BUFFER
+from engine.patterns.common import BOLLINGER_WINDOW, BREAKOUT_BUFFER, bollinger_bands
 from engine.patterns.continuation import WINDOW as TRIANGLE_WEDGE_WINDOW
 
 BULLISH_PATTERNS = {
@@ -247,3 +247,21 @@ def fibonacci_retracement_levels(swing_low: float, swing_high: float) -> dict[st
     que par ratio brut, pour un rendu direct dans un contexte JSON lisible."""
     amplitude = swing_high - swing_low
     return {f"{ratio * 100:.1f}%": swing_high - amplitude * ratio for ratio in FIBONACCI_RATIOS}
+
+
+def bollinger_band_levels(df: pd.DataFrame, at_idx: int, window: int = BOLLINGER_WINDOW) -> dict[str, float] | None:
+    """Bandes de Bollinger (basse/médiane/haute) au prix courant, à titre
+    informationnel pour l'explication LLM (`agents/context.py`) — mêmes
+    principe et limites que `fibonacci_retracement_levels` ci-dessus : la
+    synthèse Kabbaj §4 les cite pour ajuster le placement d'un stop à la
+    volatilité réelle du titre, PAS pour remplacer les formules de
+    measured-move déjà en place plus haut dans ce fichier. `None` si
+    l'historique est insuffisant (`window` séances)."""
+    mid, upper, lower = bollinger_bands(df["close"], window=window)
+    if at_idx >= len(mid) or pd.isna(mid.iloc[at_idx]):
+        return None
+    return {
+        "bande_basse": float(lower.iloc[at_idx]),
+        "bande_mediane": float(mid.iloc[at_idx]),
+        "bande_haute": float(upper.iloc[at_idx]),
+    }

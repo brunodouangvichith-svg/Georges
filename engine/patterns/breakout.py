@@ -19,12 +19,13 @@ range-puis-cassure.
 import numpy as np
 import pandas as pd
 
-from engine.confidence import confidence_score, rsi_confirmation, trend_alignment, volume_confirmation
+from engine.confidence import confidence_score, macd_confirmation, rsi_confirmation, trend_alignment, volume_confirmation
 from engine.patterns.common import (
     BREAKOUT_BUFFER,
     LEVEL_TOLERANCE,
     MIN_PATTERN_BARS,
     PatternMatch,
+    macd,
     rsi,
     tail_window,
 )
@@ -33,6 +34,13 @@ from engine.patterns.common import (
 def _rsi_at_last(close) -> float | None:
     """Même helper que `reversal.py`/`continuation.py` — voir leur docstring."""
     value = rsi(close).iloc[-1]
+    return None if pd.isna(value) else float(value)
+
+
+def _macd_line_at_last(close) -> float | None:
+    """Même helper que `reversal.py`/`continuation.py` — voir leur docstring."""
+    macd_line, _, _ = macd(close)
+    value = macd_line.iloc[-1]
     return None if pd.isna(value) else float(value)
 
 WINDOW = 20
@@ -62,20 +70,23 @@ def detect_breakout(df) -> list[PatternMatch]:
     volume_conf = volume_confirmation(df["volume"], len(df) - 1)
     trend_conf = trend_alignment(df["close"], bullish=True)
     rsi_conf = rsi_confirmation(df["close"], len(df) - 1, bullish=True)
+    macd_conf = macd_confirmation(df["close"], len(df) - 1, bullish=True)
 
     return [
         PatternMatch(
             pattern_type="Breakout",
             detected_at=df.index[-1],
-            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf, macd_conf),
             context={
                 "resistance": float(resistance),
                 "touches": touches,
                 "rsi_14": _rsi_at_last(df["close"]),
+                "macd_line": _macd_line_at_last(df["close"]),
                 "geometry_quality": round(float(geometry_quality), 3),
                 "volume_confirmation": round(float(volume_conf), 3),
                 "trend_alignment": round(float(trend_conf), 3),
                 "rsi_confirmation": round(float(rsi_conf), 3),
+                "macd_confirmation": round(float(macd_conf), 3),
             },
         )
     ]
@@ -104,20 +115,23 @@ def detect_breakdown(df) -> list[PatternMatch]:
     volume_conf = volume_confirmation(df["volume"], len(df) - 1)
     trend_conf = trend_alignment(df["close"], bullish=False)
     rsi_conf = rsi_confirmation(df["close"], len(df) - 1, bullish=False)
+    macd_conf = macd_confirmation(df["close"], len(df) - 1, bullish=False)
 
     return [
         PatternMatch(
             pattern_type="Breakdown",
             detected_at=df.index[-1],
-            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf),
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf, macd_conf),
             context={
                 "support": float(support),
                 "touches": touches,
                 "rsi_14": _rsi_at_last(df["close"]),
+                "macd_line": _macd_line_at_last(df["close"]),
                 "geometry_quality": round(float(geometry_quality), 3),
                 "volume_confirmation": round(float(volume_conf), 3),
                 "trend_alignment": round(float(trend_conf), 3),
                 "rsi_confirmation": round(float(rsi_conf), 3),
+                "macd_confirmation": round(float(macd_conf), 3),
             },
         )
     ]

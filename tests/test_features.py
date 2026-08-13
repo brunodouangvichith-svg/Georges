@@ -1,6 +1,6 @@
 import numpy as np
 
-from engine.features import atr_pct, position_vs_moving_averages, relative_volume, rsi_at
+from engine.features import atr_pct, bb_percent_b, macd_hist_pct, position_vs_moving_averages, relative_volume, rsi_at, stochastic_k_at
 from tests.test_patterns import make_df, ramp
 
 
@@ -57,3 +57,41 @@ def test_rsi_at_high_on_an_uninterrupted_rally():
     value = rsi_at(df, len(df) - 1, window=14)
     assert value is not None
     assert value > 90.0  # hausse ininterrompue -> RSI proche de 100 (voir engine.patterns.common.rsi)
+
+
+def test_macd_hist_pct_none_before_window_warms_up():
+    df = make_df(ramp(100, 110, 10))
+    assert macd_hist_pct(df, 5) is None
+
+
+def test_macd_hist_pct_positive_on_an_uninterrupted_rally():
+    df = make_df(ramp(100, 160, 60))
+    value = macd_hist_pct(df, len(df) - 1)
+    assert value is not None
+    assert value > 0
+
+
+def test_bb_percent_b_none_before_window_warms_up():
+    df = make_df(ramp(100, 110, 10))
+    assert bb_percent_b(df, 5) is None
+
+
+def test_bb_percent_b_near_one_on_an_uninterrupted_rally():
+    """Une hausse continue laisse le prix coller à la bande haute -- %b
+    proche de 1.0 (voir engine.patterns.common.bollinger_bands)."""
+    df = make_df(ramp(100, 130, 30))
+    value = bb_percent_b(df, len(df) - 1)
+    assert value is not None
+    assert value > 0.8
+
+
+def test_stochastic_k_at_none_before_window_warms_up():
+    df = make_df(ramp(100, 110, 10))
+    assert stochastic_k_at(df, 5) is None
+
+
+def test_stochastic_k_at_high_on_an_uninterrupted_rally():
+    df = make_df(ramp(100, 130, 30))
+    value = stochastic_k_at(df, len(df) - 1)
+    assert value is not None
+    assert value > 90.0  # clôture au plus haut de la fenêtre -> %K proche de 100

@@ -66,6 +66,14 @@ def make_synthetic_dataset(n: int = 800, seed: int = 42) -> pd.DataFrame:
         # d'autre de la zone neutre (50) selon le sens de la figure, comme
         # les autres features déjà biaisées ci-dessus.
         rsi_14 = float(np.clip(rng.normal(45.0 if is_bear else 55.0, 15.0), 0.0, 100.0))
+        # `macd_hist_pct`/`bb_percent_b`/`stochastic_k` ajoutées à
+        # `NUMERIC_FEATURE_COLUMNS` en même temps que le MACD/Bollinger/
+        # stochastique (synthèse Kabbaj §4) — même raison que `rsi_14`
+        # ci-dessus : sans elles, `dataset[FEATURE_COLUMNS]` lève un
+        # `KeyError`. Même biais directionnel selon le sens de la figure.
+        macd_hist_pct = float(rng.normal(-0.005 if is_bear else 0.005, 0.01))
+        bb_percent_b = float(np.clip(rng.normal(0.3 if is_bear else 0.7, 0.2), -0.2, 1.2))
+        stochastic_k = float(np.clip(rng.normal(35.0 if is_bear else 65.0, 20.0), 0.0, 100.0))
 
         aligned_trend = -market_trend if is_bear else market_trend
         signal = (relative_volume - 1.0) + aligned_trend / 5 + (price_over_sma50 - 1.0) * 5
@@ -83,6 +91,9 @@ def make_synthetic_dataset(n: int = 800, seed: int = 42) -> pd.DataFrame:
             "price_over_sma200": price_over_sma200,
             "sma50_over_sma200": sma50_over_sma200,
             "rsi_14": rsi_14,
+            "macd_hist_pct": macd_hist_pct,
+            "bb_percent_b": bb_percent_b,
+            "stochastic_k": stochastic_k,
             f"return_{TRAINING_HORIZON}": ret,
             TARGET_COLUMN: success,
         })
