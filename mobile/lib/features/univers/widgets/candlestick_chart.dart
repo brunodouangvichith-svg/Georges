@@ -253,80 +253,119 @@ class _CandlestickChartState extends State<CandlestickChart> {
     final textDimColor = Theme.of(context).colorScheme.outline;
     final signalLineColor = Colors.orange.shade400;
     final bollingerColor = Colors.purple.shade300;
+    final macdPanelTop = pricePanelHeight + gap;
+    final stochPanelTop = macdPanelTop + subPanelHeight + gap;
 
     return SizedBox(
       width: widget.width,
       height: totalContentHeight,
-      // Pincer-zoomer / glisser sur la courbe -- `InteractiveViewer` gère
-      // nativement le pinch/pan sans toucher aux `CustomPainter`. Le contenu
-      // (`contentWidth`) dépasse largement `width` : `constrained: false`
-      // l'autorise, et `boundaryMargin` par défaut (zéro) empêche tout
-      // survol au-delà des données réelles dans les deux sens.
-      child: InteractiveViewer(
-        transformationController: _transformController,
-        constrained: false,
-        minScale: 1.0,
-        maxScale: 4.0,
-        // Se reconstruit à chaque pan/zoom pour recalculer `visibleRange` et
-        // ainsi réajuster l'échelle verticale des panneaux sur ce qui est
-        // réellement visible (voir `_visibleCandleRange`).
-        child: AnimatedBuilder(
-          animation: _transformController,
-          builder: (context, _) {
-            final visibleRange = _visibleCandleRange(contentWidth, widget.width, widget.candles.length);
-            return SizedBox(
-              width: contentWidth,
-              height: totalContentHeight,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CustomPaint(
-                    size: Size(contentWidth, pricePanelHeight),
-                    painter: _CandlestickPainter(
-                      candles: widget.candles,
-                      overlay: overlay,
-                      bollinger: bollinger,
-                      visibleRange: visibleRange,
-                      takeProfit: widget.takeProfit,
-                      stopLoss: widget.stopLoss,
-                      positiveColor: positiveColor,
-                      negativeColor: negativeColor,
-                      accentColor: accentColor,
-                      textDimColor: textDimColor,
-                      bollingerColor: bollingerColor,
-                    ),
+      // Les étiquettes de panneau (`_PanelLabel` ci-dessous) sont superposées
+      // EN DEHORS de l'`InteractiveViewer` -- dessinées à l'intérieur du
+      // canvas défilable, elles resteraient ancrées aux données les plus
+      // anciennes (2016) et disparaîtraient hors-écran dès l'ouverture, qui
+      // défile directement sur les séances récentes (bug réel trouvé en
+      // testant sur un vrai titre : les 3 panneaux s'affichaient sans aucun
+      // nom visible).
+      child: Stack(
+        children: [
+          // Pincer-zoomer / glisser sur la courbe -- `InteractiveViewer` gère
+          // nativement le pinch/pan sans toucher aux `CustomPainter`. Le
+          // contenu (`contentWidth`) dépasse largement `width` :
+          // `constrained: false` l'autorise, et `boundaryMargin` par défaut
+          // (zéro) empêche tout survol au-delà des données réelles.
+          InteractiveViewer(
+            transformationController: _transformController,
+            constrained: false,
+            minScale: 1.0,
+            maxScale: 4.0,
+            // Se reconstruit à chaque pan/zoom pour recalculer `visibleRange`
+            // et ainsi réajuster l'échelle verticale des panneaux sur ce qui
+            // est réellement visible (voir `_visibleCandleRange`).
+            child: AnimatedBuilder(
+              animation: _transformController,
+              builder: (context, _) {
+                final visibleRange = _visibleCandleRange(contentWidth, widget.width, widget.candles.length);
+                return SizedBox(
+                  width: contentWidth,
+                  height: totalContentHeight,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CustomPaint(
+                        size: Size(contentWidth, pricePanelHeight),
+                        painter: _CandlestickPainter(
+                          candles: widget.candles,
+                          overlay: overlay,
+                          bollinger: bollinger,
+                          visibleRange: visibleRange,
+                          takeProfit: widget.takeProfit,
+                          stopLoss: widget.stopLoss,
+                          positiveColor: positiveColor,
+                          negativeColor: negativeColor,
+                          accentColor: accentColor,
+                          textDimColor: textDimColor,
+                          bollingerColor: bollingerColor,
+                        ),
+                      ),
+                      SizedBox(height: gap),
+                      CustomPaint(
+                        size: Size(contentWidth, subPanelHeight),
+                        painter: _MacdPainter(
+                          macdResult: macdResult!,
+                          candleCount: widget.candles.length,
+                          visibleRange: visibleRange,
+                          positiveColor: positiveColor,
+                          negativeColor: negativeColor,
+                          macdLineColor: accentColor,
+                          signalLineColor: signalLineColor,
+                          textDimColor: textDimColor,
+                        ),
+                      ),
+                      SizedBox(height: gap),
+                      CustomPaint(
+                        size: Size(contentWidth, subPanelHeight),
+                        painter: _StochasticPainter(
+                          stochResult: stochResult!,
+                          candleCount: widget.candles.length,
+                          percentKColor: accentColor,
+                          percentDColor: signalLineColor,
+                          textDimColor: textDimColor,
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: gap),
-                  CustomPaint(
-                    size: Size(contentWidth, subPanelHeight),
-                    painter: _MacdPainter(
-                      macdResult: macdResult!,
-                      candleCount: widget.candles.length,
-                      visibleRange: visibleRange,
-                      positiveColor: positiveColor,
-                      negativeColor: negativeColor,
-                      macdLineColor: accentColor,
-                      signalLineColor: signalLineColor,
-                      textDimColor: textDimColor,
-                    ),
-                  ),
-                  SizedBox(height: gap),
-                  CustomPaint(
-                    size: Size(contentWidth, subPanelHeight),
-                    painter: _StochasticPainter(
-                      stochResult: stochResult!,
-                      candleCount: widget.candles.length,
-                      percentKColor: accentColor,
-                      percentDColor: signalLineColor,
-                      textDimColor: textDimColor,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
+                );
+              },
+            ),
+          ),
+          Positioned(top: 2, left: 4, child: _PanelLabel('Bollinger (20, 2)', bollingerColor)),
+          Positioned(top: macdPanelTop + 2, left: 4, child: _PanelLabel('MACD (12, 26, 9)', accentColor)),
+          Positioned(top: stochPanelTop + 2, left: 4, child: _PanelLabel('Stochastique (14, 3)', accentColor)),
+        ],
       ),
+    );
+  }
+}
+
+/// Étiquette de coin superposée à un panneau (prix/MACD/Stochastique) --
+/// voir la note sur `Stack` ci-dessus pour pourquoi ce n'est plus dessiné
+/// dans le `CustomPainter` lui-même. Fond semi-opaque pour rester lisible
+/// par-dessus des bougies/lignes très denses.
+class _PanelLabel extends StatelessWidget {
+  const _PanelLabel(this.label, this.color);
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.75),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
     );
   }
 }
@@ -438,8 +477,6 @@ class _CandlestickPainter extends CustomPainter {
     _drawDashedLine(
         canvas, Offset(0, scaleY(lastClose)), Offset(width - 46, scaleY(lastClose)), textDimColor, 1, [2, 3]);
     _drawTag(canvas, width, scaleY(lastClose), lastClose.toStringAsFixed(2), Colors.grey.shade800, textDimColor);
-
-    if (bollinger != null) _drawPanelLabel(canvas, 'Bollinger (20, 2)', bollingerColor);
   }
 
   void _drawPriceTag(Canvas canvas, double width, double y, double level, Color color, double plotW) {
@@ -488,18 +525,6 @@ class _CandlestickPainter extends CustomPainter {
       oldDelegate.overlay != overlay ||
       oldDelegate.bollinger != bollinger ||
       oldDelegate.visibleRange != visibleRange;
-}
-
-/// Petite étiquette de coin commune aux 3 panneaux (prix/MACD/Stochastique)
-/// -- identifie le panneau une fois le graphique élargi et défilable, où le
-/// contexte visuel (titre au-dessus du prix) n'est plus forcément visible
-/// simultanément avec les panneaux du bas.
-void _drawPanelLabel(Canvas canvas, String label, Color color) {
-  final painter = TextPainter(
-    text: TextSpan(text: label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
-    textDirection: TextDirection.ltr,
-  )..layout();
-  painter.paint(canvas, const Offset(4, 2));
 }
 
 class _MacdPainter extends CustomPainter {
@@ -568,7 +593,6 @@ class _MacdPainter extends CustomPainter {
 
     _drawSeries(canvas, macdResult.macdLine, x, scaleY, macdLineColor);
     _drawSeries(canvas, macdResult.signalLine, x, scaleY, signalLineColor);
-    _drawPanelLabel(canvas, 'MACD (12, 26, 9)', macdLineColor);
   }
 
   void _drawDashedZeroLine(Canvas canvas, double y, double plotW, Color color) {
@@ -626,7 +650,6 @@ class _StochasticPainter extends CustomPainter {
 
     _drawSeries(canvas, stochResult.percentK, x, scaleY, percentKColor);
     _drawSeries(canvas, stochResult.percentD, x, scaleY, percentDColor);
-    _drawPanelLabel(canvas, 'Stochastique (14, 3)', percentKColor);
   }
 
   void _drawDashedLine(Canvas canvas, Offset start, Offset end, Color color, List<double> pattern) {

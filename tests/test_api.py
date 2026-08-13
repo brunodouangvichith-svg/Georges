@@ -535,6 +535,23 @@ def test_decision_explanation_cites_real_numbers(client, mock_llm):
     assert "Bull Flag" in body["explanation"]
 
 
+def test_decision_explanation_is_reformulated_by_jane(client, mock_llm):
+    """`explanation` passe toujours par `agents.jane.reformulate_formal`
+    (une passe de style demandée par l'utilisateur pour l'écran « George
+    explique », sans rapport avec le second avis de `second_opinion`
+    ci-dessous) -- le client Mistral factice imbrique le texte précédent
+    dans son "echo", donc le tag de modèle de George doit apparaître deux
+    fois (l'explication brute, puis la reformulation) sans qu'aucun chiffre
+    réel ne soit perdu au passage."""
+    decision_id = _get_decision_id(client)
+    resp = client.post(f"/decisions/{decision_id}/explanation", json={"include_second_opinion": False})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["explanation"].count("mistral-small-latest") == 2
+    assert "129.0" in body["explanation"]
+    assert body["second_opinion"] is None
+
+
 def test_decision_explanation_with_second_opinion_calls_jane_first(client, mock_llm):
     decision_id = _get_decision_id(client)
     resp = client.post(f"/decisions/{decision_id}/explanation", json={"include_second_opinion": True})

@@ -91,12 +91,58 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// Yahoo n'est pas un fournisseur natif de Supabase Auth (contrairement à
+  /// Google) -- `OAuthProvider` accepte cependant n'importe quel identifiant
+  /// de "custom OAuth/OIDC provider" enregistré côté tableau de bord Supabase
+  /// (Auth → Providers → New Provider → Auto-discovery (OIDC)), Yahoo étant
+  /// lui-même compatible OpenID Connect. `custom:yahoo-oauth` est
+  /// l'identifiant à utiliser lors de cet enregistrement -- voir le guide
+  /// d'inscription de l'app Yahoo (developer.yahoo.com/apps) pour le détail
+  /// des étapes externes, qui nécessitent le compte Yahoo/Supabase de
+  /// l'utilisateur et ne peuvent pas être faites depuis ce dépôt.
+  Future<void> _signInWithYahoo() async {
+    setState(() => _errorMessage = null);
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider('custom:yahoo-oauth'),
+        redirectTo: 'io.supabase.george://login-callback/',
+      );
+    } on AuthException catch (e) {
+      setState(() => _errorMessage = e.message);
+    } catch (e) {
+      setState(() => _errorMessage = 'Erreur inattendue : $e');
+    }
+  }
+
   Future<void> _showSignUpFailureDialog(BuildContext dialogContext, String message) {
     return showDialog<void>(
       context: dialogContext,
       builder: (context) => AlertDialog(
         title: const Text('Création de compte échouée'),
         content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
+        ],
+      ),
+    );
+  }
+
+  /// Affiché à la place d'une redirection automatique quand `signUp` ne
+  /// renvoie pas de session active (`response.session == null`) -- c'est le
+  /// cas dès que l'option "Confirm email" est activée côté projet Supabase
+  /// (Authentication → Sign In / Providers → Email), qui déclenche l'envoi
+  /// automatique de l'email de confirmation par Supabase lui-même : rien à
+  /// coder côté app pour l'envoi, seulement pour ne plus supposer une
+  /// connexion immédiate après "Enregistrer".
+  Future<void> _showConfirmationEmailSentDialog(BuildContext dialogContext, String email) {
+    return showDialog<void>(
+      context: dialogContext,
+      builder: (context) => AlertDialog(
+        title: const Text('Vérifiez votre boîte mail'),
+        content: Text(
+          'Un email de confirmation a été envoyé à $email. Cliquez sur le lien qu\'il contient pour activer votre '
+          'compte, puis connectez-vous ci-dessous.',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
         ],
@@ -176,16 +222,26 @@ class _LoginScreenState extends State<LoginScreen> {
                       }
 
                       setDialogState(() => isSubmitting = true);
+                      final email = emailController.text.trim();
                       try {
-                        await Supabase.instance.client.auth.signUp(
-                          email: emailController.text.trim(),
+                        final response = await Supabase.instance.client.auth.signUp(
+                          email: email,
                           password: password,
                         );
                         if (!dialogContext.mounted) return;
                         Navigator.of(dialogContext).pop();
-                        // Le `redirect:` du routeur (voir app.dart) bascule
-                        // automatiquement dès que authStateProvider voit la
-                        // nouvelle session — rien d'autre à faire ici.
+                        if (response.session == null) {
+                          // "Confirm email" activé côté Supabase : pas de
+                          // session tout de suite, l'email vient d'être
+                          // envoyé par Supabase -- on l'explique plutôt que
+                          // de laisser croire que la connexion a échoué.
+                          if (!mounted) return;
+                          await _showConfirmationEmailSentDialog(context, email);
+                        }
+                        // Sinon (session déjà active), le `redirect:` du
+                        // routeur (voir app.dart) bascule automatiquement
+                        // dès que authStateProvider la voit — rien d'autre à
+                        // faire ici.
                       } on AuthException catch (e) {
                         setDialogState(() => isSubmitting = false);
                         if (!dialogContext.mounted) return;
@@ -300,6 +356,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       icon: const Icon(Icons.login, color: Colors.black87),
                       label: const Text('Continuer avec Google', style: TextStyle(color: Colors.black87)),
                       style: OutlinedButton.styleFrom(backgroundColor: Colors.lightBlue.shade100),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _signInWithYahoo,
+                      icon: const Icon(Icons.login, color: Colors.black87),
+                      label: const Text('Continuer avec Yahoo', style: TextStyle(color: Colors.black87)),
+                      style: OutlinedButton.styleFrom(backgroundColor: Colors.purple.shade100),
                     ),
                     if (_isLoading)
                       const Padding(

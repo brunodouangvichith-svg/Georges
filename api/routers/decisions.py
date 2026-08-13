@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 import engine.monitor_decisions as monitor_decisions
 import engine.propose_decisions as propose_decisions
 from agents.explainer import explain_decision
-from agents.jane import second_opinion
+from agents.jane import reformulate_formal, second_opinion
 from api import deps
 from api.deps import get_db
 from api.schemas import ConfirmDecisionRequest, DecisionOut, ExplanationRequest, ExplanationResponse, Page
@@ -174,11 +174,20 @@ def get_decision_explanation(
     « Jane relit le dossier complet avant que George ne publie sa décision »
     de la roadmap (Phase 4/6). Fonctionne aussi bien sur une décision
     illustrative (`seed_demo.py`) que sur une décision réellement proposée
-    par `engine.propose_decisions` (Phase 6, endpoint `/decisions/propose`)."""
+    par `engine.propose_decisions` (Phase 6, endpoint `/decisions/propose`).
+
+    L'explication finale passe ensuite systématiquement (indépendamment de
+    `include_second_opinion`) par `agents.jane.reformulate_formal` -- un
+    rôle sans rapport avec le second avis ci-dessus, demandé directement par
+    l'utilisateur pour que l'écran « George explique » utilise un registre
+    plus formel. `second_opinion` (la note contradictoire de Jane, si
+    demandée) n'est en revanche jamais reformulée : elle reste la relecture
+    brute de Jane, distincte de l'explication finale de George."""
     decision = db.get(Decision, decision_id)
     if decision is None:
         raise HTTPException(status_code=404, detail=f"Décision inconnue : {decision_id}")
 
     jane_note = second_opinion(db, decision) if request.include_second_opinion else None
     explanation = explain_decision(db, decision, jane_note)
+    explanation = reformulate_formal(explanation)
     return ExplanationResponse(explanation=explanation, second_opinion=jane_note)
