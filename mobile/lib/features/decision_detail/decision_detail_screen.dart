@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -26,69 +28,82 @@ void _showChartPopup(
   required double? stopLoss,
   required String symbol,
 }) {
+  // Hauteur du graphique lui-même (hors titre/légende/bouton) -- assez
+  // grande pour que les 3 panneaux (prix+Bollinger, MACD, Stochastique)
+  // restent lisibles individuellement, plafonnée à ce qui laisse encore de
+  // la place au reste du popup sur un petit écran.
+  final chartHeight = math.min(520.0, MediaQuery.of(context).size.height * 0.55);
+
   showDialog<void>(
     context: context,
     builder: (dialogContext) => Dialog(
       insetPadding: const EdgeInsets.all(16),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(symbol, style: Theme.of(dialogContext).textTheme.titleMedium, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            Consumer(
-              builder: (context, ref, _) {
-                final fullPricesAsync = ref.watch(securityFullPricesProvider(symbol));
-                return fullPricesAsync.when(
-                  loading: () => const SizedBox(
-                    height: 320,
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                  error: (e, st) => const SizedBox(
-                    height: 320,
-                    child: Center(child: Text("Impossible de charger l'historique complet.")),
-                  ),
-                  data: (pricesPage) {
-                    final candles = pricesPage.items;
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CandlestickChart(
-                          candles: candles,
-                          context: patternContext,
-                          indexOffset: pricesPage.total - candles.length,
-                          takeProfit: takeProfit,
-                          stopLoss: stopLoss,
-                          width: MediaQuery.of(dialogContext).size.width - 64,
-                          height: 320,
-                        ),
-                        if (candles.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          // Rend visible la profondeur réelle de l'historique
-                          // affiché — le graphique lui-même n'a pas d'axe de
-                          // dates, demandé directement par l'utilisateur pour
-                          // pouvoir vérifier depuis l'écran que le popup montre
-                          // bien les 10 ans disponibles (price_history_long),
-                          // pas seulement un extrait.
-                          Text(
-                            '${DateFormat('dd/MM/yyyy').format(candles.first.ts)} '
-                            '→ ${DateFormat('dd/MM/yyyy').format(candles.last.ts)} '
-                            '(${candles.length} séances)',
-                            style: Theme.of(dialogContext).textTheme.labelSmall,
-                            textAlign: TextAlign.center,
+        // Défilable : titre/légende/bouton fixes seraient sinon poussés hors
+        // écran par les 3 panneaux sur un petit téléphone.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(symbol, style: Theme.of(dialogContext).textTheme.titleMedium, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              Consumer(
+                builder: (context, ref, _) {
+                  final fullPricesAsync = ref.watch(securityFullPricesProvider(symbol));
+                  return fullPricesAsync.when(
+                    loading: () => SizedBox(
+                      height: chartHeight,
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                    error: (e, st) => SizedBox(
+                      height: chartHeight,
+                      child: const Center(child: Text("Impossible de charger l'historique complet.")),
+                    ),
+                    data: (pricesPage) {
+                      final candles = pricesPage.items;
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CandlestickChart(
+                            candles: candles,
+                            context: patternContext,
+                            indexOffset: pricesPage.total - candles.length,
+                            takeProfit: takeProfit,
+                            stopLoss: stopLoss,
+                            width: MediaQuery.of(dialogContext).size.width - 64,
+                            height: chartHeight,
+                            showIndicators: true,
                           ),
+                          if (candles.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            // Rend visible la profondeur réelle de l'historique
+                            // affiché — le graphique lui-même n'a pas d'axe de
+                            // dates, demandé directement par l'utilisateur pour
+                            // pouvoir vérifier depuis l'écran que le popup montre
+                            // bien les 10 ans disponibles (price_history_long),
+                            // pas seulement un extrait. Le glisser horizontal
+                            // ouvre par défaut sur les séances les plus
+                            // récentes (voir CandlestickChart._scrollToMostRecent).
+                            Text(
+                              '${DateFormat('dd/MM/yyyy').format(candles.first.ts)} '
+                              '→ ${DateFormat('dd/MM/yyyy').format(candles.last.ts)} '
+                              '(${candles.length} séances — glisser pour naviguer)',
+                              style: Theme.of(dialogContext).textTheme.labelSmall,
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ],
-                      ],
-                    );
-                  },
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Fermer')),
-          ],
+                      );
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Fermer')),
+            ],
+          ),
         ),
       ),
     ),
