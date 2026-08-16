@@ -1,5 +1,6 @@
 """Détecteurs de figures de continuation : Bull Flag, Bear Flag,
-Ascending Triangle, Descending Triangle, Falling Wedge, Rising Wedge.
+Ascending Triangle, Descending Triangle, Falling Wedge, Rising Wedge,
+Symmetrical Triangle, Rectangle, Bull/Bear Pennant.
 
 Contrairement aux figures de retournement (`reversal.py`), ces détecteurs ne
 travaillent que sur une fenêtre récente (``WINDOW`` barres) : ce sont des
@@ -8,20 +9,26 @@ figures de court terme qui se forment près du prix actuel.
 Paramètres géométriques :
 
 - ``WINDOW`` (30 barres) : fenêtre d'analyse pour les triangles/biseaux.
-- ``FLAG_WINDOW`` (25 barres) et ``POLE_FRACTION`` (0.4) : pour les drapeaux,
-  les premières ``POLE_FRACTION`` barres de la fenêtre sont le "mât"
-  (mouvement impulsif), le reste est le "drapeau" (consolidation).
+- ``FLAG_WINDOW`` (25 barres) et ``POLE_FRACTION`` (0.4) : pour les drapeaux
+  (et les fanions, voir plus bas), les premières ``POLE_FRACTION`` barres de
+  la fenêtre sont le "mât" (mouvement impulsif), le reste est la
+  consolidation.
 - ``MIN_POLE_RETURN`` (0.08 = 8 %) : variation minimale du mât pour être
   considéré comme un mouvement impulsif significatif.
-- ``MAX_FLAG_RETRACE_RATIO`` (0.5) : l'amplitude du drapeau ne doit pas
+- ``MAX_FLAG_RETRACE_RATIO`` (0.5) : l'amplitude du drapeau/fanion ne doit pas
   dépasser 50 % de l'amplitude du mât (sinon ce n'est plus une simple pause).
 - ``MIN_TREND_SLOPE`` (0.001 = 0.1 %) : pente minimale (relative, par pas
   entre extrema) pour qu'une ligne de support/résistance soit considérée
   montante ou descendante plutôt que plate.
 - ``MIN_CONVERGENCE`` (0.15 = 15 %) : rétrécissement minimal de l'écart entre
   les deux lignes de tendance (haute et basse), mesuré entre le premier et le
-  dernier extremum de la figure, pour qu'un biseau (wedge) soit considéré
-  convergent.
+  dernier extremum de la figure, pour qu'un biseau (wedge), un triangle
+  symétrique ou un fanion soit considéré convergent.
+- ``MIN_TOUCHES`` (2) : nombre minimal de clôtures devant être à moins de
+  ``LEVEL_TOLERANCE`` d'un niveau (résistance ou support) pour qu'un
+  Rectangle soit considéré comme un vrai palier testé des deux côtés — même
+  idée que le comptage de touches de `breakout.py`, appliquée ici aux deux
+  bords du range plutôt qu'à un seul niveau.
 """
 
 import numpy as np
@@ -64,6 +71,7 @@ MIN_POLE_RETURN = 0.08
 MAX_FLAG_RETRACE_RATIO = 0.5
 MIN_TREND_SLOPE = 0.001
 MIN_CONVERGENCE = 0.15
+MIN_TOUCHES = 2
 
 
 def _flatness_quality(values, level):
@@ -339,3 +347,299 @@ def detect_bull_flag(df) -> list[PatternMatch]:
 
 def detect_bear_flag(df) -> list[PatternMatch]:
     return _flag(df, bullish=False)
+
+
+def _symmetrical_triangle(df, bullish: bool) -> list[PatternMatch]:
+    """Triangle symétrique : deux lignes de tendance convergentes de pentes
+    de signes OPPOSÉS — résistance descendante (sommets décroissants, ajustée
+    sur les maxima locaux) et support montant (creux croissants, ajusté sur
+    les minima locaux). Se distingue de l'Ascending/Descending Triangle (une
+    seule ligne plate) et du Rising/Falling Wedge (les deux lignes de même
+    signe). Comme le biseau ci-dessus, la dernière barre (candidate à la
+    cassure) est exclue de l'ajustement des deux lignes. La figure peut
+    casser dans les deux sens : ce helper partagé teste la cassure de la
+    ligne haute (`bullish=True`) ou de la ligne basse (`bullish=False`)."""
+    w = tail_window(df, WINDOW)
+    if len(w) < MIN_PATTERN_BARS:
+        return []
+    close = w["close"]
+    maxima, minima = local_maxima_idx(close.values), local_minima_idx(close.values)
+    if len(maxima) < 2 or len(minima) < 2:
+        return []
+
+    level = float(close.mean())
+    upper_slope, upper_intercept = fit_trendline(maxima, close.iloc[maxima].values)
+    lower_slope, lower_intercept = fit_trendline(minima, close.iloc[minima].values)
+    norm_upper, norm_lower = upper_slope / level, lower_slope / level
+    # Pentes de signes opposés et significatives : résistance qui descend,
+    # support qui monte (sinon ce serait un biseau ou un triangle asc./desc.).
+    if norm_upper > -MIN_TREND_SLOPE or norm_lower < MIN_TREND_SLOPE:
+        return []
+
+    # Convergence mesurée entre le premier et le dernier extremum de la
+    # figure, hors dernière barre — même logique que `_wedge` ci-dessus.
+    x_start = int(min(maxima.min(), minima.min()))
+    x_end = int(max(maxima.max(), minima.max()))
+    gap_start = (upper_slope * x_start + upper_intercept) - (lower_slope * x_start + lower_intercept)
+    gap_end = (upper_slope * x_end + upper_intercept) - (lower_slope * x_end + lower_intercept)
+    if gap_start <= 0 or gap_end >= gap_start * (1 - MIN_CONVERGENCE):
+        return []
+
+    last_x = len(close) - 1
+    last_close = close.iloc[-1]
+    upper_at_last = upper_slope * last_x + upper_intercept
+    lower_at_last = lower_slope * last_x + lower_intercept
+
+    if bullish:
+        if last_close <= upper_at_last * (1 + BREAKOUT_BUFFER):
+            return []
+    else:
+        if last_close >= lower_at_last * (1 - BREAKOUT_BUFFER):
+            return []
+
+    convergence_ratio = 1.0 - gap_end / gap_start
+    slope_quality = 0.5 * _slope_quality(norm_upper) + 0.5 * _slope_quality(norm_lower)
+    geometry_quality = 0.5 * slope_quality + 0.5 * float(np.clip(convergence_ratio / (2 * MIN_CONVERGENCE), 0.0, 1.0))
+    volume_conf = volume_confirmation(df["volume"], len(df) - 1)
+    trend_conf = trend_alignment(df["close"], bullish=bullish)
+    rsi_conf = rsi_confirmation(df["close"], len(df) - 1, bullish=bullish)
+    macd_conf = macd_confirmation(df["close"], len(df) - 1, bullish=bullish)
+
+    return [
+        PatternMatch(
+            pattern_type="Symmetrical Triangle Bullish" if bullish else "Symmetrical Triangle Bearish",
+            detected_at=df.index[-1],
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf, macd_conf),
+            context={
+                # Lignes haute/basse évaluées à la barre de cassure (proches
+                # l'une de l'autre par construction, la figure étant
+                # convergente) — servent de résistance/support pour le
+                # calcul ultérieur des niveaux de sortie (measured-move).
+                "resistance": float(upper_at_last),
+                "support": float(lower_at_last),
+                "triangle_height": float(gap_start),
+                "upper_slope": upper_slope,
+                "lower_slope": lower_slope,
+                "convergence_ratio": convergence_ratio,
+                "rsi_14": _rsi_at_last(df["close"]),
+                "macd_line": _macd_line_at_last(df["close"]),
+                "geometry_quality": round(float(geometry_quality), 3),
+                "volume_confirmation": round(float(volume_conf), 3),
+                "trend_alignment": round(float(trend_conf), 3),
+                "rsi_confirmation": round(float(rsi_conf), 3),
+                "macd_confirmation": round(float(macd_conf), 3),
+            },
+        )
+    ]
+
+
+def detect_symmetrical_triangle_bullish(df) -> list[PatternMatch]:
+    return _symmetrical_triangle(df, bullish=True)
+
+
+def detect_symmetrical_triangle_bearish(df) -> list[PatternMatch]:
+    return _symmetrical_triangle(df, bullish=False)
+
+
+def _rectangle(df, bullish: bool) -> list[PatternMatch]:
+    """Rectangle (range de trading) : deux paliers quasi horizontaux — une
+    résistance ajustée sur les maxima locaux, un support ajusté sur les
+    minima locaux, tous deux de pente quasi nulle (moins de `MIN_TREND_SLOPE`
+    en relatif) — chacun testé au moins `MIN_TOUCHES` fois à moins de
+    `LEVEL_TOLERANCE` du niveau moyen sur la fenêtre. Reprend l'idée du
+    comptage de touches de `breakout.py:detect_breakout`, mais exige des
+    touches des DEUX côtés du range plutôt que d'un seul niveau. Cassure de
+    confirmation au-dessus de la résistance (`bullish=True`) ou en dessous du
+    support (`bullish=False`) sur la dernière clôture, hors de la
+    construction des deux niveaux (comme `breakout.py`)."""
+    w = tail_window(df, WINDOW)
+    if len(w) < MIN_PATTERN_BARS:
+        return []
+    close = w["close"]
+    prior, last_close = close.iloc[:-1], close.iloc[-1]
+    maxima, minima = local_maxima_idx(prior.values), local_minima_idx(prior.values)
+    if len(maxima) < 2 or len(minima) < 2:
+        return []
+
+    level = float(prior.mean())
+    resistance_slope, _ = fit_trendline(maxima, prior.iloc[maxima].values)
+    support_slope, _ = fit_trendline(minima, prior.iloc[minima].values)
+    if abs(resistance_slope / level) >= MIN_TREND_SLOPE or abs(support_slope / level) >= MIN_TREND_SLOPE:
+        return []
+
+    resistance_level = float(prior.iloc[maxima].mean())
+    support_level = float(prior.iloc[minima].mean())
+    if resistance_level <= support_level:
+        return []
+    flatness_upper, dev_upper = _flatness_quality(prior.iloc[maxima].values, resistance_level)
+    flatness_lower, dev_lower = _flatness_quality(prior.iloc[minima].values, support_level)
+    if dev_upper > LEVEL_TOLERANCE or dev_lower > LEVEL_TOLERANCE:
+        return []
+
+    resistance_touches = int((prior >= resistance_level * (1 - LEVEL_TOLERANCE)).sum())
+    support_touches = int((prior <= support_level * (1 + LEVEL_TOLERANCE)).sum())
+    if resistance_touches < MIN_TOUCHES or support_touches < MIN_TOUCHES:
+        return []
+
+    if bullish:
+        if last_close <= resistance_level * (1 + BREAKOUT_BUFFER):
+            return []
+        breakout_strength = (last_close - resistance_level) / resistance_level
+    else:
+        if last_close >= support_level * (1 - BREAKOUT_BUFFER):
+            return []
+        breakout_strength = (support_level - last_close) / support_level
+
+    touch_quality = float(
+        np.clip((min(resistance_touches, support_touches) - MIN_TOUCHES + 1) / (MIN_TOUCHES + 1), 0.0, 1.0)
+    )
+    strength_quality = float(np.clip(breakout_strength / (BREAKOUT_BUFFER * 10), 0.0, 1.0))
+    flatness_quality = 0.5 * flatness_upper + 0.5 * flatness_lower
+    geometry_quality = 0.4 * flatness_quality + 0.3 * touch_quality + 0.3 * strength_quality
+    volume_conf = volume_confirmation(df["volume"], len(df) - 1)
+    trend_conf = trend_alignment(df["close"], bullish=bullish)
+    rsi_conf = rsi_confirmation(df["close"], len(df) - 1, bullish=bullish)
+    macd_conf = macd_confirmation(df["close"], len(df) - 1, bullish=bullish)
+
+    return [
+        PatternMatch(
+            pattern_type="Rectangle Bullish" if bullish else "Rectangle Bearish",
+            detected_at=df.index[-1],
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf, macd_conf),
+            context={
+                "resistance": resistance_level,
+                "support": support_level,
+                "resistance_touches": resistance_touches,
+                "support_touches": support_touches,
+                "rsi_14": _rsi_at_last(df["close"]),
+                "macd_line": _macd_line_at_last(df["close"]),
+                "geometry_quality": round(float(geometry_quality), 3),
+                "volume_confirmation": round(float(volume_conf), 3),
+                "trend_alignment": round(float(trend_conf), 3),
+                "rsi_confirmation": round(float(rsi_conf), 3),
+                "macd_confirmation": round(float(macd_conf), 3),
+            },
+        )
+    ]
+
+
+def detect_rectangle_bullish(df) -> list[PatternMatch]:
+    return _rectangle(df, bullish=True)
+
+
+def detect_rectangle_bearish(df) -> list[PatternMatch]:
+    return _rectangle(df, bullish=False)
+
+
+def _pennant(df, bullish: bool) -> list[PatternMatch]:
+    """Fanion (pennant) : même mât impulsif que Bull/Bear Flag ci-dessus
+    (test de mât repris à l'identique — même fenêtre `FLAG_WINDOW`, même
+    découpage `POLE_FRACTION`, même seuil `MIN_POLE_RETURN`), mais suivi
+    d'une consolidation en petit triangle CONVERGENT (deux lignes de pentes
+    opposées ajustées sur les maxima/minima locaux de la seule portion de
+    consolidation, comme le Symmetrical Triangle ci-dessus) plutôt qu'un
+    canal parallèle. Cassure de confirmation dans le MÊME sens que le mât
+    (figure de continuation), comme pour Flag."""
+    w = tail_window(df, FLAG_WINDOW)
+    if len(w) < MIN_PATTERN_BARS:
+        return []
+    close = w["close"]
+    pole_end = max(2, int(len(w) * POLE_FRACTION))
+    # Comme pour le drapeau, la dernière barre est la candidate à la cassure :
+    # exclue de la consolidation utilisée pour ajuster les deux lignes.
+    pole, consolidation = close.iloc[:pole_end], close.iloc[pole_end:-1]
+    if len(consolidation) < 5:
+        return []
+
+    pole_return = (pole.iloc[-1] - pole.iloc[0]) / abs(pole.iloc[0])
+    if bullish and pole_return < MIN_POLE_RETURN:
+        return []
+    if not bullish and pole_return > -MIN_POLE_RETURN:
+        return []
+    pole_amplitude = abs(pole.iloc[-1] - pole.iloc[0])
+
+    # Extrema locaux dans le seul repère de la consolidation, translatés vers
+    # l'indexation de `close` (qui inclut le mât) pour évaluer les lignes de
+    # tendance à `last_x`, cohérent avec `x_flag` dans `_flag` ci-dessus.
+    maxima_local = local_maxima_idx(consolidation.values)
+    minima_local = local_minima_idx(consolidation.values)
+    if len(maxima_local) < 2 or len(minima_local) < 2:
+        return []
+    x_maxima = maxima_local + pole_end
+    x_minima = minima_local + pole_end
+
+    level = float(close.mean())
+    upper_slope, upper_intercept = fit_trendline(x_maxima, consolidation.iloc[maxima_local].values)
+    lower_slope, lower_intercept = fit_trendline(x_minima, consolidation.iloc[minima_local].values)
+    norm_upper, norm_lower = upper_slope / level, lower_slope / level
+    if norm_upper > -MIN_TREND_SLOPE or norm_lower < MIN_TREND_SLOPE:
+        return []
+
+    x_start = int(min(x_maxima.min(), x_minima.min()))
+    x_end = int(max(x_maxima.max(), x_minima.max()))
+    gap_start = (upper_slope * x_start + upper_intercept) - (lower_slope * x_start + lower_intercept)
+    gap_end = (upper_slope * x_end + upper_intercept) - (lower_slope * x_end + lower_intercept)
+    if gap_start <= 0 or gap_end >= gap_start * (1 - MIN_CONVERGENCE):
+        return []
+
+    # Consolidation resserrée par rapport au mât — même garde-fou que
+    # `MAX_FLAG_RETRACE_RATIO` pour le drapeau.
+    consolidation_amplitude = float(consolidation.max() - consolidation.min())
+    if consolidation_amplitude >= pole_amplitude * MAX_FLAG_RETRACE_RATIO:
+        return []
+
+    last_x = len(close) - 1
+    last_close = close.iloc[-1]
+    if bullish:
+        upper_at_last = upper_slope * last_x + upper_intercept
+        if last_close <= upper_at_last * (1 + BREAKOUT_BUFFER):
+            return []
+    else:
+        lower_at_last = lower_slope * last_x + lower_intercept
+        if last_close >= lower_at_last * (1 - BREAKOUT_BUFFER):
+            return []
+
+    convergence_ratio = 1.0 - gap_end / gap_start
+    pole_quality = float(np.clip(abs(pole_return) / (2 * MIN_POLE_RETURN), 0.0, 1.0))
+    slope_quality = 0.5 * _slope_quality(norm_upper) + 0.5 * _slope_quality(norm_lower)
+    geometry_quality = (
+        0.4 * pole_quality
+        + 0.3 * slope_quality
+        + 0.3 * float(np.clip(convergence_ratio / (2 * MIN_CONVERGENCE), 0.0, 1.0))
+    )
+    volume_conf = volume_confirmation(df["volume"], len(df) - 1)
+    trend_conf = trend_alignment(df["close"], bullish=bullish)
+    rsi_conf = rsi_confirmation(df["close"], len(df) - 1, bullish=bullish)
+    macd_conf = macd_confirmation(df["close"], len(df) - 1, bullish=bullish)
+
+    return [
+        PatternMatch(
+            pattern_type="Bull Pennant" if bullish else "Bear Pennant",
+            detected_at=df.index[-1],
+            confidence=confidence_score(geometry_quality, volume_conf, trend_conf, rsi_conf, macd_conf),
+            context={
+                "pole_return": pole_return,
+                "pole_amplitude": float(pole_amplitude),
+                "consolidation_high": float(consolidation.max()),
+                "consolidation_low": float(consolidation.min()),
+                "upper_slope": upper_slope,
+                "lower_slope": lower_slope,
+                "convergence_ratio": convergence_ratio,
+                "rsi_14": _rsi_at_last(df["close"]),
+                "macd_line": _macd_line_at_last(df["close"]),
+                "geometry_quality": round(float(geometry_quality), 3),
+                "volume_confirmation": round(float(volume_conf), 3),
+                "trend_alignment": round(float(trend_conf), 3),
+                "rsi_confirmation": round(float(rsi_conf), 3),
+                "macd_confirmation": round(float(macd_conf), 3),
+            },
+        )
+    ]
+
+
+def detect_bull_pennant(df) -> list[PatternMatch]:
+    return _pennant(df, bullish=True)
+
+
+def detect_bear_pennant(df) -> list[PatternMatch]:
+    return _pennant(df, bullish=False)

@@ -1,9 +1,15 @@
-"""Teste `engine/exit_levels.py` sur les 25 types de figures (13 chartistes +
-12 bougies japonaises), en réutilisant les séries synthétiques et le
-détecteur réel de `tests/test_patterns.py`/`tests/test_candlestick.py`
-plutôt que des `context` reconstruits à la main — la même figure sert à
-vérifier la détection (Phase 1) et les niveaux de sortie qui en découlent
-(Phase 6), garantissant que les deux restent cohérents."""
+"""Teste `engine/exit_levels.py` sur les 60 types de figures (13 chartistes +
+12 bougies japonaises + 35 ajoutées via George_Strategies_Images_Synthese.md),
+en réutilisant les séries synthétiques et le détecteur réel de
+`tests/test_patterns.py`/`tests/test_candlestick.py`/les modules `*_extended`/
+`test_crossover.py`/`test_smart_money.py` plutôt que des `context` reconstruits
+à la main — la même figure sert à vérifier la détection (Phase 1) et les
+niveaux de sortie qui en découlent (Phase 6), garantissant que les deux
+restent cohérents. C'est précisément ce test qui a valeur de garde-fou pour
+l'intégration : chaque détecteur écrit son `context` de son côté, chaque
+formule de niveaux dans `engine/exit_levels.py` lit ce `context` de son
+côté — sans ce test bout-en-bout, une clé mal orthographiée entre les deux
+ne serait jamais détectée avant une vraie exécution en production."""
 import pytest
 
 from engine.exit_levels import (
@@ -15,7 +21,10 @@ from engine.exit_levels import (
 )
 from engine.patterns import DETECTORS
 from tests.test_candlestick import DOWNTREND, UPTREND, _candle_df
+from tests.test_crossover import _closes_up_to_crossover, _DOWN_CLOSES, _UP_CLOSES
 from tests.test_patterns import make_df, path, ramp
+from tests.test_reversal_extended import _diamond_pattern_closes
+from tests.test_smart_money import _append_gap_bar, _ohlc_df
 
 CASES = {
     "Double Bottom": (
@@ -216,6 +225,270 @@ CASES = {
         ),
         True,
     ),
+    # --- George_Strategies_Images_Synthese.md -- figures chartistes classiques ---
+    "Triple Top": (
+        lambda: make_df(
+            path(
+                ramp(100, 110, 7), ramp(110, 102, 7), ramp(102, 110.2, 7),
+                ramp(110.2, 101, 7), ramp(101, 109.8, 7), ramp(109.8, 95, 7),
+            )
+        ),
+        False,
+    ),
+    "Triple Bottom": (
+        lambda: make_df(
+            path(
+                ramp(100, 90, 7), ramp(90, 98, 7), ramp(98, 90.2, 7),
+                ramp(90.2, 99, 7), ramp(99, 90.8, 7), ramp(90.8, 105, 7),
+            )
+        ),
+        True,
+    ),
+    "Rounding Top": (
+        lambda: make_df([-0.1 * (x - 10) ** 2 + 105 for x in range(30)]),
+        False,
+    ),
+    "Rounding Bottom": (
+        lambda: make_df([0.1 * (x - 10) ** 2 + 95 for x in range(30)]),
+        True,
+    ),
+    "Diamond Top": (
+        lambda: make_df(
+            ramp(85, 100, 10) + _diamond_pattern_closes(14, 15, base=100, start_amp=1, peak_amp=15) + [70]
+        ),
+        False,
+    ),
+    "Diamond Bottom": (
+        lambda: make_df(
+            ramp(100, 85, 10) + _diamond_pattern_closes(14, 15, base=100, start_amp=1, peak_amp=15) + [130]
+        ),
+        True,
+    ),
+    "Symmetrical Triangle Bullish": (
+        lambda: make_df(
+            path(
+                ramp(90, 112, 5), ramp(112, 96, 5), ramp(96, 107, 5), ramp(107, 99, 5),
+                ramp(99, 103, 5), ramp(103, 100.5, 5), ramp(100.5, 118, 6),
+            )
+        ),
+        True,
+    ),
+    "Symmetrical Triangle Bearish": (
+        lambda: make_df(
+            path(
+                ramp(90, 112, 5), ramp(112, 96, 5), ramp(96, 107, 5), ramp(107, 99, 5),
+                ramp(99, 103, 5), ramp(103, 100.5, 5), ramp(100.5, 85, 6),
+            )
+        ),
+        False,
+    ),
+    "Rectangle Bullish": (
+        lambda: make_df(
+            path(
+                ramp(100, 105, 5), ramp(105, 95, 5), ramp(95, 104.5, 5), ramp(104.5, 95.5, 5),
+                ramp(95.5, 105.2, 5), ramp(105.2, 96, 5), ramp(96, 112, 6),
+            )
+        ),
+        True,
+    ),
+    "Rectangle Bearish": (
+        lambda: make_df(
+            path(
+                ramp(100, 105, 5), ramp(105, 95, 5), ramp(95, 104.5, 5), ramp(104.5, 95.5, 5),
+                ramp(95.5, 105.2, 5), ramp(105.2, 96, 5), ramp(96, 88, 6),
+            )
+        ),
+        False,
+    ),
+    "Bull Pennant": (
+        lambda: make_df(
+            path(
+                ramp(100, 130, 9), ramp(130, 121, 4), ramp(121, 128, 4), ramp(128, 123, 4),
+                ramp(123, 126.5, 4), ramp(126.5, 125, 3), ramp(125, 140, 2),
+            )
+        ),
+        True,
+    ),
+    "Bear Pennant": (
+        lambda: make_df(
+            path(
+                ramp(130, 100, 9), ramp(100, 109, 4), ramp(109, 102, 4), ramp(102, 107, 4),
+                ramp(107, 103.5, 4), ramp(103.5, 105, 3), ramp(105, 90, 2),
+            )
+        ),
+        False,
+    ),
+    # --- George_Strategies_Images_Synthese.md -- bougies japonaises supplémentaires ---
+    "Bullish Harami": (
+        lambda: _candle_df(
+            DOWNTREND,
+            [
+                {"open": 100.0, "high": 100.2, "low": 94.0, "close": 94.5},
+                {"open": 96.0, "high": 97.3, "low": 95.8, "close": 97.0},
+            ],
+        ),
+        True,
+    ),
+    "Bearish Harami": (
+        lambda: _candle_df(
+            UPTREND,
+            [
+                {"open": 120.0, "high": 126.0, "low": 119.8, "close": 125.5},
+                {"open": 124.0, "high": 124.3, "low": 122.7, "close": 123.0},
+            ],
+        ),
+        False,
+    ),
+    "Three White Soldiers": (
+        lambda: _candle_df(
+            DOWNTREND,
+            [
+                {"open": 100.0, "high": 103.3, "low": 99.8, "close": 103.0},
+                {"open": 101.5, "high": 105.8, "low": 101.3, "close": 105.5},
+                {"open": 104.0, "high": 108.3, "low": 103.8, "close": 108.0},
+            ],
+        ),
+        True,
+    ),
+    "Three Black Crows": (
+        lambda: _candle_df(
+            UPTREND,
+            [
+                {"open": 120.0, "high": 120.2, "low": 116.7, "close": 117.0},
+                {"open": 118.5, "high": 118.7, "low": 114.2, "close": 114.5},
+                {"open": 116.0, "high": 116.2, "low": 111.2, "close": 111.5},
+            ],
+        ),
+        False,
+    ),
+    "Bullish Kicker": (
+        lambda: _candle_df(
+            DOWNTREND,
+            [
+                {"open": 105.0, "high": 105.2, "low": 99.8, "close": 100.0},
+                {"open": 106.5, "high": 110.3, "low": 106.0, "close": 110.0},
+            ],
+        ),
+        True,
+    ),
+    "Bearish Kicker": (
+        lambda: _candle_df(
+            UPTREND,
+            [
+                {"open": 100.0, "high": 105.2, "low": 99.8, "close": 105.0},
+                {"open": 98.5, "high": 99.0, "low": 94.7, "close": 95.0},
+            ],
+        ),
+        False,
+    ),
+    "Dragonfly Doji": (
+        lambda: _candle_df(DOWNTREND, [{"open": 99.9, "high": 100.0, "low": 90.0, "close": 100.0}]),
+        True,
+    ),
+    "Bullish Marubozu": (
+        lambda: _candle_df(DOWNTREND, [{"open": 100.1, "high": 110.0, "low": 100.0, "close": 109.9}]),
+        True,
+    ),
+    "Bearish Marubozu": (
+        lambda: _candle_df(UPTREND, [{"open": 109.9, "high": 110.0, "low": 100.0, "close": 100.1}]),
+        False,
+    ),
+    "Bullish Inside Bar": (
+        lambda: _candle_df(
+            DOWNTREND,
+            [
+                {"open": 100.0, "high": 110.0, "low": 95.0, "close": 102.0},
+                {"open": 102.0, "high": 105.0, "low": 100.0, "close": 103.0},
+                {"open": 104.0, "high": 107.2, "low": 103.8, "close": 107.0},
+            ],
+        ),
+        True,
+    ),
+    "Bearish Inside Bar": (
+        lambda: _candle_df(
+            UPTREND,
+            [
+                {"open": 100.0, "high": 110.0, "low": 95.0, "close": 102.0},
+                {"open": 102.0, "high": 105.0, "low": 100.0, "close": 103.0},
+                {"open": 101.0, "high": 101.5, "low": 97.5, "close": 98.0},
+            ],
+        ),
+        False,
+    ),
+    "Bullish Outside Bar": (
+        lambda: _candle_df(
+            DOWNTREND,
+            [
+                {"open": 101.0, "high": 105.0, "low": 100.0, "close": 102.0},
+                {"open": 98.0, "high": 108.0, "low": 97.0, "close": 107.0},
+            ],
+        ),
+        True,
+    ),
+    "Bearish Outside Bar": (
+        lambda: _candle_df(
+            UPTREND,
+            [
+                {"open": 101.0, "high": 105.0, "low": 100.0, "close": 102.0},
+                {"open": 106.0, "high": 108.0, "low": 97.0, "close": 98.0},
+            ],
+        ),
+        False,
+    ),
+    # --- George_Strategies_Images_Synthese.md -- Golden Cross / Death Cross ---
+    "Golden Cross": (
+        lambda: make_df(_closes_up_to_crossover(_UP_CLOSES, bullish=True)),
+        True,
+    ),
+    "Death Cross": (
+        lambda: make_df(_closes_up_to_crossover(_DOWN_CLOSES, bullish=False)),
+        False,
+    ),
+    # --- George_Strategies_Images_Synthese.md -- Smart Money Concepts ---
+    "Bullish Fair Value Gap": (
+        lambda: make_df([100, 101, 110, 130]),
+        True,
+    ),
+    "Bearish Fair Value Gap": (
+        lambda: make_df([100, 99, 90, 70]),
+        False,
+    ),
+    "Bullish Breakaway Gap": (
+        lambda: _append_gap_bar(
+            make_df(
+                [95, 100, 96, 99, 95, 100, 97, 99, 96, 100, 95, 99, 96, 100, 97, 99, 95, 100, 97],
+                volumes=[1_000_000] * 19,
+            ),
+            open_=112.0, high=115.0, low=111.0, close=113.0, volume=5_000_000,
+        ),
+        True,
+    ),
+    "Bearish Breakaway Gap": (
+        lambda: _append_gap_bar(
+            make_df(
+                [105, 100, 104, 101, 105, 100, 103, 101, 104, 100, 105, 101, 104, 100, 103, 101, 105, 100, 103],
+                volumes=[1_000_000] * 19,
+            ),
+            open_=88.0, high=89.0, low=85.0, close=87.0, volume=5_000_000,
+        ),
+        False,
+    ),
+    "Bullish Order Block": (
+        lambda: make_df([100, 100.1, 100, 100.2, 100.1, 99, 103, 106, 109, 100]),
+        True,
+    ),
+    "Bearish Order Block": (
+        lambda: make_df([100, 99.9, 100, 99.8, 99.9, 101, 97, 94, 91, 100]),
+        False,
+    ),
+    "Bullish Break of Structure": (
+        lambda: make_df(path(ramp(100, 110, 7), ramp(110, 95, 10), ramp(95, 111, 5))),
+        True,
+    ),
+    "Bearish Break of Structure": (
+        lambda: make_df(path(ramp(100, 90, 7), ramp(90, 105, 10), ramp(105, 89, 5))),
+        False,
+    ),
 }
 
 
@@ -279,6 +552,9 @@ def test_candlestick_levels_respect_minimum_risk_reward_ratio(pattern_type):
     if pattern_type not in {
         "Bullish Doji", "Bearish Doji", "Hammer", "Hanging Man", "Inverted Hammer", "Shooting Star",
         "Bullish Engulfing", "Bearish Engulfing", "Morning Star", "Evening Star", "Dark Cloud Cover", "Piercing Line",
+        # George_Strategies_Images_Synthese.md -- mêmes formules à ratio fixe (_candlestick_levels-style),
+        # contrairement à Harami/Three Soldiers-Crows/Inside-Outside Bar qui ont leur propre géométrie.
+        "Bullish Kicker", "Bearish Kicker", "Dragonfly Doji", "Bullish Marubozu", "Bearish Marubozu",
     }:
         pytest.skip("figure chartiste classique, pas une bougie — pas de ratio risque/rendement fixe")
 

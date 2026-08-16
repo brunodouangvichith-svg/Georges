@@ -44,6 +44,25 @@ BULLISH_PATTERNS = {
     "Bullish Engulfing",
     "Morning Star",
     "Piercing Line",
+    # George_Strategies_Images_Synthese.md — ajoutés après intégration
+    "Triple Bottom",
+    "Rounding Bottom",
+    "Diamond Bottom",
+    "Symmetrical Triangle Bullish",
+    "Rectangle Bullish",
+    "Bull Pennant",
+    "Bullish Harami",
+    "Three White Soldiers",
+    "Bullish Kicker",
+    "Dragonfly Doji",
+    "Bullish Marubozu",
+    "Bullish Inside Bar",
+    "Bullish Outside Bar",
+    "Golden Cross",
+    "Bullish Fair Value Gap",
+    "Bullish Breakaway Gap",
+    "Bullish Order Block",
+    "Bullish Break of Structure",
 }
 BEARISH_PATTERNS = {
     "Double Top",
@@ -58,6 +77,24 @@ BEARISH_PATTERNS = {
     "Bearish Engulfing",
     "Evening Star",
     "Dark Cloud Cover",
+    # George_Strategies_Images_Synthese.md — ajoutés après intégration
+    "Triple Top",
+    "Rounding Top",
+    "Diamond Top",
+    "Symmetrical Triangle Bearish",
+    "Rectangle Bearish",
+    "Bear Pennant",
+    "Bearish Harami",
+    "Three Black Crows",
+    "Bearish Kicker",
+    "Bearish Marubozu",
+    "Bearish Inside Bar",
+    "Bearish Outside Bar",
+    "Death Cross",
+    "Bearish Fair Value Gap",
+    "Bearish Breakaway Gap",
+    "Bearish Order Block",
+    "Bearish Break of Structure",
 }
 
 
@@ -192,6 +229,231 @@ def _bearish_candlestick_levels(context, entry_price, df):
     return _candlestick_levels(context, entry_price, df, bullish=False)
 
 
+# --- George_Strategies_Images_Synthese.md — figures chartistes classiques ---
+
+
+def _triple_top(context, entry_price, df):
+    support = context["support"]["price"]
+    highest_top = max(context["top_1"]["price"], context["top_2"]["price"], context["top_3"]["price"])
+    depth = highest_top - support
+    return entry_price - depth, highest_top * (1 + BREAKOUT_BUFFER)
+
+
+def _triple_bottom(context, entry_price, df):
+    resistance = context["resistance"]["price"]
+    lowest_bottom = min(context["bottom_1"]["price"], context["bottom_2"]["price"], context["bottom_3"]["price"])
+    depth = resistance - lowest_bottom
+    return entry_price + depth, lowest_bottom * (1 - BREAKOUT_BUFFER)
+
+
+def _rounding_top(context, entry_price, df):
+    rim = context["rim"]
+    vertex_price = context["vertex"]["price"]
+    depth = vertex_price - rim
+    return entry_price - depth, vertex_price * (1 + BREAKOUT_BUFFER)
+
+
+def _rounding_bottom(context, entry_price, df):
+    rim = context["rim"]
+    vertex_price = context["vertex"]["price"]
+    depth = rim - vertex_price
+    return entry_price + depth, vertex_price * (1 - BREAKOUT_BUFFER)
+
+
+def _diamond_top(context, entry_price, df):
+    breakout_level = context["breakout_level"]
+    depth = context["widest_range"]
+    return entry_price - depth, breakout_level * (1 + BREAKOUT_BUFFER)
+
+
+def _diamond_bottom(context, entry_price, df):
+    breakout_level = context["breakout_level"]
+    depth = context["widest_range"]
+    return entry_price + depth, breakout_level * (1 - BREAKOUT_BUFFER)
+
+
+def _symmetrical_triangle_bullish(context, entry_price, df):
+    height = context["triangle_height"]
+    support = context["support"]
+    return entry_price + height, support * (1 - BREAKOUT_BUFFER)
+
+
+def _symmetrical_triangle_bearish(context, entry_price, df):
+    height = context["triangle_height"]
+    resistance = context["resistance"]
+    return entry_price - height, resistance * (1 + BREAKOUT_BUFFER)
+
+
+def _rectangle_bullish(context, entry_price, df):
+    height = context["resistance"] - context["support"]
+    return entry_price + height, context["support"] * (1 - BREAKOUT_BUFFER)
+
+
+def _rectangle_bearish(context, entry_price, df):
+    height = context["resistance"] - context["support"]
+    return entry_price - height, context["resistance"] * (1 + BREAKOUT_BUFFER)
+
+
+def _bull_pennant(context, entry_price, df):
+    return entry_price + context["pole_amplitude"], context["consolidation_low"] * (1 - BREAKOUT_BUFFER)
+
+
+def _bear_pennant(context, entry_price, df):
+    return entry_price - context["pole_amplitude"], context["consolidation_high"] * (1 + BREAKOUT_BUFFER)
+
+
+# --- George_Strategies_Images_Synthese.md — bougies japonaises supplémentaires ---
+
+
+def _bullish_harami_levels(context, entry_price, df):
+    mother_low = context["mother_low"]
+    mother_high = context["mother_high"]
+    depth = mother_high - mother_low
+    stop_loss = mother_low * (1 - BREAKOUT_BUFFER)
+    return entry_price + depth, stop_loss
+
+
+def _bearish_harami_levels(context, entry_price, df):
+    mother_low = context["mother_low"]
+    mother_high = context["mother_high"]
+    depth = mother_high - mother_low
+    stop_loss = mother_high * (1 + BREAKOUT_BUFFER)
+    return entry_price - depth, stop_loss
+
+
+def _three_white_soldiers_levels(context, entry_price, df):
+    depth = context["net_move"]
+    stop_loss = context["formation_low"] * (1 - BREAKOUT_BUFFER)
+    return entry_price + depth, stop_loss
+
+
+def _three_black_crows_levels(context, entry_price, df):
+    depth = abs(context["net_move"])
+    stop_loss = context["formation_high"] * (1 + BREAKOUT_BUFFER)
+    return entry_price - depth, stop_loss
+
+
+def _bullish_kicker_levels(context, entry_price, df):
+    stop_loss = context["gap_low"] * (1 - BREAKOUT_BUFFER)
+    risk = entry_price - stop_loss
+    return entry_price + risk * CANDLESTICK_RISK_REWARD_RATIO, stop_loss
+
+
+def _bearish_kicker_levels(context, entry_price, df):
+    stop_loss = context["gap_high"] * (1 + BREAKOUT_BUFFER)
+    risk = stop_loss - entry_price
+    return entry_price - risk * CANDLESTICK_RISK_REWARD_RATIO, stop_loss
+
+
+def _dragonfly_doji_levels(context, entry_price, df):
+    signal_row = df.iloc[context["signal_index"]]
+    stop_loss = float(signal_row["low"]) * (1 - BREAKOUT_BUFFER)
+    risk = entry_price - stop_loss
+    return entry_price + risk * CANDLESTICK_RISK_REWARD_RATIO, stop_loss
+
+
+def _bullish_marubozu_levels(context, entry_price, df):
+    signal_row = df.iloc[context["signal_index"]]
+    stop_loss = float(signal_row["low"]) * (1 - BREAKOUT_BUFFER)
+    risk = entry_price - stop_loss
+    return entry_price + risk * CANDLESTICK_RISK_REWARD_RATIO, stop_loss
+
+
+def _bearish_marubozu_levels(context, entry_price, df):
+    signal_row = df.iloc[context["signal_index"]]
+    stop_loss = float(signal_row["high"]) * (1 + BREAKOUT_BUFFER)
+    risk = stop_loss - entry_price
+    return entry_price - risk * CANDLESTICK_RISK_REWARD_RATIO, stop_loss
+
+
+def _bullish_inside_bar_levels(context, entry_price, df):
+    depth = context["mother_high"] - context["mother_low"]
+    stop_loss = context["mother_low"] * (1 - BREAKOUT_BUFFER)
+    return entry_price + depth, stop_loss
+
+
+def _bearish_inside_bar_levels(context, entry_price, df):
+    depth = context["mother_high"] - context["mother_low"]
+    stop_loss = context["mother_high"] * (1 + BREAKOUT_BUFFER)
+    return entry_price - depth, stop_loss
+
+
+def _bullish_outside_bar_levels(context, entry_price, df):
+    depth = context["outside_high"] - context["outside_low"]
+    stop_loss = context["outside_low"] * (1 - BREAKOUT_BUFFER)
+    return entry_price + depth, stop_loss
+
+
+def _bearish_outside_bar_levels(context, entry_price, df):
+    depth = context["outside_high"] - context["outside_low"]
+    stop_loss = context["outside_high"] * (1 + BREAKOUT_BUFFER)
+    return entry_price - depth, stop_loss
+
+
+# --- George_Strategies_Images_Synthese.md — Golden Cross / Death Cross ---
+
+
+def _golden_cross(context, entry_price, df):
+    sma200 = context["sma200"]
+    depth = entry_price - sma200
+    return entry_price + depth, sma200 * (1 - BREAKOUT_BUFFER)
+
+
+def _death_cross(context, entry_price, df):
+    sma200 = context["sma200"]
+    depth = sma200 - entry_price
+    return entry_price - depth, sma200 * (1 + BREAKOUT_BUFFER)
+
+
+# --- George_Strategies_Images_Synthese.md — Smart Money Concepts ---
+
+
+def _bullish_fair_value_gap(context, entry_price, df):
+    depth = context["impulse_end"] - context["impulse_start"]
+    return entry_price + depth, context["gap_bottom"] * (1 - BREAKOUT_BUFFER)
+
+
+def _bearish_fair_value_gap(context, entry_price, df):
+    depth = context["impulse_start"] - context["impulse_end"]
+    return entry_price - depth, context["gap_top"] * (1 + BREAKOUT_BUFFER)
+
+
+def _bullish_breakaway_gap(context, entry_price, df):
+    resistance = context["resistance"]
+    support = _recent_low(df, BREAKOUT_WINDOW)
+    depth = resistance - support
+    return entry_price + depth, context["gap_bottom"] * (1 - BREAKOUT_BUFFER)
+
+
+def _bearish_breakaway_gap(context, entry_price, df):
+    support = context["support"]
+    resistance = _recent_high(df, BREAKOUT_WINDOW)
+    depth = resistance - support
+    return entry_price - depth, context["gap_top"] * (1 + BREAKOUT_BUFFER)
+
+
+def _bullish_order_block(context, entry_price, df):
+    return entry_price + context["impulse_amplitude"], context["ob_low"] * (1 - BREAKOUT_BUFFER)
+
+
+def _bearish_order_block(context, entry_price, df):
+    return entry_price - context["impulse_amplitude"], context["ob_high"] * (1 + BREAKOUT_BUFFER)
+
+
+def _bullish_break_of_structure(context, entry_price, df):
+    swing_high = context["swing_high"]["price"]
+    support = _recent_low(df, BREAKOUT_WINDOW)
+    depth = swing_high - support
+    return entry_price + depth, swing_high * (1 - BREAKOUT_BUFFER)
+
+
+def _bearish_break_of_structure(context, entry_price, df):
+    swing_low = context["swing_low"]["price"]
+    resistance = _recent_high(df, BREAKOUT_WINDOW)
+    depth = resistance - swing_low
+    return entry_price - depth, swing_low * (1 + BREAKOUT_BUFFER)
+
+
 _LEVEL_FUNCTIONS = {
     "Double Bottom": _double_bottom,
     "Double Top": _double_top,
@@ -218,6 +480,45 @@ _LEVEL_FUNCTIONS = {
     "Evening Star": _bearish_candlestick_levels,
     "Dark Cloud Cover": _bearish_candlestick_levels,
     "Piercing Line": _bullish_candlestick_levels,
+    # George_Strategies_Images_Synthese.md — figures chartistes classiques
+    "Triple Top": _triple_top,
+    "Triple Bottom": _triple_bottom,
+    "Rounding Top": _rounding_top,
+    "Rounding Bottom": _rounding_bottom,
+    "Diamond Top": _diamond_top,
+    "Diamond Bottom": _diamond_bottom,
+    "Symmetrical Triangle Bullish": _symmetrical_triangle_bullish,
+    "Symmetrical Triangle Bearish": _symmetrical_triangle_bearish,
+    "Rectangle Bullish": _rectangle_bullish,
+    "Rectangle Bearish": _rectangle_bearish,
+    "Bull Pennant": _bull_pennant,
+    "Bear Pennant": _bear_pennant,
+    # George_Strategies_Images_Synthese.md — bougies japonaises supplémentaires
+    "Bullish Harami": _bullish_harami_levels,
+    "Bearish Harami": _bearish_harami_levels,
+    "Three White Soldiers": _three_white_soldiers_levels,
+    "Three Black Crows": _three_black_crows_levels,
+    "Bullish Kicker": _bullish_kicker_levels,
+    "Bearish Kicker": _bearish_kicker_levels,
+    "Dragonfly Doji": _dragonfly_doji_levels,
+    "Bullish Marubozu": _bullish_marubozu_levels,
+    "Bearish Marubozu": _bearish_marubozu_levels,
+    "Bullish Inside Bar": _bullish_inside_bar_levels,
+    "Bearish Inside Bar": _bearish_inside_bar_levels,
+    "Bullish Outside Bar": _bullish_outside_bar_levels,
+    "Bearish Outside Bar": _bearish_outside_bar_levels,
+    # George_Strategies_Images_Synthese.md — Golden Cross / Death Cross
+    "Golden Cross": _golden_cross,
+    "Death Cross": _death_cross,
+    # George_Strategies_Images_Synthese.md — Smart Money Concepts
+    "Bullish Fair Value Gap": _bullish_fair_value_gap,
+    "Bearish Fair Value Gap": _bearish_fair_value_gap,
+    "Bullish Breakaway Gap": _bullish_breakaway_gap,
+    "Bearish Breakaway Gap": _bearish_breakaway_gap,
+    "Bullish Order Block": _bullish_order_block,
+    "Bearish Order Block": _bearish_order_block,
+    "Bullish Break of Structure": _bullish_break_of_structure,
+    "Bearish Break of Structure": _bearish_break_of_structure,
 }
 
 

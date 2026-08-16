@@ -79,6 +79,14 @@ Contrairement au livre de Kabbaj (édité, daté, vérifiable), ces images sont 
 
 ---
 
-## 4. Statut : référence uniquement
+## 4. Statut : implémenté
 
-Comme demandé explicitement lors de l'ajout de ce document : **aucun développement n'a été entrepris** à partir de ce catalogue — pas de nouveau module dans `engine/patterns/`, pas de changement à `engine/confidence.py`, `agents/context.py` ou aux prompts système. Ce document a le même statut que `George_AnalyseTechnique_Kabbaj_Synthese.md` avant son intégration ultérieure (voir CLAUDE.md § « RSI, Fibonacci et bougies japonaises ») : une base de candidats documentée, à activer plus tard sur demande explicite.
+**Mise à jour** : sur demande explicite de l'utilisateur, les 35 concepts du §1 ont été implémentés — voir CLAUDE.md § « 35 new pattern detectors from George_Strategies_Images_Synthese.md » pour le détail complet. Résumé :
+
+- **§1.1 Smart Money Concepts** : Fair Value Gap, Order Block et Break of Structure implémentés selon leur définition standard/primaire (pas la géométrie ambiguë des captures) — `engine/patterns/smart_money.py`. Breakaway Gap implémenté avec un choix délibéré et documenté (définition classique pré-ICT, distincte du FVG) vu l'incohérence entre les deux captures sources (§3). Les 3 variantes de retest de zone de demande (§1.1, dernière ligne) n'ont **pas** été implémentées comme détecteurs séparés — trop qualitatives pour une géométrie objective sans référence primaire.
+- **§1.2 Figures chartistes classiques** : Triple Top/Bottom, Rounding Top/Bottom, Symmetrical Triangle, Rectangle, Pennant implémentés. Diamond implémenté avec une simplification assumée (amplitude barre-à-barre plutôt que structure de swings — voir CLAUDE.md pour le détail).
+- **§1.3 Bougies japonaises** : Harami, Three White Soldiers/Three Black Crows, Kicker, Dragonfly Doji, Marubozu, Inside/Outside Bar implémentés. Pin Bar **non** implémenté séparément, confirmé par la revue comme une simple synonymie de Hammer/Shooting Star déjà couverts (comme pressenti au §1.3).
+- **§1.4 Indicateurs/signaux** : Golden Cross/Death Cross implémentés (`engine/patterns/crossover.py`, un événement de croisement, architecturalement distinct des détecteurs de géométrie de bougies). Volume Breakout/Dry Up/Climax **non** implémentés — le document ne fournissait aucun critère chiffré exploitable (contrairement à Kabbaj), et aucune définition de référence externe n'a été demandée pour ce lot. Fibonacci reste absent (déjà noté comme hors-scope de ce document au §1.4).
+- **§3 réserves sur la qualité de la source** : les libellés reconnus comme bidons ("Dock Wave", "Ticksban", "AMI CONFIRMATION"...) n'ont, sans surprise, donné lieu à aucun développement.
+
+Une vraie erreur de définition géométrique (Three White Soldiers/Three Black Crows ne vérifiaient pas réellement un "long corps", le cœur du nom de la figure) a été trouvée par une revue indépendante avant d'être mergée — voir CLAUDE.md pour le détail. Ce document garde son statut de référence pour comprendre *pourquoi* chaque choix d'implémentation a été fait ; le comportement réel du code fait foi en cas de divergence future.

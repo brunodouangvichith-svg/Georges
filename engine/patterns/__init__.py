@@ -2,9 +2,20 @@ from engine.patterns.breakout import detect_breakdown, detect_breakout
 from engine.patterns.candlestick import (
     detect_bearish_doji,
     detect_bearish_engulfing,
+    detect_bearish_harami,
+    detect_bearish_inside_bar,
+    detect_bearish_kicker,
+    detect_bearish_marubozu,
+    detect_bearish_outside_bar,
     detect_bullish_doji,
     detect_bullish_engulfing,
+    detect_bullish_harami,
+    detect_bullish_inside_bar,
+    detect_bullish_kicker,
+    detect_bullish_marubozu,
+    detect_bullish_outside_bar,
     detect_dark_cloud_cover,
+    detect_dragonfly_doji,
     detect_evening_star,
     detect_hammer,
     detect_hanging_man,
@@ -12,28 +23,64 @@ from engine.patterns.candlestick import (
     detect_morning_star,
     detect_piercing_line,
     detect_shooting_star,
+    detect_three_black_crows,
+    detect_three_white_soldiers,
 )
 from engine.patterns.common import PatternMatch
 from engine.patterns.continuation import (
     detect_ascending_triangle,
     detect_bear_flag,
+    detect_bear_pennant,
     detect_bull_flag,
+    detect_bull_pennant,
     detect_descending_triangle,
     detect_falling_wedge,
+    detect_rectangle_bearish,
+    detect_rectangle_bullish,
     detect_rising_wedge,
+    detect_symmetrical_triangle_bearish,
+    detect_symmetrical_triangle_bullish,
 )
+from engine.patterns.crossover import detect_death_cross, detect_golden_cross
 from engine.patterns.reversal import (
     detect_cup_and_handle,
+    detect_diamond_bottom,
+    detect_diamond_top,
     detect_double_bottom,
     detect_double_top,
     detect_head_and_shoulders,
     detect_inverse_head_and_shoulders,
+    detect_rounding_bottom,
+    detect_rounding_top,
+    detect_triple_bottom,
+    detect_triple_top,
+)
+from engine.patterns.smart_money import (
+    detect_bearish_breakaway_gap,
+    detect_bearish_break_of_structure,
+    detect_bearish_fair_value_gap,
+    detect_bearish_order_block,
+    detect_bullish_breakaway_gap,
+    detect_bullish_break_of_structure,
+    detect_bullish_fair_value_gap,
+    detect_bullish_order_block,
 )
 
 # Registre des détecteurs, chacun testable indépendamment (voir
-# tests/test_patterns.py, tests/test_candlestick.py) et appelé par
+# tests/test_patterns.py, tests/test_candlestick.py, et les modules de tests
+# `*_extended`/`test_crossover.py`/`test_smart_money.py`) et appelé par
 # `engine.detect.detect_all`. 13 figures chartistes (Phase 1) + 12 figures en
-# bougies japonaises (ad hoc, voir George_AnalyseTechnique_Kabbaj_Synthese.md).
+# bougies japonaises (ad hoc, voir George_AnalyseTechnique_Kabbaj_Synthese.md)
+# + 35 figures/concepts supplémentaires (ad hoc, voir
+# George_Strategies_Images_Synthese.md) : 6 figures chartistes classiques
+# (Triple Top/Bottom, Rounding Top/Bottom, Diamond Top/Bottom), 6 figures de
+# continuation (Symmetrical Triangle, Rectangle, Pennant — bullish/bearish),
+# 13 bougies japonaises (Harami, Three Soldiers/Crows, Kicker, Dragonfly
+# Doji, Marubozu, Inside/Outside Bar), 2 événements de croisement (Golden/
+# Death Cross, `engine/patterns/crossover.py` — architecturalement distinct :
+# un croisement de deux moyennes mobiles, pas une géométrie de bougies), et
+# 8 "Smart Money Concepts" (Fair Value Gap, Breakaway Gap, Order Block, Break
+# of Structure — `engine/patterns/smart_money.py`).
 DETECTORS = {
     "Double Bottom": detect_double_bottom,
     "Double Top": detect_double_top,
@@ -60,6 +107,45 @@ DETECTORS = {
     "Evening Star": detect_evening_star,
     "Dark Cloud Cover": detect_dark_cloud_cover,
     "Piercing Line": detect_piercing_line,
+    # George_Strategies_Images_Synthese.md — figures chartistes classiques
+    "Triple Top": detect_triple_top,
+    "Triple Bottom": detect_triple_bottom,
+    "Rounding Top": detect_rounding_top,
+    "Rounding Bottom": detect_rounding_bottom,
+    "Diamond Top": detect_diamond_top,
+    "Diamond Bottom": detect_diamond_bottom,
+    "Symmetrical Triangle Bullish": detect_symmetrical_triangle_bullish,
+    "Symmetrical Triangle Bearish": detect_symmetrical_triangle_bearish,
+    "Rectangle Bullish": detect_rectangle_bullish,
+    "Rectangle Bearish": detect_rectangle_bearish,
+    "Bull Pennant": detect_bull_pennant,
+    "Bear Pennant": detect_bear_pennant,
+    # George_Strategies_Images_Synthese.md — bougies japonaises supplémentaires
+    "Bullish Harami": detect_bullish_harami,
+    "Bearish Harami": detect_bearish_harami,
+    "Three White Soldiers": detect_three_white_soldiers,
+    "Three Black Crows": detect_three_black_crows,
+    "Bullish Kicker": detect_bullish_kicker,
+    "Bearish Kicker": detect_bearish_kicker,
+    "Dragonfly Doji": detect_dragonfly_doji,
+    "Bullish Marubozu": detect_bullish_marubozu,
+    "Bearish Marubozu": detect_bearish_marubozu,
+    "Bullish Inside Bar": detect_bullish_inside_bar,
+    "Bearish Inside Bar": detect_bearish_inside_bar,
+    "Bullish Outside Bar": detect_bullish_outside_bar,
+    "Bearish Outside Bar": detect_bearish_outside_bar,
+    # George_Strategies_Images_Synthese.md — Golden Cross / Death Cross
+    "Golden Cross": detect_golden_cross,
+    "Death Cross": detect_death_cross,
+    # George_Strategies_Images_Synthese.md — Smart Money Concepts
+    "Bullish Fair Value Gap": detect_bullish_fair_value_gap,
+    "Bearish Fair Value Gap": detect_bearish_fair_value_gap,
+    "Bullish Breakaway Gap": detect_bullish_breakaway_gap,
+    "Bearish Breakaway Gap": detect_bearish_breakaway_gap,
+    "Bullish Order Block": detect_bullish_order_block,
+    "Bearish Order Block": detect_bearish_order_block,
+    "Bullish Break of Structure": detect_bullish_break_of_structure,
+    "Bearish Break of Structure": detect_bearish_break_of_structure,
 }
 
 __all__ = [
@@ -90,4 +176,39 @@ __all__ = [
     "detect_evening_star",
     "detect_dark_cloud_cover",
     "detect_piercing_line",
+    "detect_triple_top",
+    "detect_triple_bottom",
+    "detect_rounding_top",
+    "detect_rounding_bottom",
+    "detect_diamond_top",
+    "detect_diamond_bottom",
+    "detect_symmetrical_triangle_bullish",
+    "detect_symmetrical_triangle_bearish",
+    "detect_rectangle_bullish",
+    "detect_rectangle_bearish",
+    "detect_bull_pennant",
+    "detect_bear_pennant",
+    "detect_bullish_harami",
+    "detect_bearish_harami",
+    "detect_three_white_soldiers",
+    "detect_three_black_crows",
+    "detect_bullish_kicker",
+    "detect_bearish_kicker",
+    "detect_dragonfly_doji",
+    "detect_bullish_marubozu",
+    "detect_bearish_marubozu",
+    "detect_bullish_inside_bar",
+    "detect_bearish_inside_bar",
+    "detect_bullish_outside_bar",
+    "detect_bearish_outside_bar",
+    "detect_golden_cross",
+    "detect_death_cross",
+    "detect_bullish_fair_value_gap",
+    "detect_bearish_fair_value_gap",
+    "detect_bullish_breakaway_gap",
+    "detect_bearish_breakaway_gap",
+    "detect_bullish_order_block",
+    "detect_bearish_order_block",
+    "detect_bullish_break_of_structure",
+    "detect_bearish_break_of_structure",
 ]

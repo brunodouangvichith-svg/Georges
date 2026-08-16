@@ -378,3 +378,461 @@ def detect_piercing_line(df) -> list[PatternMatch]:
         return []
     geometry_quality = float(np.clip(penetration, 0.0, 1.0))
     return _score_and_match(df, "Piercing Line", geometry_quality, True, len(df) - 1, {})
+
+
+# --- Harami haussier / baissier --------------------------------------------
+#
+# Contrairement à l'avalement (`detect_bullish_engulfing`/`detect_bearish_
+# engulfing`), qui exige que le corps courant DÉPASSE le corps précédent, le
+# Harami exige l'inclusion stricte inverse : une grande bougie suivie d'une
+# petite bougie de couleur opposée dont le corps tient ENTIÈREMENT dans le
+# corps de la précédente — une compression/indécision après un mouvement
+# marqué, pas une domination.
+
+HARAMI_MAX_BODY_RATIO = 0.6  # corps courant <= 60% du corps précédent, pour un "petit corps" significatif
+
+
+def _harami(df, bullish: bool) -> list[PatternMatch]:
+    """Harami haussier (`bullish`) : grande bougie baissière suivie d'une
+    petite bougie haussière contenue dans son corps, après une tendance
+    baissière. Harami baissier : symétrique (grande bougie haussière, petite
+    bougie baissière contenue, après une tendance haussière). Le corps de la
+    bougie courante doit à la fois être strictement contenu dans le corps
+    précédent ET rester sous `HARAMI_MAX_BODY_RATIO` de sa taille — une
+    inclusion à peine plus petite (ratio proche de 1) ne serait pas un
+    vrai "petit corps"."""
+    if len(df) < TREND_CONTEXT_BARS + 2:
+        return []
+    prev, curr = df.iloc[-2], df.iloc[-1]
+    prev_m, curr_m = _candle_metrics(prev), _candle_metrics(curr)
+    if bullish:
+        if not prev_m["bearish"] or not curr_m["bullish"]:
+            return []
+    else:
+        if not prev_m["bullish"] or not curr_m["bearish"]:
+            return []
+    if prev_m["body"] == 0:
+        return []
+    prev_body_low, prev_body_high = min(prev["open"], prev["close"]), max(prev["open"], prev["close"])
+    curr_body_low, curr_body_high = min(curr["open"], curr["close"]), max(curr["open"], curr["close"])
+    if not (curr_body_low > prev_body_low and curr_body_high < prev_body_high):
+        return []
+    body_ratio = curr_m["body"] / prev_m["body"]
+    if body_ratio > HARAMI_MAX_BODY_RATIO:
+        return []
+    if _preceding_trend(df, signal_bars=2) != ("down" if bullish else "up"):
+        return []
+
+    # Netteté géométrique : plus le corps courant est petit relativement au
+    # corps précédent (ratio proche de 0), plus la compression/indécision est
+    # marquée.
+    geometry_quality = float(np.clip(1.0 - body_ratio / HARAMI_MAX_BODY_RATIO, 0.0, 1.0))
+    return _score_and_match(
+        df,
+        "Bullish Harami" if bullish else "Bearish Harami",
+        geometry_quality,
+        bullish,
+        len(df) - 1,
+        {
+            # Géométrie brute de la bougie-mère, nécessaire au calcul des
+            # niveaux de sortie (son range sert de mouvement mesuré, ses
+            # extrêmes servent de niveau d'invalidation structurel).
+            "mother_index": len(df) - 2,
+            "mother_high": float(prev["high"]),
+            "mother_low": float(prev["low"]),
+        },
+    )
+
+
+def detect_bullish_harami(df) -> list[PatternMatch]:
+    return _harami(df, bullish=True)
+
+
+def detect_bearish_harami(df) -> list[PatternMatch]:
+    return _harami(df, bullish=False)
+
+
+# --- Three White Soldiers / Three Black Crows -------------------------------
+
+SOLDIER_MAX_SHADOW_RATIO = 0.5  # ombre de poursuite (haute pour Soldiers, basse pour Crows) <= 50% du corps
+SOLDIER_MIN_BODY_RATIO = 0.6  # corps "long" (le "White"/"Black" du nom) >= 60% du range de la bougie
+
+
+def _three_soldiers_or_crows(df, bullish: bool) -> list[PatternMatch]:
+    """Trois bougies consécutives de même couleur, chacune ouvrant DANS le
+    corps de la précédente et clôturant AU-DELÀ de la clôture précédente
+    (progression continue, pas seulement 3 bougies de même sens), avec un
+    corps "long" (>= `SOLDIER_MIN_BODY_RATIO` du range de la bougie — c'est
+    le "White"/"Black" du nom, pas juste 3 clôtures dans le même sens) et une
+    ombre de poursuite (haute pour les 3 Soldats, basse pour les 3 Corbeaux)
+    limitée à `SOLDIER_MAX_SHADOW_RATIO` du corps de chaque bougie — écarte
+    une "fausse" série où une longue mèche mange l'essentiel du mouvement.
+    L'ombre opposée (basse pour les Soldats, haute pour les Corbeaux) est
+    plafonnée à la même limite : sans les deux gardes-fous du corps ET de
+    l'ombre opposée, 3 bougies à corps minuscule flanquées d'une grande mèche
+    du côté non contraint passaient tous les tests existants et étaient
+    détectées comme "Three White Soldiers" — un vrai faux positif trouvé en
+    révision, rien à voir visuellement avec 3 longues bougies vertes.
+    Three White Soldiers accepte un contexte précédent baissier OU plat
+    (retournement ou simple reprise après une pause) ; Three Black Crows
+    exige une tendance haussière précédente (retournement uniquement — le
+    livre ne documente pas de variante "de continuation" pour les corbeaux)."""
+    if len(df) < TREND_CONTEXT_BARS + 3:
+        return []
+    candles = [df.iloc[-3], df.iloc[-2], df.iloc[-1]]
+    metrics = [_candle_metrics(c) for c in candles]
+    if bullish:
+        if not all(m["bullish"] for m in metrics):
+            return []
+    else:
+        if not all(m["bearish"] for m in metrics):
+            return []
+    if any(m["body"] == 0 or m["range"] == 0 for m in metrics):
+        return []
+    if any(m["body"] / m["range"] < SOLDIER_MIN_BODY_RATIO for m in metrics):
+        return []
+
+    for prev, curr in zip(candles, candles[1:]):
+        prev_body_low, prev_body_high = min(prev["open"], prev["close"]), max(prev["open"], prev["close"])
+        if not (prev_body_low <= curr["open"] <= prev_body_high):
+            return []
+        if bullish and curr["close"] <= prev["close"]:
+            return []
+        if not bullish and curr["close"] >= prev["close"]:
+            return []
+
+    shadow_ratios = []
+    for m in metrics:
+        trailing_shadow = m["upper_shadow"] if bullish else m["lower_shadow"]
+        leading_shadow = m["lower_shadow"] if bullish else m["upper_shadow"]
+        trailing_ratio = trailing_shadow / m["body"]
+        leading_ratio = leading_shadow / m["body"]
+        if trailing_ratio > SOLDIER_MAX_SHADOW_RATIO or leading_ratio > SOLDIER_MAX_SHADOW_RATIO:
+            return []
+        shadow_ratios.append(trailing_ratio)
+
+    if bullish:
+        if _preceding_trend(df, signal_bars=3) not in ("down", "flat"):
+            return []
+    else:
+        if _preceding_trend(df, signal_bars=3) != "up":
+            return []
+
+    # Netteté géométrique : moyenne, sur les 3 bougies, de la qualité de
+    # l'ombre de poursuite (plus elle est petite relativement au corps, plus
+    # la conviction directionnelle est nette).
+    shadow_quality = float(np.mean([np.clip(1.0 - r / SOLDIER_MAX_SHADOW_RATIO, 0.0, 1.0) for r in shadow_ratios]))
+    geometry_quality = shadow_quality
+
+    first, last = candles[0], candles[-1]
+    extra_context = {
+        # Géométrie brute de la formation entière (hors bougie de signal
+        # seule) : nécessaire au calcul du mouvement mesuré (`net_move`) et du
+        # niveau d'invalidation structurel (`formation_low`/`formation_high`).
+        "formation_start": {"index": len(df) - 3, "price": float(first["open"])},
+        "formation_low": float(min(c["low"] for c in candles)),
+        "formation_high": float(max(c["high"] for c in candles)),
+        "net_move": float(last["close"] - first["open"]),
+    }
+    return _score_and_match(
+        df,
+        "Three White Soldiers" if bullish else "Three Black Crows",
+        geometry_quality,
+        bullish,
+        len(df) - 1,
+        extra_context,
+    )
+
+
+def detect_three_white_soldiers(df) -> list[PatternMatch]:
+    return _three_soldiers_or_crows(df, bullish=True)
+
+
+def detect_three_black_crows(df) -> list[PatternMatch]:
+    return _three_soldiers_or_crows(df, bullish=False)
+
+
+# --- Kicker haussier / baissier ---------------------------------------------
+
+KICKER_MIN_GAP_RATIO = 0.05  # échelle de référence (relative au range précédent) pour noter l'ampleur du gap
+
+
+def _kicker(df, bullish: bool) -> list[PatternMatch]:
+    """Bougie de couleur opposée à la précédente, séparée par un gap TOTAL —
+    aucun recouvrement d'amplitude (range haut-bas), pas seulement de corps :
+    pour un Kicker haussier, le plus bas de la bougie courante dépasse
+    strictement le plus haut de la précédente ; pour un Kicker baissier,
+    l'inverse. C'est ce zéro-recouvrement strict qui distingue le Kicker de
+    l'avalement (`detect_bullish_engulfing`/`detect_bearish_engulfing`), où
+    les amplitudes se chevauchent toujours par construction. Signal jugé
+    suffisamment fort par lui-même (retournement brutal et immédiat du
+    sentiment, typiquement une nouvelle choc) pour ne pas exiger de tendance
+    précédente particulière, contrairement aux figures ci-dessus."""
+    if len(df) < 2:
+        return []
+    prev, curr = df.iloc[-2], df.iloc[-1]
+    prev_m, curr_m = _candle_metrics(prev), _candle_metrics(curr)
+    if bullish:
+        if not prev_m["bearish"] or not curr_m["bullish"]:
+            return []
+        if not (curr["low"] > prev["high"]):
+            return []
+        gap = float(curr["low"] - prev["high"])
+        gap_low, gap_high = float(prev["high"]), float(curr["low"])
+    else:
+        if not prev_m["bullish"] or not curr_m["bearish"]:
+            return []
+        if not (curr["high"] < prev["low"]):
+            return []
+        gap = float(prev["low"] - curr["high"])
+        gap_low, gap_high = float(curr["high"]), float(prev["low"])
+
+    prev_range = prev_m["range"] or 1e-9
+    gap_ratio = gap / prev_range
+    geometry_quality = float(np.clip(gap_ratio / (2 * KICKER_MIN_GAP_RATIO), 0.0, 1.0))
+    return _score_and_match(
+        df,
+        "Bullish Kicker" if bullish else "Bearish Kicker",
+        geometry_quality,
+        bullish,
+        len(df) - 1,
+        {
+            # Bornes brutes du gap lui-même, nécessaires au calcul du niveau
+            # de sortie (stop au bord du gap le plus proche de l'entrée).
+            "gap_low": gap_low,
+            "gap_high": gap_high,
+        },
+    )
+
+
+def detect_bullish_kicker(df) -> list[PatternMatch]:
+    return _kicker(df, bullish=True)
+
+
+def detect_bearish_kicker(df) -> list[PatternMatch]:
+    return _kicker(df, bullish=False)
+
+
+# --- Dragonfly Doji ----------------------------------------------------------
+
+
+def _dragonfly_doji_shape(df) -> dict | None:
+    if len(df) < TREND_CONTEXT_BARS + 1:
+        return None
+    m = _candle_metrics(df.iloc[-1])
+    if m["range"] == 0 or m["body"] == 0:
+        return None
+    if m["body"] / m["range"] > DOJI_MAX_BODY_RATIO:
+        return None
+    # Reprend telles quelles les ratios déjà utilisés par `_hammer_shape`
+    # (ombre longue >= LONG_SHADOW_MIN_RATIO x corps, ombre courte <=
+    # SHORT_SHADOW_MAX_RATIO x corps), simplement appliqués ici à un corps
+    # quasi nul (doji) plutôt qu'à un petit corps (marteau) — même
+    # vocabulaire de forme, cohérent avec le reste du fichier.
+    if m["lower_shadow"] < m["body"] * LONG_SHADOW_MIN_RATIO:
+        return None
+    if m["upper_shadow"] > m["body"] * SHORT_SHADOW_MAX_RATIO:
+        return None
+    return m
+
+
+def detect_dragonfly_doji(df) -> list[PatternMatch]:
+    """Doji en "T" : corps quasi nul (`DOJI_MAX_BODY_RATIO`) posé en haut du
+    range, longue mèche basse et mèche haute négligeable — signal de
+    retournement haussier, exige une tendance baissière précédente (même
+    logique que le Doji haussier générique ci-dessus, jamais un signal
+    isolé — §2.1 de la synthèse). Variante plus spécifique du Doji : toute
+    Dragonfly Doji est un Doji, l'inverse n'est pas vrai."""
+    m = _dragonfly_doji_shape(df)
+    if m is None or _preceding_trend(df) != "down":
+        return []
+    geometry_quality = float(np.clip(m["lower_shadow"] / (m["body"] * LONG_SHADOW_MIN_RATIO * 1.5), 0.0, 1.0))
+    return _score_and_match(df, "Dragonfly Doji", geometry_quality, True, len(df) - 1, {})
+
+
+# --- Marubozu haussier / baissier --------------------------------------------
+
+MARUBOZU_MAX_SHADOW_RATIO = 0.05  # ombre haute ET basse <= 5% du range : bougie "pleine"
+
+
+def _marubozu(df, bullish: bool) -> list[PatternMatch]:
+    """Bougie "pleine" : ouverture au ras du plus bas et clôture au ras du
+    plus haut (haussier), ou l'inverse (baissier) — les deux ombres restent
+    sous `MARUBOZU_MAX_SHADOW_RATIO` du range. Signal de conviction forte,
+    pas structurellement un retournement (contrairement au marteau/Harami/
+    Doji ci-dessus, qui ont besoin d'un "avant" à retourner) : aucune
+    tendance précédente particulière n'est exigée ici — la bougie se suffit
+    à elle-même. `trend_conf`/`rsi_conf`/`macd_conf`/`stoch_conf` continuent
+    néanmoins d'être calculés normalement contre le sens de la bougie, comme
+    pour toutes les figures de ce module."""
+    if len(df) < 1:
+        return []
+    row = df.iloc[-1]
+    m = _candle_metrics(row)
+    if m["range"] == 0:
+        return []
+    threshold = m["range"] * MARUBOZU_MAX_SHADOW_RATIO
+    if bullish:
+        if not m["bullish"]:
+            return []
+        open_shadow = row["open"] - row["low"]
+        close_shadow = row["high"] - row["close"]
+    else:
+        if not m["bearish"]:
+            return []
+        open_shadow = row["high"] - row["open"]
+        close_shadow = row["close"] - row["low"]
+    if open_shadow > threshold or close_shadow > threshold:
+        return []
+
+    max_ratio = max(open_shadow, close_shadow) / m["range"]
+    geometry_quality = float(np.clip(1.0 - max_ratio / MARUBOZU_MAX_SHADOW_RATIO, 0.0, 1.0))
+    return _score_and_match(
+        df,
+        "Bullish Marubozu" if bullish else "Bearish Marubozu",
+        geometry_quality,
+        bullish,
+        len(df) - 1,
+        {},
+    )
+
+
+def detect_bullish_marubozu(df) -> list[PatternMatch]:
+    return _marubozu(df, bullish=True)
+
+
+def detect_bearish_marubozu(df) -> list[PatternMatch]:
+    return _marubozu(df, bullish=False)
+
+
+# --- Inside Bar Breakout (haussier / baissier) -------------------------------
+
+
+def _inside_bar_breakout(df, bullish: bool) -> list[PatternMatch]:
+    """Trois bougies : la "mother bar" (barre-mère), une "inside bar" dont
+    tout le range (haut-bas, pas seulement le corps) est contenu dans celui
+    de la mother bar, puis une bougie de cassure dont la clôture dépasse le
+    plus haut (haussier) ou le plus bas (baissier) de l'inside bar. Regarde 3
+    barres en arrière depuis la barre de confirmation — contrairement aux
+    autres figures de ce module (1 à 3 bougies, toujours en partant de la
+    dernière), la bougie de signal ici n'est ni la mother bar ni l'inside
+    bar, mais la cassure qui les suit. Pas de filtre de tendance précédente :
+    la compression (mother bar -> inside bar, resserrement de la
+    volatilité) est elle-même le signal d'indécision, la cassure en
+    détermine seulement le sens."""
+    if len(df) < 3:
+        return []
+    mother, inside, breakout = df.iloc[-3], df.iloc[-2], df.iloc[-1]
+    if not (inside["high"] < mother["high"] and inside["low"] > mother["low"]):
+        return []
+    mother_range = float(mother["high"] - mother["low"])
+    inside_range = float(inside["high"] - inside["low"])
+    if mother_range <= 0 or inside_range <= 0:
+        return []
+    if bullish:
+        if not (breakout["close"] > inside["high"]):
+            return []
+        breakout_strength = (breakout["close"] - inside["high"]) / inside_range
+    else:
+        if not (breakout["close"] < inside["low"]):
+            return []
+        breakout_strength = (inside["low"] - breakout["close"]) / inside_range
+
+    # Netteté géométrique : compression de l'inside bar dans la mother bar
+    # (plus son range est petit relativement à la mother bar, plus
+    # l'indécision précédant la cassure est marquée) + vigueur de la cassure
+    # elle-même (relative au range de l'inside bar).
+    compression_quality = float(np.clip(1.0 - inside_range / mother_range, 0.0, 1.0))
+    strength_quality = float(np.clip(breakout_strength, 0.0, 1.0))
+    geometry_quality = 0.5 * compression_quality + 0.5 * strength_quality
+    return _score_and_match(
+        df,
+        "Bullish Inside Bar" if bullish else "Bearish Inside Bar",
+        geometry_quality,
+        bullish,
+        len(df) - 1,
+        {
+            # Géométrie brute de la mother bar et de l'inside bar, nécessaire
+            # au calcul des niveaux de sortie (range de la mother bar comme
+            # mouvement mesuré, son extrême opposé comme invalidation).
+            "mother_index": len(df) - 3,
+            "mother_high": float(mother["high"]),
+            "mother_low": float(mother["low"]),
+            "inside_index": len(df) - 2,
+            "inside_high": float(inside["high"]),
+            "inside_low": float(inside["low"]),
+        },
+    )
+
+
+def detect_bullish_inside_bar(df) -> list[PatternMatch]:
+    return _inside_bar_breakout(df, bullish=True)
+
+
+def detect_bearish_inside_bar(df) -> list[PatternMatch]:
+    return _inside_bar_breakout(df, bullish=False)
+
+
+# --- Outside Bar (haussier / baissier) ---------------------------------------
+
+OUTSIDE_BAR_CLOSE_THIRD = 1 / 3  # tiers haut (haussier) / bas (baissier) du range exigé pour la clôture
+
+
+def _outside_bar(df, bullish: bool) -> list[PatternMatch]:
+    """Bougie dont le range englobe ENTIÈREMENT celui de la précédente (plus
+    haut au-dessus ET plus bas en dessous — pas seulement le corps, comme
+    l'avalement). Le sens est donné par où clôture cette bougie dans son
+    propre range : tiers supérieur pour un Outside Bar haussier (achat
+    massif malgré l'élargissement du range, absorption des vendeurs), tiers
+    inférieur pour un baissier. Pas de filtre de tendance précédente, comme
+    le Kicker/Marubozu ci-dessus : l'engloutissement du range combiné à une
+    clôture extrême est déjà, à lui seul, le signal."""
+    if len(df) < 2:
+        return []
+    prev, curr = df.iloc[-2], df.iloc[-1]
+    if not (curr["high"] > prev["high"] and curr["low"] < prev["low"]):
+        return []
+    curr_range = float(curr["high"] - curr["low"])
+    prev_range = float(prev["high"] - prev["low"])
+    if curr_range <= 0:
+        return []
+    close_position = (curr["close"] - curr["low"]) / curr_range
+    if bullish:
+        if close_position < 1 - OUTSIDE_BAR_CLOSE_THIRD:
+            return []
+        position_quality = (close_position - (1 - OUTSIDE_BAR_CLOSE_THIRD)) / OUTSIDE_BAR_CLOSE_THIRD
+    else:
+        if close_position > OUTSIDE_BAR_CLOSE_THIRD:
+            return []
+        position_quality = (OUTSIDE_BAR_CLOSE_THIRD - close_position) / OUTSIDE_BAR_CLOSE_THIRD
+
+    # Netteté géométrique : extrémité de la position de clôture dans son
+    # propre range (moitié) + ampleur de l'engloutissement par rapport au
+    # range précédent (moitié) — les deux dimensions du signal.
+    engulf_ratio = curr_range / max(prev_range, 1e-9)
+    strength_quality = float(np.clip(engulf_ratio - 1.0, 0.0, 1.0))
+    geometry_quality = 0.5 * float(np.clip(position_quality, 0.0, 1.0)) + 0.5 * strength_quality
+    return _score_and_match(
+        df,
+        "Bullish Outside Bar" if bullish else "Bearish Outside Bar",
+        geometry_quality,
+        bullish,
+        len(df) - 1,
+        {
+            # Géométrie brute de la bougie englobante et de la précédente,
+            # nécessaire au calcul des niveaux de sortie (son propre range
+            # comme mouvement mesuré, son extrême opposé comme invalidation).
+            "outside_high": float(curr["high"]),
+            "outside_low": float(curr["low"]),
+            "prev_high": float(prev["high"]),
+            "prev_low": float(prev["low"]),
+        },
+    )
+
+
+def detect_bullish_outside_bar(df) -> list[PatternMatch]:
+    return _outside_bar(df, bullish=True)
+
+
+def detect_bearish_outside_bar(df) -> list[PatternMatch]:
+    return _outside_bar(df, bullish=False)
