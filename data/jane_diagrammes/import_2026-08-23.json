@@ -32,7 +32,7 @@
   {
     "source_name": "Galerie photo personnelle — Triangle symétrique, méthode de trading",
     "already_summarized": true,
-    "content": "FIGURE CANDIDATE : méthodologie de trading du triangle symétrique — une cassure dans le sens de la tendance est une entrée en continuation dès la cassure, tandis qu'une cassure à contre-tendance appelle à attendre un retest avant d'entrer en retournement. Le « Triangle symétrique » ne fait pas partie des figures actuellement détectées par George (qui couvre Triangle Ascendant/Descendant, mais pas Symétrique) — candidat plausible pour extension du catalogue après backtesting."
+    "content": "Méthodologie de trading du triangle symétrique : une cassure dans le sens de la tendance est une entrée en continuation dès la cassure, tandis qu'une cassure à contre-tendance appelle à attendre un retest avant d'entrer en retournement. Le Triangle Symétrique (haussier et baissier) est déjà couvert par un détecteur existant de George (engine/patterns/continuation.py — ajouté depuis le lot d'images George_Strategies_Images_Synthese.md, voir CLAUDE.md) — cette entrée confirme la définition standard plutôt que de proposer un nouveau candidat. La nuance « attendre un retest avant d'entrer sur une cassure à contre-tendance » n'est pas garantie identique à la logique du détecteur actuel — à vérifier dans le code si ce détail précis importe."
   },
   {
     "source_name": "Galerie photo personnelle — Chandelier Shooting Star",
@@ -42,7 +42,7 @@
   {
     "source_name": "Galerie photo personnelle — Grille continuation/retournement (8 figures)",
     "already_summarized": true,
-    "content": "Fiche de référence croisant type de mouvement (continuation vs retournement) et biais (haussier vs baissier) pour huit figures chartistes (triangles ascendant/descendant, biseaux haussier/baissier, drapeaux haussier/baissier, triangles symétriques haussier/baissier, double/triple sommet/creux, épaule-tête-épaule et inverse), avec placement schématique générique de l'entrée, du stop-loss et du take-profit pour chacune. Double Bottom, Double Top, les deux Wedges, les deux Flags, Ascending/Descending Triangle et Head & Shoulders (+ inverse) sont déjà couverts par des détecteurs existants de George ; Triple Top, Triple Bottom et Triangle Symétrique (haussier et baissier) n'en font pas partie — candidats plausibles pour extension du catalogue après backtesting."
+    "content": "Fiche de référence croisant type de mouvement (continuation vs retournement) et biais (haussier vs baissier) pour huit figures chartistes (triangles ascendant/descendant, biseaux haussier/baissier, drapeaux haussier/baissier, triangles symétriques haussier/baissier, double/triple sommet/creux, épaule-tête-épaule et inverse), avec placement schématique générique de l'entrée, du stop-loss et du take-profit pour chacune. Les huit figures sont toutes déjà couvertes par des détecteurs existants de George — Triple Top/Bottom et Triangle Symétrique (haussier/baissier) ont été ajoutés depuis le lot d'images George_Strategies_Images_Synthese.md (voir CLAUDE.md), les autres depuis la Phase 1 — aucun nouveau candidat identifié dans ce diagramme."
   },
   {
     "source_name": "Galerie photo personnelle — Zone de convergence de tendances (« 100% Winning Zone »)",
@@ -82,7 +82,7 @@
   {
     "source_name": "Galerie photo personnelle — 50 EMA, placement du stop-loss",
     "already_summarized": true,
-    "content": "Diagramme (source : compte de réseau social « ArvindaTrader », carrousel « Important Indicator ») illustrant la moyenne mobile exponentielle 50 périodes (50 EMA) : le prix évolue sous une 50 EMA descendante pendant une tendance baissière puis la retraverse à la hausse en fin de figure, la zone de retraversée étant annotée « PLACE STOPLOSS » sans règle de calcul précise (distance, ATR). George utilise déjà un alignement avec des moyennes mobiles 50/200 dans son score de confiance (engine/confidence.py) — cette image ne précise pas si son propre calcul est une EMA ou une moyenne mobile simple, mais confirme la pertinence de cet horizon 50 périodes ; l'usage spécifique comme référence de stop-loss n'est pas dans le scoring actuel."
+    "content": "Diagramme (source : compte de réseau social « ArvindaTrader », carrousel « Important Indicator ») illustrant la moyenne mobile exponentielle 50 périodes (50 EMA) : le prix évolue sous une 50 EMA descendante pendant une tendance baissière puis la retraverse à la hausse en fin de figure, la zone de retraversée étant annotée « PLACE STOPLOSS » sans règle de calcul précise (distance, ATR). George utilise déjà une moyenne mobile simple (SMA, pas EMA) à l'horizon 50 périodes dans son score de confiance (engine/features.py:position_vs_moving_averages) — confirme la pertinence de cet horizon, mais avec un calcul différent (SMA) de celui illustré ici (EMA) ; l'usage spécifique comme référence de stop-loss n'est pas dans le scoring actuel."
   },
   {
     "source_name": "Galerie photo personnelle — 21 EMA, point d'entrée/sortie",
@@ -102,7 +102,7 @@
   {
     "source_name": "Galerie photo personnelle — 200 EMA, tendance long terme",
     "already_summarized": true,
-    "content": "Diagramme (même source) illustrant la moyenne mobile exponentielle 200 périodes (200 EMA) restant au-dessus du prix pendant toute une tendance baissière prolongée, annoté « LONG TERM TREND ». George utilise déjà un alignement avec des moyennes mobiles 50/200 dans son score de confiance (engine/confidence.py) — cette image ne précise pas si son propre calcul est une EMA ou une moyenne mobile simple, mais confirme l'usage classique de cet horizon 200 périodes comme référence de tendance long terme."
+    "content": "Diagramme (même source) illustrant la moyenne mobile exponentielle 200 périodes (200 EMA) restant au-dessus du prix pendant toute une tendance baissière prolongée, annoté « LONG TERM TREND ». George utilise déjà une moyenne mobile simple (SMA, pas EMA) à l'horizon 200 périodes dans son score de confiance (engine/features.py:position_vs_moving_averages) — confirme l'usage classique de cet horizon comme référence de tendance long terme, avec un calcul différent (SMA) de celui illustré ici (EMA)."
   },
   {
     "source_name": "Galerie photo personnelle — 9 EMA, tendance court terme",

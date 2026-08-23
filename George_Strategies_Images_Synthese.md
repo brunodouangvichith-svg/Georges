@@ -1,6 +1,9 @@
-# George — Synthèse de connaissances : images de stratégies (`stratégies_images/`)
+# George — Synthèse de connaissances : images de stratégies (`stratégies_images/` + galerie photo personnelle)
 
-Document de référence consolidant l'apport des 16 images de `stratégies_images/` pour l'agent George : catalogue de concepts/patterns (candidats pour de futurs détecteurs ou pour enrichir le contexte fourni aux LLM), recoupement avec les 25 détecteurs existants (13 figures chartistes + 12 figures en bougies japonaises, `engine/patterns/`). Suit le même esprit que `George_AnalyseTechnique_Kabbaj_Synthese.md` : **synthèse de connaissances, pas un résumé d'images** — et, comme ce document au moment de sa création, **pure documentation, rien câblé dans le code**.
+Document de référence consolidant l'apport de deux lots d'images pour l'agent George : catalogue de concepts/patterns (candidats pour de futurs détecteurs ou pour enrichir le contexte fourni aux LLM), recoupement avec les détecteurs existants (`engine/patterns/`). Suit le même esprit que `George_AnalyseTechnique_Kabbaj_Synthese.md` : **synthèse de connaissances, pas un résumé d'images**.
+
+- **§0-4 : premier lot**, 16 images de `stratégies_images/` — les 35 concepts candidats identifiés ont depuis été implémentés (voir §4).
+- **§5 : second lot**, 22 diagrammes d'une galerie photo personnelle (2026-08-23), analysés directement par un agent multimodal (pas via l'API vision Mistral — voir `agents/jane_veille.py`) et déjà versés dans `jane_knowledge` (RAG de Jane, voir `data/jane_diagrammes/import_2026-08-23.json`) plutôt que documentés seulement ici. Aucun des nouveaux candidats de ce second lot n'est implémenté à ce jour (voir §5.4) — contrairement au premier lot.
 
 ---
 
@@ -90,3 +93,44 @@ Contrairement au livre de Kabbaj (édité, daté, vérifiable), ces images sont 
 - **§3 réserves sur la qualité de la source** : les libellés reconnus comme bidons ("Dock Wave", "Ticksban", "AMI CONFIRMATION"...) n'ont, sans surprise, donné lieu à aucun développement.
 
 Une vraie erreur de définition géométrique (Three White Soldiers/Three Black Crows ne vérifiaient pas réellement un "long corps", le cœur du nom de la figure) a été trouvée par une revue indépendante avant d'être mergée — voir CLAUDE.md pour le détail. Ce document garde son statut de référence pour comprendre *pourquoi* chaque choix d'implémentation a été fait ; le comportement réel du code fait foi en cas de divergence future.
+
+---
+
+## 5. Second lot — galerie photo personnelle, 22 diagrammes (2026-08-23)
+
+### 5.0 Source
+
+25 images fournies directement par l'utilisateur (galerie photo de son smartphone), lues par un agent multimodal en conversation (pas via l'API vision Mistral, faute de clé disponible dans la session où le lot a été analysé) — 3 doublons/quasi-doublons écartés avant traitement, 22 diagrammes retenus. Origines identifiées quand visibles : repost Facebook d'un compte « Jam Junaid Altaf » relayant une chaîne Telegram, chaîne « Global Pip Follow », comptes « SMC TradeZone », « AnnalyTrader », « ArvindaTrader » (carrousel « Important Indicator »), et plusieurs diagrammes sans attribution visible. Même réserve que pour le premier lot (§3) : matériel de vulgarisation de réseaux sociaux, pas une source académique ou professionnelle vérifiée — voir §5.3.
+
+Contrairement au premier lot, ces 22 descriptions ont été versées directement dans `jane_knowledge` (RAG de Jane, `agents/jane_knowledge.py`) via `data/jane_diagrammes/import_2026-08-23.json` plutôt que de rester une documentation seule — ce document en est la synthèse narrative, ce fichier JSON la version machine-lisible réellement ingérée (les deux doivent rester cohérents entre eux).
+
+### 5.1 Concepts confirmant la couverture existante — aucune nouveauté
+
+La majorité des diagrammes illustrent des figures déjà couvertes par le catalogue actuel (60 détecteurs après le premier lot, pas seulement les 25 d'origine) : Support/Résistance et retournement de rôle après cassure, Double Top (3 points d'entrée), Hammer, Head & Shoulders + inverse, **Triangle Symétrique** (haussier/baissier — implémenté depuis le §1.2 du premier lot), Shooting Star, une grille croisant 8 figures (dont **Triple Top/Bottom**, également implémentés depuis le premier lot), un biseau ascendant cassé (Rising Wedge), et un critère de bougie d'achat proche du Bullish Engulfing. Aucun de ces diagrammes n'apporte de géométrie nouvelle — confirmation de définitions déjà câblées, pas des candidats.
+
+*Note de correction* : la première version de `data/jane_diagrammes/import_2026-08-23.json` (analysée sans avoir relu ce document) affirmait à tort que Triangle Symétrique et Triple Top/Bottom n'étaient pas couverts par George — erreur corrigée après ce recoupement. Exactement le type d'incohérence que consolider les deux lots dans un seul document doit éviter à l'avenir.
+
+### 5.2 Nouveaux candidats — indicateurs continus, pas des figures géométriques ponctuelles
+
+Contrairement au §1 du premier lot (des géométries de prix ou des relations entre bougies), ces candidats sont des **indicateurs calculés en continu sur toute la série de prix** — plus proches de `engine/features.py` (qui calcule déjà RSI, MACD, Bollinger, et `position_vs_moving_averages` en SMA 50/200) que de `engine/patterns/` :
+
+| Indicateur | Description | Statut chez George |
+|---|---|---|
+| **EMA 9 / 21** | Moyennes mobiles exponentielles courtes, présentées comme repères de tendance court/moyen terme (points d'entrée/sortie au contact) | Absent — George utilise des SMA 50/200 (`position_vs_moving_averages`), pas d'EMA ni d'horizons courts |
+| **EMA 50 / 200** | Mêmes rôles que les SMA 50/200 déjà utilisées (stop-loss sous la 50, tendance long terme sous la 200) | Horizon déjà utilisé par George, mais en SMA — l'EMA elle-même (calcul différent, plus réactif) reste absente |
+| **ADX + DMI** | Force de la tendance (ADX) indépendamment de sa direction (+DMI/-DMI) | Absent — aucun calcul de force de tendance dans le moteur actuel |
+| **Points Pivots** | Niveaux de support/résistance (S1-S3/R1-R3) calculés depuis le plus haut/bas/clôture de la session précédente | Absent |
+| **Volume Profile (VPVR)** | Volume par niveau de prix (HVN/LVN/POC) plutôt que par unité de temps | Absent |
+| **Point d'épuisement (divergence prix/oscillateur)** | Signal de fin de mouvement quand un pic/creux de prix ne confirme pas un pic/creux d'oscillateur | Absent, et l'oscillateur exact n'est pas nommé dans la source — pas exploitable tel quel |
+
+Recommandation : comme pour le §1.1 du premier lot, ces indicateurs ont des définitions mathématiques standard et objectives (Pivot Points et ADX en particulier), mais nécessiteraient une source de référence primaire avant implémentation plutôt que la seule géométrie visible sur une capture d'écran.
+
+### 5.3 Réserves sur la qualité de la source
+
+- Une grille de la chaîne « Global Pip Follow » associe des combinaisons de figures à une notation en étoiles sans méthodologie explicite (même défaut que « Dock Wave »/« Ticksban » au §3 du premier lot) — non exploitable comme source de fiabilité.
+- Un diagramme présente une zone d'entrée comme une « 100% Profitable Entry Zone » — affirmation promotionnelle non étayée, jamais à restituer comme un fait par Jane (voir la consigne correspondante dans `data/jane_diagrammes/import_2026-08-23.json`).
+- Le repost Facebook/Telegram (Double Top, 3 types d'entrée) et les captures « ArvindaTrader » n'ont pas d'attribution vérifiable au-delà du pseudo affiché.
+
+### 5.4 Statut : non implémenté
+
+Contrairement au premier lot (§4), aucun concept du §5.2 n'a été implémenté — ce second lot vient d'être versé dans `jane_knowledge` (RAG de Jane) pour enrichir son second avis, pas encore évalué pour une extension du catalogue de détecteurs. Voir `TODO.md` pour le suivi plus général de l'évaluation de la pertinence de Jane.
