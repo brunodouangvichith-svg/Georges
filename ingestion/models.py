@@ -161,6 +161,31 @@ class Report(Base):
     )
 
 
+class JaneKnowledge(Base):
+    """Base de connaissances méthodologiques/théoriques de Jane (Phase 7,
+    rôle "veille méthodologique" — voir `agents/jane_knowledge.py` et
+    `agents/jane_veille.py`), indexée par embedding comme `reports` mais un
+    concept distinct de `pattern_candidates` : ici du savoir général
+    (définition, méthodologie, mesure de performance...) réutilisé comme
+    contexte RAG par `agents.jane.second_opinion`, jamais une figure
+    chartiste candidate à backtester.
+
+    Amorcée une fois avec le contenu de `Jane_Synthese_Connaissances.md`
+    (voir `agents/jane_knowledge.py:seed_from_markdown`), puis alimentée en
+    continu par `agents/jane_veille.py`."""
+
+    __tablename__ = "jane_knowledge"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    source_name: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class AgentEvent(Base):
     """Ligne d'activité d'un sous-agent de veille (Phase 7), au format
     carnet d'ordres consommé par `GET /agents/activity` (Phase 3) et affiché
