@@ -190,6 +190,15 @@ class ExplanationResponse(BaseModel):
     second_opinion: str | None = None
 
 
+class JaneSecondOpinionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    decision_id: int
+    content: str
+    created_at: datetime
+
+
 class ReportRequest(BaseModel):
     basket_id: int | None = None
 

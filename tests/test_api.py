@@ -571,6 +571,42 @@ def test_decision_explanation_unknown_decision_returns_404(client, mock_llm):
     assert resp.status_code == 404
 
 
+def test_second_opinions_are_persisted_and_listed_most_recent_first(client, mock_llm):
+    """Chaque appel avec `include_second_opinion=True` doit désormais écrire
+    une ligne dans `jane_second_opinions` (jusqu'ici générée à la volée et
+    jamais conservée) — vérifié ici en bout en bout via l'endpoint de
+    lecture plutôt qu'en inspectant la base directement."""
+    decision_id = _get_decision_id(client)
+
+    first = client.post(f"/decisions/{decision_id}/explanation", json={"include_second_opinion": True})
+    second = client.post(f"/decisions/{decision_id}/explanation", json={"include_second_opinion": True})
+    assert first.status_code == 200 and second.status_code == 200
+
+    resp = client.get(f"/decisions/{decision_id}/second-opinions")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert len(body["items"]) == 2
+    # Les deux appels renvoient le même texte factice (`_fake_complete` échote
+    # le contexte reçu) -- le point vérifié ici est bien la persistance et
+    # l'ordre (plus récent en premier), pas le contenu du texte lui-même.
+    assert body["items"][0]["content"] == first.json()["second_opinion"]
+    assert body["items"][0]["decision_id"] == decision_id
+    assert body["items"][0]["created_at"] >= body["items"][1]["created_at"]
+
+
+def test_second_opinions_list_is_empty_when_never_requested(client):
+    decision_id = _get_decision_id(client)
+    resp = client.get(f"/decisions/{decision_id}/second-opinions")
+    assert resp.status_code == 200
+    assert resp.json() == {"items": [], "total": 0, "limit": 50, "offset": 0}
+
+
+def test_second_opinions_unknown_decision_returns_404(client):
+    resp = client.get("/decisions/999999/second-opinions")
+    assert resp.status_code == 404
+
+
 def test_create_report_for_basket_cites_real_data(client, mock_llm):
     resp = client.post("/reports", json={"basket_id": 1})
     assert resp.status_code == 200

@@ -6,21 +6,31 @@ import datetime
 
 import agents.jane as jane
 import agents.mistral_client as mistral_client
-from ingestion.models import Decision, JaneKnowledge, PatternDetected, Security
+from ingestion.models import Decision, JaneKnowledge, JaneSecondOpinion, PatternDetected, Security
 
 
 class _FakeDB:
     def __init__(self, security):
         self._security = security
+        self.added = []
+        self.commit_calls = 0
 
     def get(self, model, symbol):
         return self._security if symbol == self._security.symbol else None
 
+    def add(self, obj):
+        self.added.append(obj)
 
-def _decision(symbol="AIR.PA"):
-    return Decision(
+    def commit(self):
+        self.commit_calls += 1
+
+
+def _decision(symbol="AIR.PA", decision_id=1):
+    decision = Decision(
         symbol=symbol, decision_type="Achat", entry_price=129.5, take_profit=140.0, stop_loss=120.0, confidence=77.0
     )
+    decision.id = decision_id
+    return decision
 
 
 def _security(symbol="AIR.PA"):
@@ -62,7 +72,8 @@ def test_second_opinion_injects_relevant_knowledge_into_context(monkeypatch):
     monkeypatch.setattr(jane.jane_knowledge, "search_jane_knowledge", lambda db, query, limit=5: [entry])
     monkeypatch.setattr(mistral_client, "complete", fake_complete)
 
-    result = jane.second_opinion(_FakeDB(_security()), _decision())
+    db = _FakeDB(_security())
+    result = jane.second_opinion(db, _decision())
 
     assert result == "Note de Jane."
     assert "Sharpe" in captured["user_message"]
@@ -79,3 +90,23 @@ def test_second_opinion_works_with_no_relevant_knowledge_yet(monkeypatch):
 
     result = jane.second_opinion(_FakeDB(_security()), _decision())
     assert result == "Note de Jane."
+
+
+def test_second_opinion_persists_the_note_linked_to_the_decision(monkeypatch):
+    """Jusqu'ici générée à la volée et jamais conservée -- chaque appel doit
+    maintenant écrire une `JaneSecondOpinion` rattachée à la bonne décision,
+    seule façon de recroiser plus tard ce texte avec `decision_outcomes`."""
+    monkeypatch.setattr(jane, "find_pattern_for_decision", lambda db, decision: None)
+    monkeypatch.setattr(jane.jane_knowledge, "search_jane_knowledge", lambda db, query, limit=5: [])
+    monkeypatch.setattr(mistral_client, "complete", lambda *a, **k: "Note de Jane, à conserver.")
+
+    db = _FakeDB(_security())
+    result = jane.second_opinion(db, _decision(decision_id=42))
+
+    assert len(db.added) == 1
+    persisted = db.added[0]
+    assert isinstance(persisted, JaneSecondOpinion)
+    assert persisted.decision_id == 42
+    assert persisted.content == "Note de Jane, à conserver."
+    assert persisted.content == result
+    assert db.commit_calls == 1

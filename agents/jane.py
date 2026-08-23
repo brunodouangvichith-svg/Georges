@@ -18,7 +18,13 @@ Le catalogue de nouveaux **patterns chartistes** candidats
 (`ingestion.models.PatternCandidate`), lui, n'est PAS couvert par ces deux
 modules — il nécessite le scraping réel des sources de méthodologie
 (Playwright, non encore ajouté) que `agents/jane_veille.py` documente
-explicitement comme hors de son scope actuel."""
+explicitement comme hors de son scope actuel.
+
+`second_opinion` persiste chaque note dans `jane_second_opinions`
+(`ingestion.models.JaneSecondOpinion`) — jusqu'ici générée à la volée par
+`POST /decisions/{id}/explanation` et jamais conservée nulle part, ce qui
+empêchait toute évaluation a posteriori de sa pertinence (aucun moyen de la
+recroiser avec `decision_outcomes` une fois la décision clôturée)."""
 from __future__ import annotations
 
 import json
@@ -29,7 +35,7 @@ from agents import jane_knowledge, mistral_client
 from agents.context import decision_context
 from agents.explainer import find_pattern_for_decision
 from agents.mistral_client import MistralUnavailableError
-from ingestion.models import Decision, PatternDetected, Security
+from ingestion.models import Decision, JaneSecondOpinion, PatternDetected, Security
 
 KNOWLEDGE_MATCHES_LIMIT = 5
 
@@ -47,6 +53,11 @@ def _knowledge_query(decision: Decision, pattern: PatternDetected | None) -> str
 
 
 def second_opinion(db: Session, decision: Decision) -> str:
+    """Génère la note de second avis de Jane et la persiste dans
+    `jane_second_opinions` avant de la renvoyer — `decision.id` doit donc
+    correspondre à une décision déjà en base (jamais `None`), ce qui est
+    toujours le cas côté API (`db.get(Decision, decision_id)` en amont dans
+    `api/routers/decisions.py`)."""
     security = db.get(Security, decision.symbol)
     pattern = find_pattern_for_decision(db, decision)
     context = decision_context(decision, pattern, security)
@@ -56,7 +67,11 @@ def second_opinion(db: Session, decision: Decision) -> str:
     ]
     system_prompt = mistral_client.load_system_prompt("jane_second_opinion_system.txt")
     user_message = json.dumps(context, ensure_ascii=False)
-    return mistral_client.complete(system_prompt, user_message, model=mistral_client.MODEL_LARGE)
+    note = mistral_client.complete(system_prompt, user_message, model=mistral_client.MODEL_LARGE)
+
+    db.add(JaneSecondOpinion(decision_id=decision.id, content=note))
+    db.commit()
+    return note
 
 
 def reformulate_formal(raw_explanation: str) -> str:

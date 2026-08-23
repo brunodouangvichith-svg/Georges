@@ -103,6 +103,30 @@ class DecisionOutcome(Base):
     pnl_pct: Mapped[float] = mapped_column(Numeric, nullable=False)
 
 
+class JaneSecondOpinion(Base):
+    """Note de second avis de Jane pour une décision (`agents.jane.second_opinion`),
+    persistée à chaque appel — jusqu'ici générée à la volée par
+    `POST /decisions/{id}/explanation` et jamais conservée. Une table plutôt
+    qu'une colonne sur `Decision` : le second avis peut être redemandé
+    plusieurs fois pour la même décision au fil de son cycle de vie
+    (proposée -> confirmée -> sortie), chaque appel garde sa propre trace
+    plutôt que d'écraser la précédente.
+
+    Objectif direct : permettre plus tard de corréler ces notes avec
+    `DecisionOutcome.result`/`pnl_pct` (même `decision_id`) pour évaluer si
+    le scepticisme de Jane prédit réellement de moins bonnes issues — non
+    mesurable tant que ce texte n'était pas conservé nulle part."""
+
+    __tablename__ = "jane_second_opinions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    decision_id: Mapped[int] = mapped_column(ForeignKey("decisions.id"), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class Basket(Base):
     """Panier thématique/géographique/sectoriel utilisé pour agréger le
     George Index (Phase 2) — voir `engine/george_index.md`."""

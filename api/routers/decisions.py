@@ -18,10 +18,10 @@ from agents.explainer import explain_decision
 from agents.jane import reformulate_formal, second_opinion
 from api import deps
 from api.deps import get_db
-from api.schemas import ConfirmDecisionRequest, DecisionOut, ExplanationRequest, ExplanationResponse, Page
+from api.schemas import ConfirmDecisionRequest, DecisionOut, ExplanationRequest, ExplanationResponse, JaneSecondOpinionOut, Page
 from engine.reevaluate_decisions import evaluate_decision
 from engine.run_detection import load_prices
-from ingestion.models import Decision, BasketSecurity, DecisionOutcome, PatternDetected
+from ingestion.models import Decision, BasketSecurity, DecisionOutcome, JaneSecondOpinion, PatternDetected
 
 router = APIRouter(prefix="/decisions", tags=["decisions"])
 
@@ -191,3 +191,23 @@ def get_decision_explanation(
     explanation = explain_decision(db, decision, jane_note)
     explanation = reformulate_formal(explanation)
     return ExplanationResponse(explanation=explanation, second_opinion=jane_note)
+
+
+@router.get("/{decision_id}/second-opinions", response_model=Page[JaneSecondOpinionOut])
+def list_second_opinions(
+    decision_id: int,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """Historique des notes de second avis de Jane pour une décision
+    (`agents.jane.second_opinion`, persistées depuis l'ajout de
+    `jane_second_opinions`) — une décision peut en accumuler plusieurs au
+    fil de son cycle de vie, jamais une seule figée. Pensé pour une future
+    évaluation de la pertinence de Jane en recroisant ce contenu avec
+    `decision_outcomes` (même `decision_id`), pas encore construite."""
+    _get_decision_or_404(decision_id, db)
+    stmt = select(JaneSecondOpinion).where(JaneSecondOpinion.decision_id == decision_id)
+    total = db.scalar(select(func.count()).select_from(stmt.subquery()))
+    rows = db.execute(stmt.order_by(JaneSecondOpinion.created_at.desc()).limit(limit).offset(offset)).scalars().all()
+    return Page(items=rows, total=total or 0, limit=limit, offset=offset)
