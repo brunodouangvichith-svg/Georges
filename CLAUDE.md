@@ -15,6 +15,7 @@ Root-level reference material (not code to run):
 - `edgar_client.py` — standalone SEC EDGAR (company facts / 10-K) client, not yet integrated into any pipeline. Has hard SEC rate-limit/User-Agent requirements documented in its own docstring — follow them if extending it.
 - `whitelist_journaux.md` / `whitelist_journaux.json` — per-country reference list of national newspapers for the future "pilier 7" geopolitical-events agent (Phase 7). Not wired into any code yet.
 - `George_Pitch_*.pdf`, `George_Portefeuille_*.docx`, `George_Stack_Technique.*` — pitch deck and stack-decision documents.
+- `TODO.md` — pending follow-up work not yet in scope for any current change (currently: correlating `jane_second_opinions` with `decision_outcomes` once enough closed decisions accumulate). Check before assuming a listed item still needs doing — update or remove entries once addressed.
 
 ## Quality conventions (standing instruction, applies to every change)
 
