@@ -5,6 +5,7 @@ tester ici)."""
 
 import base64
 import datetime
+import json
 
 import pytest
 
@@ -121,3 +122,168 @@ def test_collect_veille_methodologique_reports_deduped_when_add_knowledge_skips(
     assert "quasi-doublon ignoré" in label
     # La valeur reste le résumé réel malgré le doublon -- observable dans le flux d'activité même non retenu en base.
     assert items[0].value == "Résumé quasi identique à un existant."
+
+
+def test_collect_veille_methodologique_already_summarized_skips_the_llm_call(monkeypatch):
+    """`already_summarized: true` -- le texte fourni est déjà la description
+    finale (ex. écrite par un agent multimodal ayant lu l'image directement)
+    et ne doit jamais repasser par `mistral_client.complete` (qui
+    reformulerait/dériverait un contenu déjà fact-checké)."""
+
+    def _fail_if_called(*a, **k):
+        raise AssertionError("mistral_client.complete ne doit pas être appelé quand already_summarized=True")
+
+    monkeypatch.setattr(mistral_client, "complete", _fail_if_called)
+    monkeypatch.setattr(jane_veille.jane_knowledge, "add_knowledge", lambda db, content, source_name, source_url=None: None)
+
+    groups = jane_veille.collect_veille_methodologique(
+        db=None,
+        engine=None,
+        scope={
+            "source_name": "Galerie photo personnelle — Hammer",
+            "content": "Description déjà rédigée, à ajouter telle quelle.",
+            "already_summarized": True,
+        },
+    )
+    label, items = groups[0]
+    assert items[0].value == "Description déjà rédigée, à ajouter telle quelle."
+
+
+def test_collect_veille_methodologique_already_summarized_rejects_image_paths():
+    with pytest.raises(ValueError, match="already_summarized"):
+        jane_veille.collect_veille_methodologique(
+            db=None,
+            engine=None,
+            scope={"source_name": "x", "image_paths": ["diagramme.png"], "already_summarized": True},
+        )
+
+
+def test_collect_veille_methodologique_rejects_non_boolean_already_summarized():
+    """Un fichier --batch édité à la main peut écrire par erreur la chaîne
+    "false" (JSON invalide pour un booléen mais accepté comme chaîne) --
+    une chaîne non vide est truthy en Python, donc sans cette validation le
+    contenu brut serait silencieusement stocké non résumé."""
+    with pytest.raises(ValueError, match="booléen"):
+        jane_veille.collect_veille_methodologique(
+            db=None,
+            engine=None,
+            scope={"source_name": "x", "content": "texte", "already_summarized": "false"},
+        )
+
+
+class _FakeBatchSession:
+    """Session factice pour `_run_batch` -- utilisée comme context manager
+    (`with session_factory() as db:`), et compte les appels à `rollback()`
+    pour vérifier qu'une entrée en échec ne corrompt pas la session pour les
+    entrées suivantes (voir docstring de `_run_batch`)."""
+
+    def __init__(self):
+        self.rollback_calls = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def rollback(self):
+        self.rollback_calls += 1
+
+
+def test_run_batch_counts_added_duplicates_and_failures_and_rolls_back_on_error(tmp_path, monkeypatch, capsys):
+    batch_path = tmp_path / "batch.json"
+    batch_path.write_text(
+        json.dumps(
+            [
+                {"source_name": "A", "content": "texte A", "already_summarized": True},
+                {"source_name": "B", "content": "texte B", "already_summarized": True},
+                {"source_name": "C", "content": "texte C", "image_paths": ["x.png"]},  # scope ambigu -> échoue
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    import agents.orchestrator.run as orchestrator_run
+    import ingestion.db as db_module
+
+    fake_session = _FakeBatchSession()
+    monkeypatch.setattr(db_module, "get_engine", lambda: object())
+    monkeypatch.setattr(db_module, "get_session_factory", lambda: (lambda: fake_session))
+
+    def fake_run_collection_task(db, engine, task_type, collector, scope):
+        # Reproduit la vraie erreur (`collect_veille_methodologique` lève ValueError
+        # sur un scope content+image_paths simultanés) sans dépendre de Mistral/DB réels.
+        collector(db, engine, scope)  # lève pour "C", jamais atteint pour A/B (mock direct ci-dessous)
+        raise AssertionError("ne devrait pas être atteint dans ce test")
+
+    def fake_run_collection_task_for_ab(db, engine, task_type, collector, scope):
+        status = jane_veille.DUPLICATE_STATUS_NOTE if scope["source_name"] == "B" else jane_veille.ADDED_STATUS_NOTE
+        event = type("FakeEvent", (), {"description": f"Veille méthodologique — {scope['source_name']} ({status})"})()
+        return {"validated": [event], "quarantined_count": 0}
+
+    def dispatch(db, engine, task_type, collector, scope):
+        if scope["source_name"] == "C":
+            return fake_run_collection_task(db, engine, task_type, collector, scope)
+        return fake_run_collection_task_for_ab(db, engine, task_type, collector, scope)
+
+    monkeypatch.setattr(orchestrator_run, "run_collection_task", dispatch)
+
+    jane_veille._run_batch(str(batch_path))
+
+    captured = capsys.readouterr()
+    assert "1 entrée(s) ajoutée(s)" in captured.out
+    assert "1 quasi-doublon(s) ignoré(s)" in captured.out
+    assert "1 échec(s)" in captured.out
+
+
+def test_run_batch_survives_a_non_dict_entry(tmp_path, monkeypatch, capsys):
+    """Un fichier batch édité à la main peut contenir une entrée qui n'est
+    même pas un objet JSON (ex. une chaîne isolée par erreur) -- ne doit pas
+    planter avant que l'entrée fautive soit comptée comme un échec, ni
+    empêcher le traitement de l'entrée valide qui suit."""
+    batch_path = tmp_path / "batch.json"
+    batch_path.write_text(
+        json.dumps(["oops-not-a-dict", {"source_name": "A", "content": "texte A", "already_summarized": True}]),
+        encoding="utf-8",
+    )
+
+    import agents.orchestrator.run as orchestrator_run
+    import ingestion.db as db_module
+
+    fake_session = _FakeBatchSession()
+    monkeypatch.setattr(db_module, "get_engine", lambda: object())
+    monkeypatch.setattr(db_module, "get_session_factory", lambda: (lambda: fake_session))
+    monkeypatch.setattr(jane_veille.jane_knowledge, "add_knowledge", lambda db, content, source_name, source_url=None: None)
+
+    def fake_run_collection_task(db, engine, task_type, collector, scope):
+        collector(db, engine, scope)  # lève AttributeError pour la chaîne, jamais pour le dict
+        event = type("FakeEvent", (), {"description": f"Veille méthodologique — {scope['source_name']} ({jane_veille.ADDED_STATUS_NOTE})"})()
+        return {"validated": [event], "quarantined_count": 0}
+
+    monkeypatch.setattr(orchestrator_run, "run_collection_task", fake_run_collection_task)
+
+    jane_veille._run_batch(str(batch_path))
+
+    captured = capsys.readouterr()
+    assert "1 entrée(s) ajoutée(s)" in captured.out
+    assert "1 échec(s)" in captured.out
+    assert fake_session.rollback_calls == 1
+
+
+def test_run_batch_exits_clearly_on_malformed_json(tmp_path):
+    batch_path = tmp_path / "batch.json"
+    batch_path.write_text("[{\"source_name\": \"A\",]", encoding="utf-8")  # virgule finale invalide
+    with pytest.raises(SystemExit, match="JSON malformé"):
+        jane_veille._run_batch(str(batch_path))
+
+
+def test_run_batch_exits_clearly_when_top_level_is_not_a_list(tmp_path):
+    batch_path = tmp_path / "batch.json"
+    batch_path.write_text(json.dumps({"source_name": "A", "content": "texte"}), encoding="utf-8")  # objet, pas une liste
+    with pytest.raises(SystemExit, match="liste JSON"):
+        jane_veille._run_batch(str(batch_path))
+
+
+def test_run_batch_exits_clearly_on_missing_file(tmp_path):
+    with pytest.raises(SystemExit, match="introuvable"):
+        jane_veille._run_batch(str(tmp_path / "n-existe-pas.json"))

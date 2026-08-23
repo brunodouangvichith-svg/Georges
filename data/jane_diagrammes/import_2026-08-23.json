@@ -1,0 +1,112 @@
+[
+  {
+    "source_name": "Galerie photo personnelle — Support/Résistance, retest après cassure",
+    "already_summarized": true,
+    "content": "FIGURE CANDIDATE : diagramme montrant un premier niveau de résistance cassé (« Breakout ») puis retesté et tenu comme support (« Retest & Hold »), suivi d'une répétition du même schéma à un niveau supérieur avant une poursuite haussière. Illustre le principe de retournement de rôle support/résistance : un niveau cassé à la hausse devient un support, et l'entrée privilégiée est au retest de ce niveau plutôt qu'à la cassure elle-même. Aucun chiffre ni règle de détection précise (seuils, tolérance) n'est donné — reste une illustration pédagogique générale, pas une méthodologie chiffrée."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Double Top, 3 types d'entrée (repost Facebook/Telegram)",
+    "already_summarized": true,
+    "content": "FIGURE CANDIDATE : capture d'un post Facebook (compte « Jam Junaid Altaf », relayant une chaîne Telegram) détaillant trois points d'entrée à la vente sur un Double Top : entrée agressive à la formation du 2e sommet, entrée patiente au retest de la ligne de cou après cassure, entrée plus sûre après confirmation de la cassure de la ligne de cou. Mentionne un « Exam Date: 2026 » sans rapport explicite avec le contenu technique. Source non institutionnelle (repost de réseau social sans attribution vérifiable) — à traiter comme illustration pédagogique informelle, pas comme référence validée."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Chandelier Hammer",
+    "already_summarized": true,
+    "content": "Définit le pattern chandelier « Hammer » : petit corps avec longue mèche basse, apparaissant en fin de tendance baissière, signal de retournement haussier potentiel. Ce pattern est déjà couvert par un détecteur existant de George (engine/patterns/candlestick.py, catalogue actif) — cette entrée confirme la définition standard plutôt que de proposer un nouveau candidat."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Grille combinaisons Buy/Sell (Global Pip Follow)",
+    "already_summarized": true,
+    "content": "Grille mnémotechnique (source : chaîne « Global Pip Follow », datée « Exam Date: 13 April 2026 ») associant des combinaisons de figures chartistes et de chandeliers (ex. Bullish Engulfing + Pole, Wolfe Wave + « The Fich ») à des noms de figures composites et une notation en étoiles de 1 à 5. Les appellations et notations ne correspondent pas à une terminologie d'analyse technique standard (ex. une combinaison y est nommée « Shooting Star », qui désigne normalement un chandelier isolé distinct) — à traiter comme un support mnémotechnique informel de type fiche de révision, pas comme une méthodologie validée ni une source de fiabilité mesurée."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Retournement fort (cassure tendance + drapeau baissier)",
+    "already_summarized": true,
+    "content": "FIGURE CANDIDATE : schéma de retournement de tendance haussière — cassure de la ligne de tendance ascendante confirmée par une bougie Bearish Engulfing, puis formation de plus bas et plus hauts décroissants (Lower High/Lower Low) organisés en figure de type drapeau (Flag Pattern) dont la cassure déclenche un mouvement baissier marqué jusqu'à la zone de take-profit. Une schématisation simplifiée en triangles sous le graphique illustre la même séquence de façon abstraite. Combine deux figures déjà couvertes séparément par George (cassure de tendance, Bear Flag) dans un enchaînement, plutôt qu'une figure entièrement nouvelle."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Head & Shoulders / Inverse",
+    "already_summarized": true,
+    "content": "Définit les figures Head & Shoulders (épaule gauche, tête, épaule droite au-dessus d'une ligne de cou, signal de vente à la cassure) et son inverse (mêmes éléments inversés, signal d'achat à la cassure). Les deux figures sont déjà couvertes par des détecteurs existants de George (« Head & Shoulders », « Inverse Head & Shoulders ») — cette entrée confirme la définition standard plutôt que de proposer un nouveau candidat."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Triangle symétrique, méthode de trading",
+    "already_summarized": true,
+    "content": "FIGURE CANDIDATE : méthodologie de trading du triangle symétrique — une cassure dans le sens de la tendance est une entrée en continuation dès la cassure, tandis qu'une cassure à contre-tendance appelle à attendre un retest avant d'entrer en retournement. Le « Triangle symétrique » ne fait pas partie des figures actuellement détectées par George (qui couvre Triangle Ascendant/Descendant, mais pas Symétrique) — candidat plausible pour extension du catalogue après backtesting."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Chandelier Shooting Star",
+    "already_summarized": true,
+    "content": "Définit le chandelier « Shooting Star » : signal de retournement baissier en haut de tendance, avec stop-loss placé au-dessus de la mèche haute et entrée à la cassure du support sous la figure. Ce pattern est déjà couvert par un détecteur existant de George (catalogue chandeliers actif) — cette entrée confirme la définition standard plutôt que de proposer un nouveau candidat."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Grille continuation/retournement (8 figures)",
+    "already_summarized": true,
+    "content": "Fiche de référence croisant type de mouvement (continuation vs retournement) et biais (haussier vs baissier) pour huit figures chartistes (triangles ascendant/descendant, biseaux haussier/baissier, drapeaux haussier/baissier, triangles symétriques haussier/baissier, double/triple sommet/creux, épaule-tête-épaule et inverse), avec placement schématique générique de l'entrée, du stop-loss et du take-profit pour chacune. Double Bottom, Double Top, les deux Wedges, les deux Flags, Ascending/Descending Triangle et Head & Shoulders (+ inverse) sont déjà couverts par des détecteurs existants de George ; Triple Top, Triple Bottom et Triangle Symétrique (haussier et baissier) n'en font pas partie — candidats plausibles pour extension du catalogue après backtesting."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Zone de convergence de tendances (« 100% Winning Zone »)",
+    "already_summarized": true,
+    "content": "Diagramme illustrant une zone d'entrée définie par la convergence d'une ligne de tendance de support et d'une ligne de tendance de résistance près d'une ligne de cou, présentée comme une « 100% Profitable Entry Zone ». Cette appellation est une affirmation promotionnelle non étayée par des données de performance dans l'image — à ne jamais restituer comme une garantie ; seul le mécanisme descriptif (convergence de deux lignes de tendance comme zone d'entrée à surveiller) est une information factuelle exploitable."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Canal baissier, pullback-vente",
+    "already_summarized": true,
+    "content": "FIGURE CANDIDATE : schéma de canal baissier où chaque rebond (pullback) jusqu'à un ancien niveau de support cassé (devenu résistance) est présenté comme un point de vente, formant une séquence répétée de plus hauts et plus bas décroissants (Lower High/Lower Low). Illustre une logique de suivi de tendance par retest de niveaux cassés, proche mais non identique au Bear Flag déjà détecté par George — candidat à évaluer si jugé suffisamment distinct pour un backtesting séparé."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Breakout trading, cascade de retests",
+    "already_summarized": true,
+    "content": "FIGURE CANDIDATE : séquence de cassures de supports successifs après un Double Top, chaque cassure étant suivie d'un retest de la zone cassée (désormais résistance) avant la poursuite baissière — schéma répété sur plusieurs paliers de support/résistance. Inclut un encart « Cheat Sheet » résumant le même enchaînement de façon abstraite. Combine deux éléments déjà couverts séparément par George (Double Top, cassure) avec une exigence explicite de confirmation par retest avant d'entrer, nuance non présente dans les détecteurs actuels."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Biseau ascendant cassé + histogramme momentum",
+    "already_summarized": true,
+    "content": "FIGURE CANDIDATE : biseau ascendant (rising wedge) cassé à la baisse, avec cassure de structure marquée et anticipation explicite d'une correction baissière sur unité de temps 1h avant confirmation de la cassure — accompagné d'un histogramme de momentum en bas de l'image, dont l'affaiblissement (barres vertes décroissantes puis barres rouges) accompagne visuellement le retournement. Le biseau ascendant est déjà couvert par un détecteur existant de George (« Rising Wedge ») ; la nuance ajoutée est l'attente explicite d'un retest de structure avant confirmation, combinée à une confirmation par histogramme de momentum (principe proche de la confirmation MACD déjà utilisée par George)."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Critère de bougie d'achat (Buy Candle Setup)",
+    "already_summarized": true,
+    "content": "Définit un critère de bougie d'achat : la bougie clôture au niveau ou au-dessus de l'ouverture de la bougie précédente, et ouvre au niveau ou en dessous de la clôture de la bougie précédente (variante avec gap baissier à l'ouverture) — illustré par un schéma à 3 bougies (continuation) et un schéma à 2 bougies avec seuil de retracement à 50%. Ce critère se rapproche du Bullish Engulfing déjà couvert par George, avec une variante à seuil de recouvrement partiel (50%) non présente dans la définition stricte actuelle — nuance candidate à évaluer plutôt qu'une figure entièrement nouvelle."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Points Pivots",
+    "already_summarized": true,
+    "content": "Définit les Points Pivots comme indicateur automatisé calculant des niveaux de support/résistance (S1-S3 sous le pivot central P, R1-R3 au-dessus) à partir du plus haut, plus bas et clôture de la session précédente, pour une période courante (jour/semaine/mois). Décrit R1-R3 comme zones de résistance où les ordres de vente à cours limité se regroupent (cibles de prise de profit), et S1-S3 comme zones de support où se regroupent les ordres d'achat (points d'entrée), avec des exemples de rebond en S1 et de retournement en R1. Indicateur standard non présent dans le moteur actuel de George — candidat plausible d'extension distincte d'une figure chartiste (calcul de niveaux, pas un pattern à détecter visuellement)."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Volume Profile (VPVR)",
+    "already_summarized": true,
+    "content": "Définit le Volume Profile (VPVR) comme représentation du volume échangé par niveau de prix (plutôt que par unité de temps comme le volume classique), introduisant les zones à fort volume (HVN, murs de support/résistance solides), les zones à faible volume (LVN, « vide de prix » où le cours se déplace rapidement), et le Point of Control (POC, prix au volume maximal, agissant comme un aimant que le prix retesterait fréquemment). Indicateur standard non présent dans le moteur actuel de George — candidat plausible d'extension distincte d'une figure chartiste (calcul de niveaux à partir du volume, pas un pattern à détecter visuellement)."
+  },
+  {
+    "source_name": "Galerie photo personnelle — 50 EMA, placement du stop-loss",
+    "already_summarized": true,
+    "content": "Diagramme (source : compte de réseau social « ArvindaTrader », carrousel « Important Indicator ») illustrant la moyenne mobile exponentielle 50 périodes (50 EMA) : le prix évolue sous une 50 EMA descendante pendant une tendance baissière puis la retraverse à la hausse en fin de figure, la zone de retraversée étant annotée « PLACE STOPLOSS » sans règle de calcul précise (distance, ATR). George utilise déjà un alignement avec des moyennes mobiles 50/200 dans son score de confiance (engine/confidence.py) — cette image ne précise pas si son propre calcul est une EMA ou une moyenne mobile simple, mais confirme la pertinence de cet horizon 50 périodes ; l'usage spécifique comme référence de stop-loss n'est pas dans le scoring actuel."
+  },
+  {
+    "source_name": "Galerie photo personnelle — 21 EMA, point d'entrée/sortie",
+    "already_summarized": true,
+    "content": "Diagramme (même source, carrousel « Important Indicator ») illustrant la moyenne mobile exponentielle 21 périodes (21 EMA) : plusieurs chandeliers touchent ou rebondissent sur une 21 EMA ascendante avant une accélération haussière, la zone de contact étant annotée « ENTRY/EXIT POINT ». La 21 EMA ne fait pas partie des horizons utilisés par le scoring actuel de George (qui s'appuie sur 50/200) — candidat d'indicateur court/moyen terme à évaluer, sans règle de confirmation précise donnée dans l'image (nombre de contacts requis, tolérance de distance)."
+  },
+  {
+    "source_name": "Galerie photo personnelle — Point d'épuisement de tendance (Exhaustion Point)",
+    "already_summarized": true,
+    "content": "Diagramme (même source) associant un pic ou un creux de prix à un pic ou creux correspondant d'un oscillateur affiché en dessous (histogramme vert/rouge non identifié nommément dans l'image), les deux annotés en cercle et reliés à la mention « EXHAUSTION POINT ». Illustre le principe de divergence prix/oscillateur comme signal de fin de mouvement (épuisement de tendance), sans préciser quel oscillateur exact ni de seuil de divergence chiffré — reste une illustration générale, pas une règle de détection exploitable telle quelle."
+  },
+  {
+    "source_name": "Galerie photo personnelle — ADX, force de la tendance",
+    "already_summarized": true,
+    "content": "Diagramme (même source) présentant l'indicateur ADX accompagné de ses composantes directionnelles +DMI (vert) et -DMI (rouge), annoté « STRENGTH OF THE TREND ». Illustre l'ADX comme mesure de la force d'une tendance indépendamment de sa direction (donnée séparément par le croisement +DMI/-DMI), sans indiquer de seuil numérique de lecture (ex. ADX au-dessus de 25 signalant une tendance forte) — indicateur non présent dans le moteur actuel de George."
+  },
+  {
+    "source_name": "Galerie photo personnelle — 200 EMA, tendance long terme",
+    "already_summarized": true,
+    "content": "Diagramme (même source) illustrant la moyenne mobile exponentielle 200 périodes (200 EMA) restant au-dessus du prix pendant toute une tendance baissière prolongée, annoté « LONG TERM TREND ». George utilise déjà un alignement avec des moyennes mobiles 50/200 dans son score de confiance (engine/confidence.py) — cette image ne précise pas si son propre calcul est une EMA ou une moyenne mobile simple, mais confirme l'usage classique de cet horizon 200 périodes comme référence de tendance long terme."
+  },
+  {
+    "source_name": "Galerie photo personnelle — 9 EMA, tendance court terme",
+    "already_summarized": true,
+    "content": "Diagramme (même source) illustrant la moyenne mobile exponentielle 9 périodes (9 EMA) épousant étroitement le prix pendant une tendance haussière courte, annoté « SHORT TERM TREND ». La 9 EMA ne fait pas partie des horizons utilisés par le scoring actuel de George (qui s'appuie sur 50/200) — présentée dans la même série de diagrammes que les EMA 21/50/200 comme le plus court des quatre horizons."
+  }
+]
