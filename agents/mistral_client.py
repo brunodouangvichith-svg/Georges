@@ -51,28 +51,58 @@ def load_system_prompt(name: str) -> str:
         return f.read()
 
 
-def complete(system_prompt: str, user_message: str, model: str = MODEL_SMALL, temperature: float = 0.3, max_retries: int = 3) -> str:
-    """Appelle Mistral avec un backoff exponentiel simple sur le rate limit
-    du tier gratuit — fonction d'appel isolée pour faciliter une future
-    migration vers un autre fournisseur (ex. Claude en production, voir
-    `George_Stack_Technique.pdf`)."""
+def _complete_with_messages(messages: list[dict], model: str, temperature: float, max_retries: int) -> str:
+    """Backoff exponentiel simple sur le rate limit du tier gratuit, partagé
+    par `complete()` et `complete_vision()` — la seule différence entre les
+    deux est la forme du message utilisateur (texte brut vs. liste de
+    chunks texte+image)."""
     client = _get_client()
     last_err: Exception | None = None
     for attempt in range(max_retries):
         try:
-            response = client.chat.complete(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
-                temperature=temperature,
-            )
+            response = client.chat.complete(model=model, messages=messages, temperature=temperature)
             return response.choices[0].message.content
         except Exception as err:  # noqa: BLE001 — tout échec réseau/API déclenche un retry
             last_err = err
             time.sleep(2**attempt)
     raise MistralUnavailableError(f"Échec de l'appel Mistral après {max_retries} tentatives : {last_err}")
+
+
+def complete(system_prompt: str, user_message: str, model: str = MODEL_SMALL, temperature: float = 0.3, max_retries: int = 3) -> str:
+    """Appel isolé pour faciliter une future migration vers un autre
+    fournisseur (ex. Claude en production, voir `George_Stack_Technique.pdf`)."""
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+    return _complete_with_messages(messages, model, temperature, max_retries)
+
+
+def complete_vision(
+    system_prompt: str,
+    user_text: str,
+    image_data_uris: list[str],
+    model: str = MODEL_SMALL,
+    temperature: float = 0.3,
+    max_retries: int = 3,
+) -> str:
+    """Comme `complete()`, mais pour un message utilisateur multimodal
+    (texte + une ou plusieurs images) — utilisé par `agents/jane_veille.py`
+    pour décrire un diagramme d'analyse technique. `mistral-small-latest`
+    (`MODEL_SMALL`, par défaut ici) supporte la vision nativement depuis
+    Mistral Small 3.1 (mars 2025) : pas besoin d'un modèle dédié séparé, ni
+    de `MODEL_LARGE` (dont le support vision n'est pas confirmé — voir
+    `agents/jane_veille.py`, qui documente ce choix explicitement).
+    `image_data_uris` : chaînes `data:image/...;base64,...` déjà encodées
+    (voir `agents/jane_veille.py:_encode_image_data_uri`)."""
+    content = [{"type": "text", "text": user_text}] + [
+        {"type": "image_url", "image_url": uri} for uri in image_data_uris
+    ]
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": content},
+    ]
+    return _complete_with_messages(messages, model, temperature, max_retries)
 
 
 def embed(texts: list[str], model: str = EMBED_MODEL) -> list[list[float]]:
