@@ -24,6 +24,7 @@ Future<void> showResponseDialog(
   String? symbol,
   double? takeProfit,
   double? stopLoss,
+  bool shareable = true,
 }) {
   return showDialog(
     context: context,
@@ -34,6 +35,7 @@ Future<void> showResponseDialog(
       symbol: symbol,
       takeProfit: takeProfit,
       stopLoss: stopLoss,
+      shareable: shareable,
     ),
   );
 }
@@ -46,6 +48,7 @@ class _ResponseDialog extends ConsumerStatefulWidget {
     this.symbol,
     this.takeProfit,
     this.stopLoss,
+    this.shareable = true,
   });
 
   final String title;
@@ -54,6 +57,10 @@ class _ResponseDialog extends ConsumerStatefulWidget {
   final String? symbol;
   final double? takeProfit;
   final double? stopLoss;
+  // Partage par email désactivé pour les réponses sans rapport avec un titre
+  // suivi (ex. Ask Jane) — le graphique/titre associé de ShareRepository
+  // n'aurait aucun sens à joindre.
+  final bool shareable;
 
   @override
   ConsumerState<_ResponseDialog> createState() => _ResponseDialogState();
@@ -67,24 +74,29 @@ class _ResponseDialogState extends ConsumerState<_ResponseDialog> {
   @override
   void initState() {
     super.initState();
-    widget.action().then((text) {
-      if (!mounted) return;
-      setState(() {
-        _text = text;
-        _loading = false;
-      });
-    }).catchError((Object e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
-    });
+    widget
+        .action()
+        .then((text) {
+          if (!mounted) return;
+          setState(() {
+            _text = text;
+            _loading = false;
+          });
+        })
+        .catchError((Object e) {
+          if (!mounted) return;
+          setState(() {
+            _error = e.toString();
+            _loading = false;
+          });
+        });
   }
 
   void _copyText() {
     Clipboard.setData(ClipboardData(text: _text!));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Texte copié.')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Texte copié.')));
   }
 
   Future<void> _shareByEmail() async {
@@ -105,7 +117,9 @@ class _ResponseDialogState extends ConsumerState<_ResponseDialog> {
       title: '📤 Partage par email',
       loadingText: 'Envoi en cours…',
       action: () async {
-        final result = await ref.read(shareRepositoryProvider).shareByEmail(
+        final result = await ref
+            .read(shareRepositoryProvider)
+            .shareByEmail(
               toEmail: toEmail,
               subject: title,
               text: text,
@@ -132,14 +146,20 @@ class _ResponseDialogState extends ConsumerState<_ResponseDialog> {
           child: _loading
               ? Row(
                   children: [
-                    const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(child: Text(widget.loadingText)),
                   ],
                 )
               : Text(
                   _error ?? _text ?? '',
-                  style: _error != null ? TextStyle(color: Theme.of(context).colorScheme.error) : null,
+                  style: _error != null
+                      ? TextStyle(color: Theme.of(context).colorScheme.error)
+                      : null,
                 ),
         ),
       ),
@@ -150,13 +170,17 @@ class _ResponseDialogState extends ConsumerState<_ResponseDialog> {
             icon: const Text('📋', style: TextStyle(fontSize: 20)),
             onPressed: _copyText,
           ),
-          IconButton(
-            tooltip: 'Partager par email',
-            icon: const Text('📤', style: TextStyle(fontSize: 20)),
-            onPressed: _shareByEmail,
-          ),
+          if (widget.shareable)
+            IconButton(
+              tooltip: 'Partager par email',
+              icon: const Text('📤', style: TextStyle(fontSize: 20)),
+              onPressed: _shareByEmail,
+            ),
         ],
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Fermer')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('❌ Annuler'),
+        ),
       ],
     );
   }
@@ -184,10 +208,16 @@ class _ShareEmailDialogState extends State<_ShareEmailDialog> {
         controller: _controller,
         autofocus: true,
         keyboardType: TextInputType.emailAddress,
-        decoration: const InputDecoration(labelText: 'Email', hintText: 'destinataire@exemple.com'),
+        decoration: const InputDecoration(
+          labelText: 'Email',
+          hintText: 'destinataire@exemple.com',
+        ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('❌ Annuler')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('❌ Annuler'),
+        ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
           child: const Text('✅ Envoyer'),

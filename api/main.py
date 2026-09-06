@@ -16,7 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from agents.mistral_client import MistralUnavailableError
 from api.auth import SupabaseUnavailableError, require_user
-from api.routers import agents, baskets, carry_trade, chat, decisions, energy, news, portfolios, prices, reports, securities, share
+from api.routers import agents, baskets, carry_trade, chat, decisions, energy, jane, news, portfolios, prices, reports, securities, share
 from notifications.email_client import EmailUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -103,6 +103,7 @@ app.include_router(baskets.router, dependencies=[Depends(require_user)])
 app.include_router(decisions.router, dependencies=[Depends(require_user)])
 app.include_router(agents.router, dependencies=[Depends(require_user)])
 app.include_router(chat.router, dependencies=[Depends(require_user)])
+app.include_router(jane.router, dependencies=[Depends(require_user)])
 app.include_router(reports.router, dependencies=[Depends(require_user)])
 app.include_router(portfolios.router, dependencies=[Depends(require_user)])
 app.include_router(prices.router, dependencies=[Depends(require_user)])

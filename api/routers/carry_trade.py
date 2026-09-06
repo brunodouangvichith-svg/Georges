@@ -87,9 +87,12 @@ def explain_carry_trade_pair(symbol: str, db: Session = Depends(get_db)):
 @router.post("/refresh", response_model=CarryTradeRefreshResponse)
 def refresh_carry_trade():
     """Déclenchement manuel des 3 flux d'ingestion (prix FX, taux, COT) —
-    même précédent que `POST /prices/refresh` : route sync (pas de tâche
-    planifiée, Celery/Redis non câblés, voir Phase 7), acceptable pour une
-    action manuelle occasionnelle."""
+    route sync (pas de tâche planifiée, Celery/Redis non câblés, voir
+    Phase 7), acceptable pour une action manuelle occasionnelle tant que ces
+    3 flux restent rapides. Contrairement à `POST /prices/refresh` (devenu
+    asynchrone, voir `api/routers/prices.py`) : pas le même précédent, ce
+    endpoint-ci reste un appel bloquant — à revoir de la même façon si son
+    volume grossit un jour au point de dépasser le timeout HTTP mobile."""
     fx_summary = fx_rates.run()
     rate_summary = carry_rates.run()
     cot_summary = cot_positioning.run()

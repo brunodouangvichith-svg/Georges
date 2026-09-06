@@ -24,7 +24,16 @@ explicitement comme hors de son scope actuel.
 (`ingestion.models.JaneSecondOpinion`) — jusqu'ici générée à la volée par
 `POST /decisions/{id}/explanation` et jamais conservée nulle part, ce qui
 empêchait toute évaluation a posteriori de sa pertinence (aucun moyen de la
-recroiser avec `decision_outcomes` une fois la décision clôturée)."""
+recroiser avec `decision_outcomes` une fois la décision clôturée).
+
+`ask` (ad hoc, pas une phase du roadmap) est un troisième rôle, sans rapport
+avec les deux ci-dessus : le bouton flottant « Ask Jane » de l'écran Univers
+mobile, qui interroge `jane_knowledge` en dehors de tout contexte de
+décision — contrairement à `second_opinion`, dont le RAG est scopé au type
+de décision/figure en cours (`_knowledge_query`), ici la requête RAG est la
+question de l'utilisateur elle-même. Pas de persistance (contrairement à
+`second_opinion`) : une question libre n'est pas une décision à recroiser
+avec un résultat futur."""
 from __future__ import annotations
 
 import json
@@ -72,6 +81,27 @@ def second_opinion(db: Session, decision: Decision) -> str:
     db.add(JaneSecondOpinion(decision_id=decision.id, content=note))
     db.commit()
     return note
+
+
+ASK_KNOWLEDGE_MATCHES_LIMIT = 5
+
+
+def ask(db: Session, question: str) -> str:
+    """Répond à une question libre à partir de `jane_knowledge` uniquement —
+    voir le docstring de ce module pour la distinction avec `second_opinion`.
+    La question elle-même sert de requête RAG (contrairement à
+    `_knowledge_query`, scopé à une décision). `connaissances_pertinentes`
+    peut être vide si rien de pertinent n'a été indexé pour cette question —
+    `agents/prompts/jane_ask_system.txt` instruit Jane de le dire plutôt que
+    d'improviser une réponse générale hors de la base de connaissances."""
+    matches = jane_knowledge.search_jane_knowledge(db, question, limit=ASK_KNOWLEDGE_MATCHES_LIMIT)
+    context = {
+        "question": question,
+        "connaissances_pertinentes": [{"contenu": entry.content, "source": entry.source_name} for entry in matches],
+    }
+    system_prompt = mistral_client.load_system_prompt("jane_ask_system.txt")
+    user_message = json.dumps(context, ensure_ascii=False)
+    return mistral_client.complete(system_prompt, user_message, model=mistral_client.MODEL_LARGE)
 
 
 def reformulate_formal(raw_explanation: str) -> str:

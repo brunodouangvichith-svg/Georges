@@ -12,6 +12,10 @@
          image_picker) — la sélection depuis la galerie n'a pas besoin de
          permission runtime sur Android récent (Photo Picker natif). -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Commande vocale du bouton flottant « Ask Jane » (écran Univers,
+         package speech_to_text) — permission runtime demandée à l'appel de
+         `SpeechToText.initialize()`, jamais au lancement de l'app. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application
         android:label="george_mobile"
         android:name="${applicationName}"
@@ -63,6 +67,12 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Visibilité du service de reconnaissance vocale sur Android 11+
+             (package speech_to_text) — sans ça, SpeechToText.initialize()
+             échoue silencieusement même avec RECORD_AUDIO accordée. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 </manifest>

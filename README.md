@@ -96,7 +96,7 @@ Télécharge, via [yfinance](https://pypi.org/project/yfinance/), jusqu'à 10 an
 
 `python -m ingestion.ohlcv` existe toujours séparément (alimente `prices_ohlcv`, 2 ans) mais plus aucun code applicatif ne la lit depuis ce changement — gardée pour compatibilité/historique, pas requise pour suivre la suite de ce guide.
 
-Aucune tâche planifiée à fréquence fine n'existe encore (Phase 7) — un rafraîchissement automatique existe deux fois par semaine (`price_history_and_detection.yml`, lundi/mercredi), et la même chose est déclenchable manuellement depuis l'écran **Univers** via le bouton **🔄 Mise à jour des prix** sous « Univers » dans la navigation, qui appelle `POST /prices/refresh` (dure jusqu'à 2 minutes pour tout l'univers — 10 ans d'historique par titre).
+Aucune tâche planifiée à fréquence fine n'existe encore (Phase 7) — un rafraîchissement automatique existe deux fois par semaine (`price_history_and_detection.yml`, lundi/mercredi), et la même chose est déclenchable manuellement depuis l'écran **Univers** via le bouton **🔄 Mise à jour des prix** sous « Univers » dans la navigation, qui appelle `POST /prices/refresh`. L'appel HTTP répond immédiatement (le téléchargement — 10 ans d'historique pour tout l'univers, jusqu'à quelques minutes — tourne en tâche de fond côté serveur) ; le bouton reste en attente pendant que l'app fait le polling du statut jusqu'à la fin.
 
 ## 7. Détecter les figures chartistes (Phase 1)
 

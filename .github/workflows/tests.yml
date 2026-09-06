@@ -1,0 +1,27 @@
+name: Tests (pytest, avec Postgres via testcontainers)
+
+# Déporte la vérification des tests Docker-dépendants (testcontainers,
+# `pgvector/pgvector:pg17` jetable) hors du poste local : les runners
+# GitHub Actions ont un démon Docker natif déjà lancé, contrairement à un
+# poste local où Docker Desktop doit être démarré manuellement (source d'un
+# vrai blocage rencontré en pratique — voir CLAUDE.md/historique de
+# session). Aucun secret requis : la base est éphémère et créée par le test
+# lui-même (tests/conftest.py:postgres_container), et les appels Mistral
+# sont monkeypatchés dans la suite, jamais réels.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: pytest
+        run: pytest -q

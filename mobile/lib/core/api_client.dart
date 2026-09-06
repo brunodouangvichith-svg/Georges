@@ -12,10 +12,13 @@ import 'env.dart';
 /// appel suivant, ce qui n'est pas une vraie panne mais se comportait comme
 /// telle avec l'ancien défaut de 30s (calé sur un backend local toujours
 /// éveillé) : l'app affichait "Impossible de contacter l'API" alors que le
-/// service était juste en train de se réveiller. Les 4 appels backend
-/// connus pour être lents pour d'autres raisons (/prices/refresh,
-/// /agents/collect, /decisions/{id}/explanation, /chat) passent un
-/// `receiveTimeout` encore plus long explicitement au niveau de l'appel.
+/// service était juste en train de se réveiller. Les appels backend
+/// connus pour être lents pour d'autres raisons (/agents/collect,
+/// /decisions/{id}/explanation, /chat) passent un `receiveTimeout` encore
+/// plus long explicitement au niveau de l'appel. `/prices/refresh` n'en a
+/// plus besoin depuis qu'il est asynchrone côté serveur (statut + polling,
+/// voir `PricesRefreshRepository`) : chaque appel HTTP individuel reste
+/// rapide, seule la boucle de polling dure longtemps.
 class ApiClient {
   final Dio _dio;
 

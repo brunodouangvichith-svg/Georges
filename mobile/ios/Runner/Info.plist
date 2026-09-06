@@ -26,6 +26,13 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Commande vocale du bouton flottant « Ask Jane » (écran Univers,
+	     package speech_to_text) — non testé, iOS non buildable depuis
+	     Windows (voir CLAUDE.md). -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>George a besoin du micro pour la commande vocale d'Ask Jane.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>George utilise la reconnaissance vocale pour transcrire votre question à Jane.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

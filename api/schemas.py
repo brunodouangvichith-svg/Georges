@@ -5,7 +5,7 @@ pagination (`Page[T]`) : `{"items": [...], "total": N, "limit": L, "offset": O}`
 """
 
 from datetime import date, datetime
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -181,6 +181,14 @@ class ChatResponse(BaseModel):
     answer: str
 
 
+class JaneAskRequest(BaseModel):
+    question: str
+
+
+class JaneAskResponse(BaseModel):
+    answer: str
+
+
 class ExplanationRequest(BaseModel):
     include_second_opinion: bool = False
 
@@ -252,10 +260,19 @@ class PortfolioOut(BaseModel):
     total_invested: float | None = None  # somme quantité × prix d'entrée, même périmètre que total_pnl_amount
 
 
-class PriceRefreshResponse(BaseModel):
-    total: int
-    updated_count: int
-    failed_symbols: list[str]
+class PriceRefreshStatus(BaseModel):
+    """État du job de rafraîchissement des prix (voir api/routers/prices.py) —
+    un seul job à la fois, exécuté en tâche de fond ; `total`/`updated_count`/
+    `failed_symbols` ne sont renseignés qu'une fois `status == "done"`,
+    `error` uniquement si `status == "failed"`."""
+
+    status: Literal["idle", "running", "done", "failed"]
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    total: int | None = None
+    updated_count: int | None = None
+    failed_symbols: list[str] | None = None
+    error: str | None = None
 
 
 class AllocateBudgetRequest(BaseModel):

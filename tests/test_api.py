@@ -607,6 +607,26 @@ def test_second_opinions_unknown_decision_returns_404(client):
     assert resp.status_code == 404
 
 
+def test_ask_jane_answers_via_janes_own_model(client, mock_llm):
+    """Bouton flottant « Ask Jane » de l'écran Univers mobile — vérifie que
+    la question posée atteint bien le LLM et que c'est Jane (`mistral-large-
+    latest`), pas George, qui répond."""
+    resp = client.post("/jane/ask", json={"question": "Qu'est-ce que le ratio de Sharpe ?"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "mistral-large-latest" in body["answer"]
+    assert "ratio de Sharpe" in body["answer"]
+
+
+def test_ask_jane_with_no_indexed_knowledge_still_answers(client, mock_llm):
+    """Aucune connaissance indexée dans cette base de test fraîche —
+    `connaissances_pertinentes` doit malgré tout atteindre le LLM, vide
+    plutôt que de faire échouer l'appel."""
+    resp = client.post("/jane/ask", json={"question": "Question hors sujet"})
+    assert resp.status_code == 200
+    assert '"connaissances_pertinentes": []' in resp.json()["answer"]
+
+
 def test_create_report_for_basket_cites_real_data(client, mock_llm):
     resp = client.post("/reports", json={"basket_id": 1})
     assert resp.status_code == 200
@@ -962,19 +982,70 @@ def test_portfolio_decisions_include_current_price_and_pnl(client):
     assert portfolio["total_pnl_amount"] == pytest.approx(100.0)  # 10 actions x (110 - 100)
 
 
-def test_refresh_prices_summarizes_updated_and_failed_symbols(client, monkeypatch):
+def test_refresh_prices_runs_in_background_and_reports_final_status_via_polling(client, monkeypatch):
     import api.routers.prices as prices_router
 
+    monkeypatch.setattr(prices_router, "_state", {"status": "idle"})
     monkeypatch.setattr(
         prices_router,
         "run_price_refresh",
         lambda: {"AAA.PA": 500, "BBB.PA": 500, "ZZZ.PA": -1},
     )
 
+    # TestClient exécute les BackgroundTasks de façon synchrone avant de
+    # rendre la main (voir docs FastAPI sur le test des tâches de fond) : le
+    # job a donc déjà tourné au moment où ce POST revient, mais sa propre
+    # réponse reste celle construite *avant* la planification de la tâche.
+    trigger_response = client.post("/prices/refresh")
+    assert trigger_response.status_code == 200
+    assert trigger_response.json()["status"] == "running"
+
+    status_response = client.get("/prices/refresh")
+    assert status_response.status_code == 200
+    body = status_response.json()
+    assert body["status"] == "done"
+    assert body["total"] == 3
+    assert body["updated_count"] == 2
+    assert body["failed_symbols"] == ["ZZZ.PA"]
+
+
+def test_refresh_prices_is_idempotent_while_a_job_is_already_running(client, monkeypatch):
+    import api.routers.prices as prices_router
+
+    calls = []
+    monkeypatch.setattr(prices_router, "_state", {"status": "running", "started_at": None})
+    monkeypatch.setattr(prices_router, "run_price_refresh", lambda: calls.append(1) or {})
+
     response = client.post("/prices/refresh")
     assert response.status_code == 200
-    body = response.json()
-    assert body == {"total": 3, "updated_count": 2, "failed_symbols": ["ZZZ.PA"]}
+    assert response.json()["status"] == "running"
+    assert calls == []  # pas de second job déclenché en parallèle
+
+
+def test_refresh_prices_reports_failed_status_on_exception(client, monkeypatch):
+    import api.routers.prices as prices_router
+
+    def _boom():
+        raise RuntimeError("yfinance indisponible")
+
+    monkeypatch.setattr(prices_router, "_state", {"status": "idle"})
+    monkeypatch.setattr(prices_router, "run_price_refresh", _boom)
+
+    client.post("/prices/refresh")
+
+    body = client.get("/prices/refresh").json()
+    assert body["status"] == "failed"
+    assert body["error"] == "yfinance indisponible"
+
+
+def test_refresh_prices_status_is_idle_before_any_trigger(client, monkeypatch):
+    import api.routers.prices as prices_router
+
+    monkeypatch.setattr(prices_router, "_state", {"status": "idle"})
+
+    body = client.get("/prices/refresh").json()
+    assert body["status"] == "idle"
+    assert body["total"] is None
 
 
 def _fake_fred_item(value, label="Taux de change EUR/USD", observed_at="2026-07-27"):

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CandlestickChart from "../components/CandlestickChart";
 import GeorgeIndexTile from "../components/GeorgeIndexTile";
 import ResponsePopup from "../components/ResponsePopup";
@@ -51,15 +51,25 @@ export default function Univers() {
   const chatMutation = useChat();
   const explainMutation = useExplainDecision();
   const refreshPricesMutation = useRefreshPrices();
+  // Annule le polling de useRefreshPrices (voir queries.js) si l'écran est
+  // démonté avant la fin — sans ça, la boucle de polling continue en
+  // arrière-plan et invalide le cache pour un écran qui n'est plus affiché.
+  const refreshAbortControllerRef = useRef(null);
+
+  useEffect(() => {
+    return () => refreshAbortControllerRef.current?.abort();
+  }, []);
 
   function refreshPrices() {
     setPopup({
       title: "Mise à jour des prix",
       status: "loading",
       text: null,
-      loadingText: "Téléchargement des prix en cours (jusqu'à 2 minutes pour tout l'univers, 10 ans d'historique par titre)…",
+      loadingText: "Téléchargement des prix en cours (jusqu'à quelques minutes pour tout l'univers, 10 ans d'historique par titre — exécuté en tâche de fond côté serveur, cette fenêtre patiente le temps qu'il faut)…",
     });
-    refreshPricesMutation.mutate(undefined, {
+    const controller = new AbortController();
+    refreshAbortControllerRef.current = controller;
+    refreshPricesMutation.mutate(controller.signal, {
       onSuccess: (data) => {
         const failedText = data.failed_symbols.length
           ? ` Échecs : ${data.failed_symbols.join(", ")}.`
@@ -70,7 +80,10 @@ export default function Univers() {
           text: `${data.updated_count}/${data.total} titres mis à jour.${failedText}`,
         });
       },
-      onError: (err) => setPopup({ title: "Mise à jour des prix", status: "error", text: err.message }),
+      onError: (err) => {
+        if (controller.signal.aborted) return; // écran démonté, rien à afficher
+        setPopup({ title: "Mise à jour des prix", status: "error", text: err.message });
+      },
     });
   }
 

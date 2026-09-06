@@ -15,7 +15,10 @@ async function authHeaders() {
   return session ? { Authorization: `Bearer ${session.access_token}` } : {};
 }
 
-export async function apiFetch(path, params) {
+// `signal` optionnel (AbortSignal) — utilisé par
+// queries.js:pollPriceRefreshStatus pour arrêter le polling si l'écran qui
+// l'a déclenché est démonté avant la fin (voir useRefreshPrices).
+export async function apiFetch(path, params, signal) {
   const url = new URL(path, API_BASE_URL);
   if (params) {
     for (const [key, value] of Object.entries(params)) {
@@ -24,7 +27,7 @@ export async function apiFetch(path, params) {
       }
     }
   }
-  const response = await fetch(url, { headers: await authHeaders() });
+  const response = await fetch(url, { headers: await authHeaders(), signal });
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText} sur ${path}`);
   }

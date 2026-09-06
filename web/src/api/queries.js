@@ -138,14 +138,80 @@ export function useAllocateBudget() {
   });
 }
 
-// Déclenchement manuel de `python -m ingestion.ohlcv` (bouton "Mise à jour
-// des prix" de la sidebar Univers) — aucune tâche planifiée n'existe encore
-// (Phase 7). Invalide tout le cache : un nouveau prix affecte potentiellement
-// les patterns, décisions, George Index et portefeuilles, pas juste /securities.
+// Déclenchement manuel de `python -m ingestion.price_history` (bouton "Mise
+// à jour des prix" de la sidebar Univers) — aucune tâche planifiée à
+// fréquence fine n'existe encore (Phase 7). L'endpoint est asynchrone côté
+// serveur (voir api/routers/prices.py) : `POST /prices/refresh` répond
+// immédiatement avec un statut "running", le job (10 ans d'historique par
+// titre sur tout l'univers) tourne en tâche de fond, et ce hook fait le
+// polling sur `GET /prices/refresh` jusqu'à "done"/"failed" avant de
+// résoudre — remplace un ancien design synchrone dont le timeout mobile fixe
+// (2 min) finissait par être dépassé une fois le backend passé à 10 ans.
+// Invalide tout le cache une fois terminé : un nouveau prix affecte
+// potentiellement les patterns, décisions, George Index et portefeuilles,
+// pas juste /securities.
+//
+// Trois garde-fous ajoutés après revue (`_state` du backend est en mémoire
+// seule, sans persistance — voir `api/routers/prices.py` — et ne survit
+// donc pas à un redémarrage du service Render pendant un job) :
+// - `PRICE_REFRESH_MAX_WAIT_MS` borne la durée totale du polling : sans ça,
+//   un redémarrage serveur en plein job réinitialise silencieusement l'état
+//   à "idle", que cette boucle prendrait pour "toujours en cours" et
+//   attendrait indéfiniment — pire que l'ancien timeout fixe qui, lui,
+//   finissait toujours par afficher une erreur.
+// - `PRICE_REFRESH_MAX_CONSECUTIVE_ERRORS` tolère quelques échecs réseau
+//   transitoires sur un seul appel sans faire échouer tout le
+//   rafraîchissement — le polling multiplie les fenêtres de risque réseau
+//   par rapport à l'ancien appel bloquant unique.
+// - `signal` (AbortSignal, optionnel) permet d'arrêter le polling si
+//   l'écran qui l'a déclenché (Univers.jsx) est démonté avant la fin, pour
+//   ne pas continuer à interroger le serveur ni invalider le cache pour un
+//   écran qui n'est plus affiché.
+const PRICE_REFRESH_POLL_INTERVAL_MS = 3000;
+const PRICE_REFRESH_MAX_WAIT_MS = 10 * 60 * 1000;
+const PRICE_REFRESH_MAX_CONSECUTIVE_ERRORS = 3;
+
+async function pollPriceRefreshStatus(signal) {
+  const deadline = Date.now() + PRICE_REFRESH_MAX_WAIT_MS;
+  let consecutiveErrors = 0;
+  while (true) {
+    if (signal?.aborted) {
+      throw new DOMException("Rafraîchissement annulé (écran fermé)", "AbortError");
+    }
+    if (Date.now() > deadline) {
+      throw new Error(
+        `Le rafraîchissement des prix prend plus de ${PRICE_REFRESH_MAX_WAIT_MS / 60000} minutes — réessayez plus tard.`,
+      );
+    }
+
+    let status;
+    try {
+      status = await apiFetch("/prices/refresh", undefined, signal);
+      consecutiveErrors = 0;
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      consecutiveErrors += 1;
+      if (consecutiveErrors > PRICE_REFRESH_MAX_CONSECUTIVE_ERRORS) throw err;
+      await new Promise((resolve) => setTimeout(resolve, PRICE_REFRESH_POLL_INTERVAL_MS));
+      continue;
+    }
+
+    if (status.status === "done" || status.status === "failed") return status;
+    await new Promise((resolve) => setTimeout(resolve, PRICE_REFRESH_POLL_INTERVAL_MS));
+  }
+}
+
 export function useRefreshPrices() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => apiPost("/prices/refresh"),
+    mutationFn: async (signal) => {
+      await apiPost("/prices/refresh");
+      const status = await pollPriceRefreshStatus(signal);
+      if (status.status === "failed") {
+        throw new Error(status.error ?? "Échec du rafraîchissement des prix.");
+      }
+      return status;
+    },
     onSuccess: () => queryClient.invalidateQueries(),
   });
 }
