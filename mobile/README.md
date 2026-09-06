@@ -61,7 +61,14 @@ flutter run \
 
 Sans ces deux variables, l'écran de connexion s'affiche mais toute tentative
 de connexion échoue (URL/clé vides) — utile pour vérifier rapidement que
-l'app compile, pas pour un test de connexion réel. La connexion Google passe
+l'app compile, pas pour un test de connexion réel. **Pour construire un APK
+release à distribuer, ne pas appeler `flutter build apk --release`
+directement** — un oubli de ces `--dart-define` s'est déjà produit deux fois
+(voir CLAUDE.md, section "Mobile login fixes and additions") et casse
+silencieusement "Continuer avec Google"/"Continuer avec Yahoo". Utiliser
+`powershell -ExecutionPolicy Bypass -File scripts\build-mobile-release.ps1`
+(depuis la racine du dépôt) à la place, qui fixe les trois valeurs. La
+connexion Google passe
 par un deep link natif (`io.supabase.george://login-callback/`, configuré
 dans `android/app/src/main/AndroidManifest.xml` ; l'équivalent iOS
 `Info.plist`/`CFBundleURLTypes` doit recevoir une entrée `CFBundleURLTypes`
