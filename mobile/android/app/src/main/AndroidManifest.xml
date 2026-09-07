@@ -24,7 +24,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -44,7 +44,25 @@
             </intent-filter>
             <!-- Deep link de retour pour signInWithOAuth (Supabase Auth,
                  Phase 9 — voir CLAUDE.md section Auth). Additif au filtre
-                 MAIN/LAUNCHER ci-dessus, ne le remplace pas. -->
+                 MAIN/LAUNCHER ci-dessus, ne le remplace pas.
+
+                 `launchMode="singleTask"` ci-dessus (au lieu du "singleTop"
+                 par défaut du template Flutter, jamais reconsidéré avant ce
+                 bug) est directement lié à ce deep link : `signInWithOAuth`
+                 ouvre le navigateur par-dessus MainActivity, qui n'est donc
+                 plus "au sommet de la pile" quand Google redirige vers ce
+                 schéma — "singleTop" ne déduplique QUE quand l'activité est
+                 déjà au sommet, donc dans ce cas précis Android en créait une
+                 toute nouvelle instance (nouveau moteur Flutter, nouveau
+                 client Supabase en mémoire) pour recevoir le retour OAuth,
+                 pendant que l'instance d'origine (l'écran de connexion
+                 affiché à l'écran) restait bloquée sans jamais apprendre
+                 qu'une session venait d'être établie ailleurs — d'où le
+                 symptôme observé (retour à l'écran de connexion après le
+                 premier essai, succès seulement au second). "singleTask"
+                 garantit qu'une seule instance existe et reçoit toujours
+                 l'intent via `onNewIntent`, quelle que soit sa position dans
+                 la pile. -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
