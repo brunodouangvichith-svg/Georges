@@ -206,8 +206,14 @@ def answer_question(db: Session, question: str) -> str:
                 for entry in company_knowledge.get_recent_company_knowledge(db, company_name=biofuel_company)
             ]
         if not recent_news:
+            # Question enrichie de mots-clés génériques ("société entreprise")
+            # plutôt que la question brute — un nom seul et court (ex.
+            # "Haffner" sans "Energy") donnait des résultats Tavily pauvres
+            # ou vides en pratique (constaté en direct via l'app), le moteur
+            # de recherche ayant trop peu de contexte pour cibler une
+            # entreprise précise plutôt qu'un nom de famille générique.
             try:
-                web_results = web_search.search(question)
+                web_results = web_search.search(f"{question} société entreprise")
             except web_search.WebSearchUnavailableError:
                 web_results = []
 
