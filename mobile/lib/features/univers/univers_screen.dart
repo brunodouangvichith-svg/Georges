@@ -231,6 +231,7 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
                           valueListenable: _chatController,
                           builder: (context, value, _) => TextField(
                             controller: _chatController,
+                            style: TextStyle(color: Colors.blue.shade900),
                             decoration: InputDecoration(
                               hintText:
                                   'Les opportunités actuellement proposées par George',
