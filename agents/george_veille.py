@@ -71,16 +71,11 @@ BIOFUEL_RENEWABLE_GAS_COMPANIES = [
     "ADM",
 ]
 
-# 30/jour x RESULTS_PER_COMPANY (3) = 90 appels Tavily/jour, ~2700/mois --
-# au-dessus du tier gratuit Tavily (1000/mois), demandé explicitement par
-# l'utilisateur malgré cet avertissement (meilleure fraîcheur : l'univers
-# combiné de ~130 entreprises est couvert en ~5 jours plutôt qu'~26).
-# Dégrade proprement en cas de dépassement de quota (voir
-# `agents/web_search.py` : une recherche en échec renvoie une liste vide,
-# jamais une erreur bloquante), donc aucun risque de facturation surprise
-# sur le tier gratuit -- juste un risque que la veille s'arrête de trouver
-# des résultats en fin de mois.
-COMPANIES_PER_RUN = 30
+# 10/jour x RESULTS_PER_COMPANY (3) = 30 appels Tavily/jour, ~900/mois --
+# reste sous le tier gratuit Tavily (1000/mois), contrairement à 30/jour
+# (~2700/mois, testé puis abandonné pour cette raison). L'univers combiné de
+# ~130 entreprises est couvert en ~13 jours, un compromis fraîcheur/quota.
+COMPANIES_PER_RUN = 10
 RESULTS_PER_COMPANY = 3
 
 DUPLICATE_STATUS_NOTE = "quasi-doublon ignoré"
