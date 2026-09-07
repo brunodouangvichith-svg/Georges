@@ -52,18 +52,29 @@ def find_relevant_securities(db: Session, question: str, limit: int = 5) -> list
     """Reconnaissance de titres par correspondance sur le symbole ou le nom
     — le référentiel `securities` (une quarantaine de titres) est assez
     petit pour ne pas justifier d'analyse lexicale plus fine à ce stade.
-    Match sur une frontière de mot (`\\b`), pas une simple sous-chaîne : la
-    racine d'un symbole de deux lettres (ex. "AC" pour Accor, "EL" pour
-    EssilorLuxottica) apparaît sinon à l'intérieur de mots français ordinaires
-    ("ac" dans "achat", "el" dans "quelles"), ce qui reconnaissait des titres
-    sans rapport avec la question."""
+    Match sur une frontière de mot (`\\b`) pour le symbole ET pour le nom,
+    pas une simple sous-chaîne : la racine d'un symbole de deux lettres
+    (ex. "AC" pour Accor, "EL" pour EssilorLuxottica) apparaît sinon à
+    l'intérieur de mots français ordinaires ("ac" dans "achat", "el" dans
+    "quelles"), ce qui reconnaissait des titres sans rapport avec la
+    question. **Même piège trouvé une seconde fois côté nom, en direct** :
+    l'entreprise suivie nommée "SES" (SESG.PA) était reconnue à tort dans
+    n'importe quelle question contenant le mot "penses" ("pen-SES"), avec
+    pour conséquence concrète de faire croire au code qu'un titre pertinent
+    avait été trouvé — court-circuitant entièrement le repli
+    `company_news_knowledge`/recherche web pour une société hors référentiel
+    (ex. "que penses-tu de Haffner ?" ne cherchait jamais "Haffner" sur le
+    web, `titres_reconnus` contenant déjà "SES" sans rapport). `s.name` peut
+    contenir plusieurs mots (ex. "Air Liquide") : `\\b...\\b` fonctionne
+    correctement de part et d'autre de la phrase complète échappée, pas
+    seulement autour d'un seul mot."""
     all_securities = db.execute(select(Security)).scalars().all()
     question_lower = question.lower()
     matches = [
         s
         for s in all_securities
         if re.search(rf"\b{re.escape(s.symbol.lower().split('.')[0])}\b", question_lower)
-        or s.name.lower() in question_lower
+        or re.search(rf"\b{re.escape(s.name.lower())}\b", question_lower)
     ]
     return matches[:limit]
 

@@ -562,6 +562,38 @@ def test_chat_does_not_false_positive_match_short_symbol_roots_inside_words(clie
     assert "AC.PA" in resp.json()["answer"]
 
 
+def test_chat_does_not_false_positive_match_short_names_inside_words(client, mock_llm, monkeypatch):
+    """Régression trouvée en direct via l'app (7 sept. 2026) : contrairement
+    au symbole (déjà protégé par une frontière de mot, voir le test
+    ci-dessus), `find_relevant_securities` comparait le NOM complet à la
+    question par simple sous-chaîne — un nom aussi court que "SES" (SESG.PA)
+    apparaît aussi à l'intérieur d'un mot français ordinaire ("ses" dans
+    "penses"), reconnaissant à tort un titre sans rapport. Conséquence
+    concrète observée : `titres_reconnus` non vide court-circuitait
+    entièrement le repli `company_news_knowledge`/recherche web prévu pour
+    une société hors référentiel — "que penses-tu de Haffner ?" ne cherchait
+    alors jamais "Haffner" nulle part. Avec la frontière de mot, "SES" ne
+    doit plus être reconnu ici, et la recherche web doit être atteinte."""
+    with deps.engine.begin() as conn:
+        conn.execute(
+            Security.__table__.insert(),
+            [{"symbol": "SESG.PA", "name": "SES", "country": "LU", "currency": "EUR", "sector": "Télécommunications", "theme": None}],
+        )
+    monkeypatch.setattr(
+        web_search,
+        "search",
+        lambda query, max_results=web_search.MAX_RESULTS: [
+            {"titre": "Haffner Energy", "extrait": "...", "url": "https://example.com/haffner"}
+        ],
+    )
+
+    resp = client.post("/chat", json={"question": "que penses tu de Haffner ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert "SESG.PA" not in answer
+    assert "Haffner Energy" in answer
+
+
 def test_chat_general_opportunity_question_uses_deterministic_rendering(client, mock_llm):
     """Une question générale sur un type de décision (aucun titre nommé)
     contourne l'appel LLM : `mistral-small-latest` s'est montré peu fiable
