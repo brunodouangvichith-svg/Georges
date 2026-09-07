@@ -19,6 +19,15 @@ from api.auth import SupabaseUnavailableError, require_user
 from api.routers import agents, baskets, carry_trade, chat, decisions, energy, jane, news, portfolios, prices, reports, securities, share
 from notifications.email_client import EmailUnavailableError
 
+# Sans ceci, le niveau racine par défaut de Python (WARNING) rend tout
+# `logger.info(...)` du projet (ex. `agents/chat.py`, `agents/jane_veille.py`
+# en CLI) silencieusement invisible dans les logs Render — `logger.warning`/
+# `.error`/`.exception` fonctionnaient déjà (d'où les handlers d'erreur
+# existants jamais suspectés), ce qui a caché ce trou pendant longtemps.
+# Trouvé en creusant pourquoi un log de diagnostic ajouté à `agents/chat.py`
+# n'apparaissait jamais dans Render malgré un déploiement confirmé "Live".
+logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
