@@ -189,9 +189,28 @@ def complete_vision(
         return _complete_with_deepseek_fallback(deepseek_messages, DEEPSEEK_VISION_MODEL, temperature, mistral_err)
 
 
-def embed(texts: list[str], model: str = EMBED_MODEL) -> list[list[float]]:
+def embed(texts: list[str], model: str = EMBED_MODEL, max_retries: int = 3) -> list[list[float]]:
     """Vecteurs d'embedding pour l'indexation pgvector des rapports/notes
-    (tâche 4 de la Phase 4)."""
+    (tâche 4 de la Phase 4) et pour le RAG de `agents/jane_knowledge.py`
+    (`search_jane_knowledge`, appelé par `second_opinion` et `ask`). Même
+    backoff exponentiel que `_complete_with_messages`, et pour la même
+    raison : sans lui, un échec Mistral ici (ex. rate limit — trouvé en
+    ajoutant le repli web d'Ask Jane, en creusant pourquoi `ask()` pouvait
+    encore échouer malgré le repli DeepSeek de `complete()`) remontait comme
+    une exception SDK brute plutôt que `MistralUnavailableError`, ratant le
+    handler 503 dédié (`api/main.py:mistral_exception_handler`) — Starlette
+    route alors une exception non gérée vers `ServerErrorMiddleware`, *au-
+    dessus* de `CORSMiddleware` (voir la docstring de `MistralUnavailableError`
+    ci-dessus), donc le client verrait une erreur CORS trompeuse plutôt qu'un
+    503 propre. Pas de repli DeepSeek ici : DeepSeek n'a pas d'endpoint
+    d'embeddings (voir la docstring du module)."""
     client = _get_client()
-    response = client.embeddings.create(model=model, inputs=texts)
-    return [row.embedding for row in response.data]
+    last_err: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            response = client.embeddings.create(model=model, inputs=texts)
+            return [row.embedding for row in response.data]
+        except Exception as err:  # noqa: BLE001 — tout échec réseau/API déclenche un retry
+            last_err = err
+            time.sleep(2**attempt)
+    raise MistralUnavailableError(f"Échec de l'appel d'embedding Mistral après {max_retries} tentatives : {last_err}")

@@ -28,6 +28,12 @@ services:
       # cet ajout (voir la docstring du module).
       - key: DEEPSEEK_API_KEY
         sync: false
+      # Recherche web pour Ask Jane (agents/web_search.py, Tavily) quand sa
+      # base de connaissances indexée ne couvre pas la question — optionnel,
+      # comme DEEPSEEK_API_KEY ci-dessus : en son absence, la recherche web
+      # est simplement ignorée.
+      - key: TAVILY_API_KEY
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY

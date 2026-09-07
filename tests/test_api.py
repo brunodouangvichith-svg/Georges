@@ -16,6 +16,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 import agents.mistral_client as mistral_client
+import agents.web_search as web_search
 import api.auth as auth
 import api.deps as deps
 from api.main import app
@@ -621,10 +622,34 @@ def test_ask_jane_answers_via_janes_own_model(client, mock_llm):
 def test_ask_jane_with_no_indexed_knowledge_still_answers(client, mock_llm):
     """Aucune connaissance indexée dans cette base de test fraîche —
     `connaissances_pertinentes` doit malgré tout atteindre le LLM, vide
-    plutôt que de faire échouer l'appel."""
+    plutôt que de faire échouer l'appel. `TAVILY_API_KEY` n'est pas
+    configurée dans cet environnement de test, donc `resultats_web` est vide
+    aussi (repli web silencieusement inactif, pas d'appel réseau)."""
     resp = client.post("/jane/ask", json={"question": "Question hors sujet"})
     assert resp.status_code == 200
     assert '"connaissances_pertinentes": []' in resp.json()["answer"]
+    assert '"resultats_web": []' in resp.json()["answer"]
+
+
+def test_ask_jane_falls_back_to_web_search_results(client, mock_llm, monkeypatch):
+    """Avec `TAVILY_API_KEY` configurée, `agents.jane.ask` doit fournir les
+    résultats web au LLM en plus de `connaissances_pertinentes` — c'est au
+    prompt système, pas à Python, de choisir laquelle des deux sources
+    utiliser (voir `agents/jane.py:ask`, `jane_knowledge.search_jane_knowledge`
+    n'a pas de seuil de pertinence)."""
+    monkeypatch.setenv("TAVILY_API_KEY", "tvly-test")
+    monkeypatch.setattr(
+        web_search,
+        "search",
+        lambda query, max_results=web_search.MAX_RESULTS: [
+            {"titre": "MACD (Investopedia)", "extrait": "Moving average convergence/divergence...", "url": "https://example.com/macd"}
+        ],
+    )
+    resp = client.post("/jane/ask", json={"question": "Qu'est-ce que le MACD ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert "MACD (Investopedia)" in answer
+    assert "https://example.com/macd" in answer
 
 
 def test_create_report_for_basket_cites_real_data(client, mock_llm):

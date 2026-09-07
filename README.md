@@ -179,6 +179,8 @@ Sans clé configurée, les endpoints LLM répondent `503` proprement (pas de cra
 
 Optionnel — `DEEPSEEK_API_KEY` (console : [platform.deepseek.com](https://platform.deepseek.com)) active un repli automatique sur DeepSeek quand Mistral échoue après ses propres tentatives (rate limit, quota épuisé) ; sans elle, l'erreur Mistral d'origine remonte comme avant. Voir la docstring de `agents/mistral_client.py`.
 
+Optionnel — `TAVILY_API_KEY` (console : [tavily.com](https://tavily.com)) permet à Ask Jane (`POST /jane/ask`) de compléter sa base de connaissances par une recherche web réelle quand celle-ci ne couvre pas la question ; sans elle, Ask Jane fonctionne comme avant (base de connaissances uniquement). Voir `agents/web_search.py`.
+
 ```bash
 alembic upgrade head   # migration 0004 : active l'extension pgvector + table reports
 ```

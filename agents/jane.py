@@ -33,14 +33,25 @@ décision — contrairement à `second_opinion`, dont le RAG est scopé au type
 de décision/figure en cours (`_knowledge_query`), ici la requête RAG est la
 question de l'utilisateur elle-même. Pas de persistance (contrairement à
 `second_opinion`) : une question libre n'est pas une décision à recroiser
-avec un résultat futur."""
+avec un résultat futur.
+
+`ask` interroge aussi `agents.web_search` (Tavily) en complément —
+`jane_knowledge.search_jane_knowledge` n'a pas de seuil de pertinence (une
+recherche par distance cosinus `ORDER BY ... LIMIT N` renvoie toujours les N
+lignes les plus proches, même hors sujet), donc compter les résultats
+n'indique jamais fiablement "rien de pertinent trouvé" — c'est pourquoi
+`connaissances_pertinentes` et `resultats_web` sont systématiquement fournis
+tous les deux au LLM, à charge du prompt système de juger lui-même de la
+pertinence de chaque source plutôt qu'un seuil Python arbitraire. Une
+recherche web qui échoue (pas de clé, Tavily indisponible) dégrade vers une
+liste vide, jamais une erreur bloquante pour toute la réponse."""
 from __future__ import annotations
 
 import json
 
 from sqlalchemy.orm import Session
 
-from agents import jane_knowledge, mistral_client
+from agents import jane_knowledge, mistral_client, web_search
 from agents.context import decision_context
 from agents.explainer import find_pattern_for_decision
 from agents.mistral_client import MistralUnavailableError
@@ -87,17 +98,26 @@ ASK_KNOWLEDGE_MATCHES_LIMIT = 5
 
 
 def ask(db: Session, question: str) -> str:
-    """Répond à une question libre à partir de `jane_knowledge` uniquement —
-    voir le docstring de ce module pour la distinction avec `second_opinion`.
-    La question elle-même sert de requête RAG (contrairement à
-    `_knowledge_query`, scopé à une décision). `connaissances_pertinentes`
-    peut être vide si rien de pertinent n'a été indexé pour cette question —
-    `agents/prompts/jane_ask_system.txt` instruit Jane de le dire plutôt que
-    d'improviser une réponse générale hors de la base de connaissances."""
+    """Répond à une question libre à partir de `jane_knowledge` et, en
+    complément, d'une recherche web réelle — voir le docstring de ce module
+    pour la distinction avec `second_opinion` et pour pourquoi les deux
+    sources sont toujours fournies ensemble plutôt qu'un repli conditionnel
+    en Python. La question elle-même sert de requête RAG *et* de requête web
+    (contrairement à `_knowledge_query`, scopé à une décision).
+    `agents/prompts/jane_ask_system.txt` instruit Jane de préférer la base de
+    connaissances quand elle est réellement pertinente, de se rabattre sur
+    les résultats web sinon (en citant leurs sources), et de dire
+    honnêtement qu'elle ne sait pas si aucune des deux ne répond vraiment à
+    la question."""
     matches = jane_knowledge.search_jane_knowledge(db, question, limit=ASK_KNOWLEDGE_MATCHES_LIMIT)
+    try:
+        web_results = web_search.search(question)
+    except web_search.WebSearchUnavailableError:
+        web_results = []
     context = {
         "question": question,
         "connaissances_pertinentes": [{"contenu": entry.content, "source": entry.source_name} for entry in matches],
+        "resultats_web": web_results,
     }
     system_prompt = mistral_client.load_system_prompt("jane_ask_system.txt")
     user_message = json.dumps(context, ensure_ascii=False)
