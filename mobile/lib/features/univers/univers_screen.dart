@@ -268,11 +268,12 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
             bottom: 0,
             right: 16,
             child: Center(
-              child: FloatingActionButton(
+              child: FloatingActionButton.large(
                 heroTag: 'ask_jane_fab',
                 tooltip: 'Analyse Technique - Ask Jane',
+                backgroundColor: Colors.lightGreen.shade100,
                 onPressed: _askJane,
-                child: const Text('🧠', style: TextStyle(fontSize: 24)),
+                child: const Text('🧠', style: TextStyle(fontSize: 48)),
               ),
             ),
           ),
