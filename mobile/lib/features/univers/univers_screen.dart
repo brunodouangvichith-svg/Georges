@@ -79,7 +79,6 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
           context,
           title: '🧠 Ask Jane',
           loadingText: 'Jane consulte sa base de connaissances méthodologique…',
-          shareable: false,
           action: () async {
             final answer = await ref.read(janeRepositoryProvider).ask(question);
             return 'Question : $question\n\n$answer';
