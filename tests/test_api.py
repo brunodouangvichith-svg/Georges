@@ -460,6 +460,32 @@ def test_chat_answers_cite_real_data(client, mock_llm):
     assert "AAA.PA" in answer
     assert "129.0" in answer
     assert "77.0" in answer
+    # `fondamentaux` doit être présent (null) plutôt qu'absent quand
+    # `ingestion.fundamentals` n'a encore jamais tourné pour ce titre.
+    assert '"fondamentaux": null' in answer
+
+
+def test_chat_includes_fundamentals_when_available(client, mock_llm):
+    with deps.engine.begin() as conn:
+        conn.execute(
+            CompanyFundamentals.__table__.insert(),
+            [
+                {
+                    "symbol": "AAA.PA",
+                    "observed_at": pd.Timestamp.now(tz="UTC").date(),
+                    "sector": "Technology",
+                    "industry": "Software",
+                    "long_business_summary": "Alpha SA développe des logiciels.",
+                    "market_cap": 1_000_000,
+                    "raw_info": {},
+                }
+            ],
+        )
+    resp = client.post("/chat", json={"question": "Que penses-tu de Alpha SA ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert "Alpha SA développe des logiciels." in answer
+    assert "Software" in answer
 
 
 def test_chat_with_no_recognized_security_says_so_via_empty_context(client, mock_llm):

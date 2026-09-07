@@ -133,7 +133,11 @@ def collect_company_news(db, engine, scope: dict | None) -> list[tuple[str, list
 
     company_name = scope["company_name"]
     symbol = scope.get("symbol")
-    query = f"{company_name} actualités résultats financiers"
+    # "perspectives économiques secteur contrats" ajouté à la requête de
+    # base, demandé directement par l'utilisateur pour que la veille couvre
+    # plus que la seule actualité de résultats bruts — même enrichissement
+    # que celui appliqué au repli web de `agents/chat.py`.
+    query = f"{company_name} actualités résultats financiers perspectives économiques secteur contrats"
     results = web_search.search(query, max_results=RESULTS_PER_COMPANY)
     if not results:
         return []

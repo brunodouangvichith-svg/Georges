@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from agents import company_knowledge, mistral_client, web_search
 from agents.context import security_snapshot
 from agents.george_veille import BIOFUEL_RENEWABLE_GAS_COMPANIES
-from ingestion.models import Decision, PatternDetected, Security
+from ingestion.models import CompanyFundamentals, Decision, PatternDetected, Security
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,31 @@ def find_relevant_securities(db: Session, question: str, limit: int = 5) -> list
         or re.search(rf"\b{re.escape(s.name.lower())}\b", question_lower)
     ]
     return matches[:limit]
+
+
+def _fundamentals_summary(db: Session, symbol: str) -> dict | None:
+    """Instantané fondamentaux/entreprise le plus récent (`company_fundamentals`,
+    alimentée quotidiennement par `ingestion/fundamentals.py`, voir
+    `GET /securities/{symbol}/fundamentals`) — demandé directement par
+    l'utilisateur pour enrichir l'analyse de George au-delà du seul signal
+    technique (figure/confiance/décision) avec du contexte économique réel :
+    secteur, industrie, activité. `None` si l'import quotidien n'a encore
+    jamais tourné pour ce titre (nullable par construction, jamais inventé)."""
+    stmt = (
+        select(CompanyFundamentals)
+        .where(CompanyFundamentals.symbol == symbol)
+        .order_by(CompanyFundamentals.observed_at.desc())
+        .limit(1)
+    )
+    row = db.execute(stmt).scalars().first()
+    if row is None:
+        return None
+    return {
+        "secteur": row.sector,
+        "industrie": row.industry,
+        "activite": row.long_business_summary,
+        "capitalisation": row.market_cap,
+    }
 
 
 def _find_biofuel_company(question: str) -> str | None:
@@ -153,7 +178,10 @@ def _format_opportunities(decisions: list[dict], decision_type: str) -> str:
 def answer_question(db: Session, question: str) -> str:
     securities = find_relevant_securities(db, question)
     snapshots = [
-        security_snapshot(security, _latest_decision(db, security.symbol), _latest_pattern(db, security.symbol))
+        {
+            **security_snapshot(security, _latest_decision(db, security.symbol), _latest_pattern(db, security.symbol)),
+            "fondamentaux": _fundamentals_summary(db, security.symbol),
+        }
         for security in securities
     ]
     requested_type = _requested_decision_type(question)
@@ -220,13 +248,18 @@ def answer_question(db: Session, question: str) -> str:
                 for entry in company_knowledge.get_recent_company_knowledge(db, company_name=biofuel_company)
             ]
         if not recent_news:
-            # Question enrichie de mots-clés génériques ("société entreprise")
-            # plutôt que la question brute — un nom seul et court (ex.
-            # "Haffner" sans "Energy") donnait des résultats Tavily pauvres
-            # ou vides en pratique (constaté en direct via l'app), le moteur
-            # de recherche ayant trop peu de contexte pour cibler une
+            # Question enrichie de mots-clés génériques plutôt que la
+            # question brute — un nom seul et court (ex. "Haffner" sans
+            # "Energy") donnait des résultats Tavily pauvres ou vides en
+            # pratique (constaté en direct via l'app), le moteur de
+            # recherche ayant trop peu de contexte pour cibler une
             # entreprise précise plutôt qu'un nom de famille générique.
-            search_query = f"{question} société entreprise"
+            # "perspectives économiques secteur contrats" ajouté ensuite,
+            # demandé directement par l'utilisateur pour que l'analyse
+            # dépasse un simple résumé d'actualité brute — vérifié en direct
+            # contre Tavily : toujours 5 résultats pertinents avec la requête
+            # allongée, pas de dégradation.
+            search_query = f"{question} société entreprise perspectives économiques secteur contrats"
             try:
                 web_results = web_search.search(search_query)
             except web_search.WebSearchUnavailableError as err:
