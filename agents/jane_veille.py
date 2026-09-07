@@ -39,7 +39,21 @@ séparé) doit appeler `agents.orchestrator.run.run_collection_task(db, engine,
 "veille_methodologique", collect_veille_methodologique, scope)` directement,
 jamais via l'endpoint HTTP partagé avec les autres sous-agents — voir aussi
 le bloc `__main__` de ce module (import en ligne de commande, y compris un
-mode `--batch` pour plusieurs entrées déjà résumées d'un coup)."""
+mode `--batch` pour plusieurs entrées déjà résumées d'un coup).
+
+`collect_veille_web` (ajouté plus tard, demandé directement par
+l'utilisateur : "que Jane mette à jour ses connaissances en continue... en
+faisant des recherches sur internet") change la donne ci-dessus : `agents.
+web_search` (Tavily, voir sa docstring) fournit du contenu web réel et
+propre sans avoir besoin de Playwright/Scrapy — ce n'est plus du scraping
+maison spécifique à un site, juste un appel API comme n'importe quel autre
+`ingestion.*`/`agents.collectors.*` de ce projet. Contrairement à
+`collect_veille_methodologique` (contenu déjà fourni en `scope`), cette
+fonction fait sa propre recherche à partir d'un sujet. Reste soumis à la
+même contrainte de fond que ci-dessus (non enregistré dans `COLLECTORS`,
+tourne via un job planifié séparé — voir `.github/workflows/
+weekly_jane_veille_web.yml`), et à la même dédup par similarité de
+`jane_knowledge.add_knowledge`."""
 
 from __future__ import annotations
 
@@ -49,7 +63,7 @@ from base64 import b64encode
 from datetime import datetime, timezone
 from pathlib import Path
 
-from agents import jane_knowledge, mistral_client
+from agents import jane_knowledge, mistral_client, web_search
 from agents.orchestrator.types import CollectedItem
 
 # Formats confirmés acceptés par l'API vision de Mistral. Les photos iPhone
@@ -69,6 +83,38 @@ VISION_USER_PROMPT = "Décris ce diagramme d'analyse technique."
 # `jane_knowledge.add_knowledge`).
 DUPLICATE_STATUS_NOTE = "quasi-doublon ignoré"
 ADDED_STATUS_NOTE = "ajoutée à jane_knowledge"
+
+# Amorcé depuis `George_AnalyseTechnique_Kabbaj_Synthese.md`, qui catalogue
+# déjà ces concepts comme identifiés-mais-non-implémentés dans George — une
+# liste de sujets à faire évoluer au besoin, pas figée.
+VEILLE_WEB_TOPICS = [
+    "doji hammer engulfing candlestick patterns",
+    "Elliott Wave theory trading",
+    "Fibonacci retracement technical analysis",
+    "RSI divergence trading strategy",
+    "RSI overbought oversold price objective",
+    "pair trading strategy statistical arbitrage",
+    "Livermore pyramiding position sizing",
+    "MACD histogram trading strategy",
+    "Bollinger Bands squeeze breakout",
+    "volume profile trading analysis",
+]
+
+# Nombre de résultats web indépendants récupérés par sujet — plusieurs, pas
+# un seul, pour que `collect_veille_web` puisse recouper l'information
+# (garde-fou 2 de `jane_veille_web_system.txt`) plutôt que de faire confiance
+# à une seule source.
+VEILLE_WEB_RESULTS_PER_TOPIC = 3
+
+
+def _pick_weekly_topic(topics: list[str] = VEILLE_WEB_TOPICS) -> str:
+    """Rotation déterministe sans état à mémoriser nulle part (pas de
+    marqueur, pas de nouvelle colonne/table) : le numéro de semaine ISO
+    choisit le sujet, donc chaque sujet revient environ tous les
+    `len(topics)` semaines. Suffisant pour une veille de fond à faible
+    priorité — inutile de suivre "le dernier sujet traité" pour ça."""
+    week_number = datetime.now(timezone.utc).isocalendar().week
+    return topics[week_number % len(topics)]
 
 
 def _encode_image_data_uri(path: Path) -> str:
@@ -153,6 +199,57 @@ def collect_veille_methodologique(db, engine, scope: dict | None) -> list[tuple[
         unit=None,
         source_name=scope["source_name"],
         source_url=scope.get("source_url"),
+        observed_at=observed_at,
+    )
+    return [(label, [item])]
+
+
+def collect_veille_web(db, engine, scope: dict | None) -> list[tuple[str, list[CollectedItem]]]:
+    """Recherche web réelle (`agents.web_search`, Tavily) sur un sujet
+    d'analyse technique et l'ajoute à `jane_knowledge` — voir la docstring du
+    module pour la différence avec `collect_veille_methodologique` (contenu
+    déjà fourni). `scope["topic"]` est optionnel : à défaut, un sujet est
+    choisi par rotation hebdomadaire déterministe (`_pick_weekly_topic`)
+    parmi `VEILLE_WEB_TOPICS`.
+
+    Fiabilité ("accurate", demandé explicitement par l'utilisateur) :
+    `VEILLE_WEB_RESULTS_PER_TOPIC` résultats indépendants sont récupérés pour
+    le même sujet et synthétisés ENSEMBLE en un seul appel Mistral
+    (`agents/prompts/jane_veille_web_system.txt`), jamais un par un — même
+    logique de recoupement multi-sources que
+    `agents/orchestrator/validation.py`, adaptée à du texte plutôt qu'à des
+    valeurs numériques comparables directement : le prompt système instruit
+    Jane à prioriser ce qui est confirmé par au moins deux sources et à
+    signaler les désaccords plutôt que d'inventer un consensus. Aucun
+    résultat Tavily (clé absente, service en échec) renvoie une liste vide
+    plutôt qu'une erreur — cette fonction est censée tourner sans
+    supervision via un job planifié (voir le docstring du module), une
+    absence de résultat pour un sujet donné une semaine donnée n'est pas un
+    échec à remonter bruyamment."""
+    topic = (scope or {}).get("topic") or _pick_weekly_topic()
+    results = web_search.search(f"{topic} analyse technique trading", max_results=VEILLE_WEB_RESULTS_PER_TOPIC)
+    if not results:
+        return []
+
+    sources_payload = json.dumps(
+        [{"titre": r["titre"], "extrait": r["extrait"], "url": r["url"]} for r in results],
+        ensure_ascii=False,
+    )
+    system_prompt = mistral_client.load_system_prompt("jane_veille_web_system.txt")
+    summary = mistral_client.complete(system_prompt, sources_payload, model=mistral_client.MODEL_LARGE)
+
+    source_name = f"Recherche web ({len(results)} sources) — {topic}"
+    entry = jane_knowledge.add_knowledge(db, content=summary, source_name=source_name, source_url=results[0]["url"])
+    observed_at = entry.created_at.isoformat() if entry is not None else datetime.now(timezone.utc).isoformat()
+    status_note = ADDED_STATUS_NOTE if entry is not None else DUPLICATE_STATUS_NOTE
+
+    label = f"Veille web — {topic} ({status_note})"
+    item = CollectedItem(
+        label=label,
+        value=summary,
+        unit=None,
+        source_name=source_name,
+        source_url=results[0]["url"],
         observed_at=observed_at,
     )
     return [(label, [item])]
@@ -257,7 +354,8 @@ if __name__ == "__main__":
         print(
             "Usage :\n"
             "  python -m agents.jane_veille <source_name> <image1> [image2 ...]\n"
-            "  python -m agents.jane_veille --batch <fichier.json>"
+            "  python -m agents.jane_veille --batch <fichier.json>\n"
+            "  python -m agents.jane_veille --web [sujet]"
         )
         raise SystemExit(1)
 
@@ -266,6 +364,20 @@ if __name__ == "__main__":
             print("Usage : python -m agents.jane_veille --batch <fichier.json>")
             raise SystemExit(1)
         _run_batch(sys.argv[2])
+        raise SystemExit(0)
+
+    if sys.argv[1] == "--web":
+        # Sujet explicite optionnel (ex. tester un sujet précis en dehors de
+        # la rotation hebdomadaire) -- sans argument, `collect_veille_web`
+        # choisit elle-même via `_pick_weekly_topic`, comportement normal du
+        # job planifié (voir `.github/workflows/weekly_jane_veille_web.yml`).
+        web_scope = {"topic": sys.argv[2]} if len(sys.argv) > 2 else None
+        web_engine = get_engine()
+        web_session_factory = get_session_factory()
+        with web_session_factory() as web_db:
+            web_result = run_collection_task(web_db, web_engine, "veille_web", collect_veille_web, web_scope)
+        added = len(web_result["validated"])
+        print(f"{added} entrée(s) ajoutée(s) à jane_knowledge." if added else "Aucune entrée ajoutée (pas de résultat web, ou quasi-doublon).")
         raise SystemExit(0)
 
     if len(sys.argv) < 3:

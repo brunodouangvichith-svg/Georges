@@ -1,0 +1,47 @@
+name: Veille méthodologique web de Jane (hebdomadaire)
+
+# Demandé directement par l'utilisateur : "que Jane mette à jour ses
+# connaissances en continue sur l'analyse technique en faisant des
+# recherches sur internet (via Tavily)". Même raisonnement "pas de
+# scheduler dans ce projet" que les autres workflows planifiés (Celery/
+# Redis/Airflow explicitement reportés à la Phase 7 ; pas de Cron Job sur le
+# plan Render gratuit) -- voir agents/jane_veille.py:collect_veille_web pour
+# l'implémentation (recherche Tavily + synthèse multi-sources Mistral +
+# ajout à jane_knowledge).
+#
+# Hebdomadaire, pas quotidien : un sujet par exécution (rotation
+# déterministe sur VEILLE_WEB_TOPICS, voir _pick_weekly_topic), donc chaque
+# sujet revient environ tous les len(VEILLE_WEB_TOPICS) semaines -- une
+# fréquence plus élevée ne ferait que repasser sur le même sujet plus vite
+# sans plus de valeur, pour un coût Tavily/Mistral inutile.
+#
+# Samedi 20h UTC, délibérément décalé du dimanche 20h UTC de
+# weekly_confidence_model_training.yml pour ne pas cumuler deux jobs sur le
+# même créneau -- marchés fermés, aucune urgence de fraîcheur pour de la
+# connaissance méthodologique générale.
+on:
+  schedule:
+    - cron: "0 20 * * 6"
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Sujet à rechercher (optionnel — sinon rotation hebdomadaire automatique)"
+        required: false
+        type: string
+
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Recherche web + synthèse (agents.jane_veille --web)
+        run: python -m agents.jane_veille --web "${{ inputs.topic }}"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}

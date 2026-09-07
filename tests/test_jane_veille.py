@@ -11,6 +11,7 @@ import pytest
 
 import agents.jane_veille as jane_veille
 import agents.mistral_client as mistral_client
+import agents.web_search as web_search
 from ingestion.models import JaneKnowledge
 
 # PNG 1x1 transparent minimal, valide -- pour tester l'encodage réel en data
@@ -287,3 +288,88 @@ def test_run_batch_exits_clearly_when_top_level_is_not_a_list(tmp_path):
 def test_run_batch_exits_clearly_on_missing_file(tmp_path):
     with pytest.raises(SystemExit, match="introuvable"):
         jane_veille._run_batch(str(tmp_path / "n-existe-pas.json"))
+
+
+def test_pick_weekly_topic_is_deterministic_and_cycles_through_all_topics():
+    topics = ["a", "b", "c"]
+    fixed_now = datetime.datetime(2026, 9, 7, tzinfo=datetime.timezone.utc)
+    expected = topics[fixed_now.isocalendar().week % len(topics)]
+
+    class _FakeDateTime(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return fixed_now
+
+    original = jane_veille.datetime
+    jane_veille.datetime = _FakeDateTime
+    try:
+        # Deux appels à la même date doivent renvoyer le même sujet (pas de
+        # hasard) -- c'est tout l'intérêt de cette rotation sans état.
+        assert jane_veille._pick_weekly_topic(topics) == expected
+        assert jane_veille._pick_weekly_topic(topics) == expected
+    finally:
+        jane_veille.datetime = original
+
+
+def test_collect_veille_web_returns_empty_when_no_search_results(monkeypatch):
+    monkeypatch.setattr(web_search, "search", lambda query, max_results=3: [])
+
+    def _fail_if_called(*a, **k):
+        raise AssertionError("mistral_client.complete ne doit pas être appelé sans résultat web")
+
+    monkeypatch.setattr(mistral_client, "complete", _fail_if_called)
+
+    groups = jane_veille.collect_veille_web(db=None, engine=None, scope={"topic": "sujet quelconque"})
+    assert groups == []
+
+
+def test_collect_veille_web_synthesizes_multiple_sources_in_one_call(monkeypatch):
+    fake_results = [
+        {"titre": "Investopedia — MACD", "extrait": "Le MACD mesure la convergence...", "url": "https://investopedia.com/macd"},
+        {"titre": "OANDA — MACD", "extrait": "Le MACD est un oscillateur...", "url": "https://oanda.com/macd"},
+    ]
+    monkeypatch.setattr(web_search, "search", lambda query, max_results=3: fake_results)
+
+    captured = {}
+
+    def fake_complete(system_prompt, user_message, model=None, **kwargs):
+        captured["model"] = model
+        captured["user_message"] = user_message
+        return "Le MACD, confirmé par deux sources, est un indicateur de momentum."
+
+    monkeypatch.setattr(mistral_client, "complete", fake_complete)
+
+    entry = JaneKnowledge(
+        content="Le MACD, confirmé par deux sources, est un indicateur de momentum.",
+        source_name="Recherche web (2 sources) — MACD",
+        source_url="https://investopedia.com/macd",
+    )
+    entry.id = 1
+    entry.created_at = datetime.datetime(2026, 9, 7, tzinfo=datetime.timezone.utc)
+    monkeypatch.setattr(jane_veille.jane_knowledge, "add_knowledge", lambda db, content, source_name, source_url=None: entry)
+
+    groups = jane_veille.collect_veille_web(db=None, engine=None, scope={"topic": "MACD"})
+
+    assert captured["model"] == mistral_client.MODEL_LARGE
+    # Les deux sources doivent atteindre le LLM, pas seulement la première.
+    assert "Investopedia" in captured["user_message"]
+    assert "OANDA" in captured["user_message"]
+
+    label, items = groups[0]
+    assert "ajoutée à jane_knowledge" in label
+    assert items[0].source_url == "https://investopedia.com/macd"
+
+
+def test_collect_veille_web_falls_back_to_weekly_rotation_without_explicit_topic(monkeypatch):
+    captured = {}
+
+    def fake_search(query, max_results=3):
+        captured["query"] = query
+        return []
+
+    monkeypatch.setattr(web_search, "search", fake_search)
+
+    jane_veille.collect_veille_web(db=None, engine=None, scope=None)
+
+    # Le sujet choisi par rotation doit apparaître dans la requête envoyée à Tavily.
+    assert any(topic in captured["query"] for topic in jane_veille.VEILLE_WEB_TOPICS)
