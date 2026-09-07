@@ -19,6 +19,8 @@ def format_email_body(raw_text: str) -> str:
         return raw_text
     system_prompt = mistral_client.load_system_prompt("email_share_system.txt")
     try:
-        return mistral_client.complete(system_prompt, raw_text, model=mistral_client.MODEL_SMALL)
+        return mistral_client.complete(
+            system_prompt, raw_text, model=mistral_client.MODEL_SMALL, allow_fallback=False
+        )
     except MistralUnavailableError:
         return raw_text

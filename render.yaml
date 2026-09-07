@@ -22,6 +22,12 @@ services:
         sync: false
       - key: MISTRAL_API_KEY
         sync: false
+      # Repli de `agents/mistral_client.py` quand Mistral échoue après ses
+      # propres retries (rate limit, quota épuisé) — optionnel : en son
+      # absence, l'erreur Mistral d'origine remonte simplement, comme avant
+      # cet ajout (voir la docstring du module).
+      - key: DEEPSEEK_API_KEY
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY

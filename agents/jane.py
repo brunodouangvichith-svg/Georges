@@ -118,6 +118,8 @@ def reformulate_formal(raw_explanation: str) -> str:
         return raw_explanation
     system_prompt = mistral_client.load_system_prompt("jane_reformulation_system.txt")
     try:
-        return mistral_client.complete(system_prompt, raw_explanation, model=mistral_client.MODEL_SMALL)
+        return mistral_client.complete(
+            system_prompt, raw_explanation, model=mistral_client.MODEL_SMALL, allow_fallback=False
+        )
     except MistralUnavailableError:
         return raw_explanation

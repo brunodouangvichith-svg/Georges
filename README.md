@@ -177,6 +177,8 @@ $env:MISTRAL_API_KEY = "ta_cle_ici"       # PowerShell
 
 Sans clé configurée, les endpoints LLM répondent `503` proprement (pas de crash — voir `api/main.py:mistral_exception_handler`) plutôt que d'échouer silencieusement ; le reste de l'API (Phases 0-3) fonctionne normalement.
 
+Optionnel — `DEEPSEEK_API_KEY` (console : [platform.deepseek.com](https://platform.deepseek.com)) active un repli automatique sur DeepSeek quand Mistral échoue après ses propres tentatives (rate limit, quota épuisé) ; sans elle, l'erreur Mistral d'origine remonte comme avant. Voir la docstring de `agents/mistral_client.py`.
+
 ```bash
 alembic upgrade head   # migration 0004 : active l'extension pgvector + table reports
 ```
