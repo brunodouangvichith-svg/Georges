@@ -34,22 +34,41 @@ from agents.orchestrator.types import CollectedItem
 from ingestion.models import Security
 
 # Entreprises du secteur biocarburants/gaz renouvelables hors du référentiel
-# `securities` (CAC 40/Mid Cac 60) — demandé explicitement par l'utilisateur.
-# Vérifiées réelles avant ajout (pas devinées) : Neste (Finlande, diesel
-# renouvelable/carburant aviation durable), Verbio (Allemagne, biodiesel/
-# biométhane), Waga Energy (France, biométhane à partir de gaz d'enfouissement
-# — notée ici bien qu'une prise de participation majoritaire d'EQT en 2025
-# vise à la retirer de la cote à terme, la veille suivra ce changement le
-# moment venu), Global Bioenergies (France, hydrocarbures biosourcés/carburant
-# aviation durable), Gevo (États-Unis, carburants renouvelables). Liste à
-# faire évoluer, pas figée — `symbol=None` puisqu'aucune n'a de ligne dans
-# `securities`.
+# `securities` (CAC 40/Mid Cac 60) — demandé explicitement par l'utilisateur,
+# qui a ensuite fourni une liste plus large à trier. Chaque nom ci-dessous a
+# été vérifié réel ET coté en bourse avant ajout (pas devinée, pas recopiée
+# telle quelle) : Neste (Finlande, diesel renouvelable/SAF), Verbio
+# (Allemagne, biodiesel/biométhane), Waga Energy (France, biométhane à partir
+# de gaz d'enfouissement — notée ici bien qu'une prise de participation
+# majoritaire d'EQT en 2025 vise à la retirer de la cote à terme, la veille
+# suivra ce changement le moment venu), Global Bioenergies (France,
+# hydrocarbures biosourcés/SAF), Gevo (États-Unis, carburants renouvelables),
+# Haffner Energy (France, hydrogène/pyrogazéification, Euronext Growth
+# ALHAF.PA), Raízen (Brésil, bioéthanol de canne à sucre, B3 RAIZ4), ADM
+# (États-Unis, agro-industrie avec activité biocarburants réelle, NYSE ADM).
+#
+# Volontairement EXCLUS de cette liste, malgré leur présence dans la liste
+# plus large fournie par l'utilisateur (vérifié avant d'écarter, pas par
+# principe) : TotalEnergies et Engie sont déjà dans `securities` (CAC 40),
+# donc déjà couverts par la rotation sur les titres suivis — les y ajouter
+# ici ferait doublon. Tereos, Cristal Union et Avril sont des coopératives
+# agro-industrielles, non cotées en bourse (confirmé en direct) — pas
+# d'actualité "résultats financiers" publique à suivre au même titre qu'une
+# société cotée. Cargill est privée. Vol-V, EverGaz, Nature Energy, Prodeval,
+# CVE, Roquette, GRDF, Teréga, NaTran n'ont pas pu être confirmés comme
+# sociétés cotées de façon indépendante — écartés par prudence plutôt
+# qu'ajoutés sur la base d'une liste non vérifiée. Liste à faire évoluer,
+# pas figée — `symbol=None` puisqu'aucune de ces entreprises n'a de ligne
+# dans `securities`.
 BIOFUEL_RENEWABLE_GAS_COMPANIES = [
     "Neste",
     "Verbio",
     "Waga Energy",
     "Global Bioenergies",
     "Gevo",
+    "Haffner Energy",
+    "Raízen",
+    "ADM",
 ]
 
 COMPANIES_PER_RUN = 5
