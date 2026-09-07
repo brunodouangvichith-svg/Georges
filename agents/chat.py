@@ -12,7 +12,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from agents import company_knowledge, mistral_client, web_search
+from agents import company_knowledge, external_analysis, mistral_client, web_search
 from agents.context import security_snapshot
 from agents.george_veille import BIOFUEL_RENEWABLE_GAS_COMPANIES
 from ingestion.models import CompanyFundamentals, Decision, PatternDetected, Security
@@ -268,15 +268,44 @@ def answer_question(db: Session, question: str) -> str:
             if not web_results:
                 logger.info("Recherche web /chat sans résultat pour %r", search_query)
 
+    # Analyse technique en direct sur un historique yfinance téléchargé à
+    # la volée (agents.external_analysis) — demandé directement par
+    # l'utilisateur : "n'importe quelle entreprise mentionnée dans le chat",
+    # pas seulement celles déjà connues (biocarburants/gaz renouvelables)
+    # ou suivies. Toujours en complément du texte web ci-dessus, jamais à sa
+    # place — deux sources différentes (chiffres réellement détectés par le
+    # même moteur que l'univers suivi, vs. actualité en langage naturel).
+    # Réutilise `biofuel_company` s'il est déjà connu (évite un appel LLM
+    # d'extraction inutile) ; sinon extrait un nom d'entreprise de la
+    # question elle-même. Toute étape en échec (aucune entreprise trouvée,
+    # aucun ticker résolu, aucun historique/figure) dégrade vers `None`.
+    company_technical_analysis: dict | None = None
+    if not snapshots:
+        company_name_for_analysis = biofuel_company or external_analysis.extract_company_name(question)
+        if company_name_for_analysis is not None:
+            ticker = external_analysis.resolve_ticker(company_name_for_analysis)
+            if ticker is not None:
+                match = external_analysis.analyze_ticker(ticker)
+                if match is not None:
+                    company_technical_analysis = {
+                        "entreprise": company_name_for_analysis,
+                        "ticker": ticker,
+                        "figure": match.pattern_type,
+                        "confiance": round(match.confidence, 1),
+                        "detectee_le": match.detected_at.isoformat(),
+                    }
+
     # Un contexte vide (aucun titre reconnu, aucune décision ouverte, aucune
-    # actualité, aucun résultat web) est envoyé tel quel : le prompt système
-    # impose de le signaler plutôt que d'inventer une réponse.
+    # actualité, aucun résultat web, aucune analyse externe) est envoyé tel
+    # quel : le prompt système impose de le signaler plutôt que d'inventer
+    # une réponse.
     context = {
         "question": question,
         "titres_reconnus": snapshots,
         "opportunites_actuelles": opportunities,
         "actualites_recentes": recent_news,
         "resultats_web": web_results,
+        "analyse_technique_externe": company_technical_analysis,
     }
     system_prompt = mistral_client.load_system_prompt("chat_system.txt")
     user_message = json.dumps(context, ensure_ascii=False)

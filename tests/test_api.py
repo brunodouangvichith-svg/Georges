@@ -16,6 +16,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 import agents.company_knowledge as company_knowledge
+import agents.external_analysis as external_analysis
 import agents.mistral_client as mistral_client
 import agents.web_search as web_search
 import api.auth as auth
@@ -39,13 +40,24 @@ from ingestion.models import (
 )
 
 
-def _fake_complete(system_prompt, user_message, model=None, temperature=0.3, max_retries=3):
+def _fake_complete(system_prompt, user_message, model=None, temperature=0.3, max_retries=3, allow_fallback=True):
     """Remplace `agents.mistral_client.complete` dans les tests : renvoie le
     contexte JSON reçu tel quel plutôt qu'un vrai texte généré, pour vérifier
     (tâche 6 de la Phase 4) que les valeurs numériques réelles transmises en
     contexte se retrouvent bien dans la réponse — sans appel réseau ni clé
     API. Aucun de ces tests n'invente un chiffre : ils vérifient qu'aucun
-    n'est perdu en chemin."""
+    n'est perdu en chemin.
+
+    Cas particulier pour `agents.external_analysis.extract_company_name` :
+    répond "AUCUNE" (comme si aucune entreprise n'était mentionnée) par
+    défaut, pour qu'aucun test n'atteigne par accident un vrai appel réseau
+    `yfinance` (`resolve_ticker`/`analyze_ticker`) juste parce qu'il touche
+    la branche "titre non reconnu" de `agents.chat.answer_question`. Les
+    tests qui veulent exercer l'analyse technique externe mockent
+    `external_analysis.extract_company_name`/`resolve_ticker`/
+    `analyze_ticker` directement plutôt que de compter sur ce texte-ci."""
+    if system_prompt == external_analysis.EXTRACTION_SYSTEM_PROMPT:
+        return "AUCUNE"
     return f"[{model}] {user_message}"
 
 
@@ -530,6 +542,11 @@ def test_chat_finds_biofuel_company_knowledge_before_live_web_search(client, moc
         "get_recent_company_knowledge",
         lambda db, symbol=None, company_name=None, limit=3: [entry] if company_name == "Neste" else [],
     )
+    # `biofuel_company` ("Neste") est déjà connu ici, donc
+    # `external_analysis.extract_company_name` n'est jamais appelée (voir
+    # `agents.chat.answer_question`) -- `resolve_ticker` le serait, pour de
+    # vrai contre yfinance, sans ce mock.
+    monkeypatch.setattr(external_analysis, "resolve_ticker", lambda company_name: None)
 
     def _fail_if_called(*a, **k):
         raise AssertionError("agents.web_search.search ne doit pas être appelé quand company_news_knowledge a déjà une entrée")
@@ -541,6 +558,36 @@ def test_chat_finds_biofuel_company_knowledge_before_live_web_search(client, moc
     answer = resp.json()["answer"]
     assert "Neste annonce un investissement dans une nouvelle raffinerie." in answer
     assert '"resultats_web": []' in answer
+
+
+def test_chat_runs_live_technical_analysis_for_any_mentioned_company(client, mock_llm, monkeypatch):
+    """Demandé directement par l'utilisateur : "n'importe quelle entreprise
+    mentionnée dans le chat" doit pouvoir recevoir une vraie analyse
+    technique (10 ans, yfinance), pas seulement un résumé d'actualité web.
+    `extract_company_name`/`resolve_ticker`/`analyze_ticker` mockés
+    directement -- ce test vérifie le câblage dans `answer_question`, pas
+    `agents/external_analysis.py` lui-même (voir `test_external_analysis.py`)."""
+    monkeypatch.setattr(external_analysis, "extract_company_name", lambda question: "Haffner Energy")
+    monkeypatch.setattr(external_analysis, "resolve_ticker", lambda company_name: "ALHAF.PA")
+
+    match = type(
+        "FakeMatch",
+        (),
+        {
+            "pattern_type": "Double Bottom",
+            "confidence": 62.5,
+            "detected_at": pd.Timestamp("2026-08-15", tz="UTC"),
+        },
+    )()
+    monkeypatch.setattr(external_analysis, "analyze_ticker", lambda ticker: match)
+    monkeypatch.setattr(web_search, "search", lambda query, max_results=web_search.MAX_RESULTS: [])
+
+    resp = client.post("/chat", json={"question": "que penses-tu de Haffner Energy ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert '"ticker": "ALHAF.PA"' in answer
+    assert '"figure": "Double Bottom"' in answer
+    assert '"confiance": 62.5' in answer
 
 
 def test_chat_falls_back_to_web_search_for_a_security_outside_the_tracked_universe(client, mock_llm, monkeypatch):
