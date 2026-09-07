@@ -80,7 +80,10 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
           title: '🧠 Ask Jane',
           loadingText: 'Jane consulte sa base de connaissances méthodologique…',
           shareable: false,
-          action: () => ref.read(janeRepositoryProvider).ask(question),
+          action: () async {
+            final answer = await ref.read(janeRepositoryProvider).ask(question);
+            return 'Question : $question\n\n$answer';
+          },
         ),
       ),
     );
