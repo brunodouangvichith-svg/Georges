@@ -235,6 +235,8 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
                               hintText:
                                   'Les opportunités actuellement proposées par George',
                               border: const OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Colors.lightBlue.shade50,
                               isDense: true,
                               suffixIcon: value.text.isEmpty
                                   ? null
