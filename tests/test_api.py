@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+import agents.company_knowledge as company_knowledge
 import agents.mistral_client as mistral_client
 import agents.web_search as web_search
 import api.auth as auth
@@ -466,6 +467,53 @@ def test_chat_with_no_recognized_security_says_so_via_empty_context(client, mock
     assert resp.status_code == 200
     answer = resp.json()["answer"]
     assert '"titres_reconnus": []' in answer
+    assert '"actualites_recentes": []' in answer
+    assert '"resultats_web": []' in answer
+
+
+def test_chat_enriches_a_tracked_security_with_recent_company_news(client, mock_llm, monkeypatch):
+    """`company_news_knowledge` (alimentée par `agents/george_veille.py`) est
+    une simple requête DB filtrée par récence, pas un appel réseau — on la
+    mocke directement au niveau de `agents.company_knowledge` plutôt que de
+    seeder une vraie ligne avec un embedding factice."""
+    entry = type(
+        "FakeEntry", (), {"content": "Alpha SA a publié des résultats en hausse.", "source_name": "Reuters", "source_url": "https://reuters.com/alpha"}
+    )()
+    monkeypatch.setattr(
+        company_knowledge,
+        "get_recent_company_knowledge",
+        lambda db, symbol=None, company_name=None, limit=3: [entry] if symbol == "AAA.PA" else [],
+    )
+    resp = client.post("/chat", json={"question": "Que penses-tu de Alpha SA ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert "Alpha SA a publié des résultats en hausse." in answer
+    assert "https://reuters.com/alpha" in answer
+
+
+def test_chat_finds_biofuel_company_knowledge_before_live_web_search(client, mock_llm, monkeypatch):
+    """Une entreprise du secteur biocarburants/gaz renouvelables déjà
+    couverte par `agents/george_veille.py` doit être répondue depuis
+    `company_news_knowledge`, sans jamais appeler `agents.web_search` en
+    direct."""
+    entry = type(
+        "FakeEntry", (), {"content": "Neste annonce un investissement dans une nouvelle raffinerie.", "source_name": "Reuters", "source_url": "https://reuters.com/neste"}
+    )()
+    monkeypatch.setattr(
+        company_knowledge,
+        "get_recent_company_knowledge",
+        lambda db, symbol=None, company_name=None, limit=3: [entry] if company_name == "Neste" else [],
+    )
+
+    def _fail_if_called(*a, **k):
+        raise AssertionError("agents.web_search.search ne doit pas être appelé quand company_news_knowledge a déjà une entrée")
+
+    monkeypatch.setattr(web_search, "search", _fail_if_called)
+
+    resp = client.post("/chat", json={"question": "Des nouvelles de Neste ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert "Neste annonce un investissement dans une nouvelle raffinerie." in answer
     assert '"resultats_web": []' in answer
 
 

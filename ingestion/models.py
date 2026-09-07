@@ -524,3 +524,37 @@ class PriceHistoryLong(Base):
     low: Mapped[float] = mapped_column(Numeric, nullable=False)
     close: Mapped[float] = mapped_column(Numeric, nullable=False)
     volume: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class CompanyNewsKnowledge(Base):
+    """Base de connaissances d'actualités entreprises pour George (ad hoc,
+    pas une phase du roadmap — demandé directement par l'utilisateur : que
+    George mette à jour ses connaissances en continu, scopé aux entreprises
+    CAC 40/Mid Cac 60 déjà suivies plus le secteur biocarburants/gaz
+    renouvelables). Même principe indexé-par-embedding que `JaneKnowledge`,
+    alimentée en continu par `agents/george_veille.py`, mais scopée par
+    entreprise (`company_name`/`symbol`) plutôt que par sujet méthodologique
+    général — consommée par `agents.chat.answer_question` en complément de
+    l'analyse quantitative pour les titres suivis, et à la place du repli
+    web à la volée pour les entreprises biocarburants/gaz renouvelables déjà
+    couvertes ici.
+
+    `symbol` est nullable et volontairement SANS clé étrangère vers
+    `securities.symbol` : les entreprises du secteur biocarburants/gaz
+    renouvelables ciblées ici n'y ont pour la plupart aucune ligne — même
+    piège de contrainte déjà rencontré et évité pour `AgentEvent.symbol`
+    avec les paires de devises du carry trade (voir CLAUDE.md, section
+    Panier Carry Trade)."""
+
+    __tablename__ = "company_news_knowledge"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    company_name: Mapped[str] = mapped_column(Text, nullable=False)
+    symbol: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    source_name: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )

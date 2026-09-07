@@ -11,8 +11,9 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from agents import mistral_client, web_search
+from agents import company_knowledge, mistral_client, web_search
 from agents.context import security_snapshot
+from agents.george_veille import BIOFUEL_RENEWABLE_GAS_COMPANIES
 from ingestion.models import Decision, PatternDetected, Security
 
 OPEN_STATUSES = ("proposee", "confirmee")
@@ -62,6 +63,20 @@ def find_relevant_securities(db: Session, question: str, limit: int = 5) -> list
         or s.name.lower() in question_lower
     ]
     return matches[:limit]
+
+
+def _find_biofuel_company(question: str) -> str | None:
+    """Reconnaissance par nom dans la question, même principe que
+    `find_relevant_securities` mais pour la petite liste hors référentiel de
+    `agents/george_veille.py:BIOFUEL_RENEWABLE_GAS_COMPANIES` — pas besoin
+    d'une frontière de mot ici, ces noms sont assez longs/distinctifs pour
+    ne pas apparaître accidentellement à l'intérieur d'un mot français
+    ordinaire (contrairement aux racines de symbole à deux lettres)."""
+    question_lower = question.lower()
+    for name in BIOFUEL_RENEWABLE_GAS_COMPANIES:
+        if name.lower() in question_lower:
+            return name
+    return None
 
 
 def _latest_decision(db: Session, symbol: str) -> Decision | None:
@@ -154,32 +169,56 @@ def answer_question(db: Session, question: str) -> str:
     if not snapshots and requested_type is not None:
         return _format_opportunities(opportunities, requested_type)
 
+    # Actualités récentes des titres suivis reconnus (`company_news_knowledge`,
+    # alimentée en continu par `agents/george_veille.py`) — une simple
+    # requête DB filtrée par récence, pas un appel réseau, donc aucun coût
+    # supplémentaire sur ce chemin par rapport à avant cet ajout. Enrichit
+    # l'analyse quantitative de George (figure/confiance/décision) avec du
+    # factuel daté, sans jamais remplacer `titres_reconnus`.
+    recent_news = [
+        {"entreprise": security.name, "resume": entry.content, "source": entry.source_name, "url": entry.source_url}
+        for security in securities
+        for entry in company_knowledge.get_recent_company_knowledge(db, symbol=security.symbol)
+    ]
+
     # Aucun titre du référentiel suivi (~120 valeurs CAC 40/Mid 60) reconnu
-    # dans la question : recherche web réelle (agents.web_search, Tavily),
-    # pour répondre sur une société hors de cet univers (demandé directement
-    # par l'utilisateur — "poser des questions sur des sociétés en dehors de
-    # la liste actuelle") plutôt que de se limiter à dire qu'aucun titre
-    # n'est reconnu. `chat_system.txt` distingue explicitement les deux
-    # sources : `titres_reconnus` porte la vraie analyse quantitative de
-    # George (figure détectée, confiance, décision), `resultats_web` n'est
-    # qu'une information générale sans passer par son moteur de détection —
-    # jamais présentée comme équivalente. Un échec de recherche web (pas de
-    # clé, Tavily indisponible) dégrade vers une liste vide, comme pour
-    # `agents/jane.py:ask`.
+    # dans la question : d'abord `company_news_knowledge` pour une entreprise
+    # du secteur biocarburants/gaz renouvelables déjà couverte par la veille
+    # continue de George (`agents/george_veille.py:BIOFUEL_RENEWABLE_GAS_COMPANIES`)
+    # — rapide, déjà vérifiée multi-sources, aucun appel réseau. Seulement si
+    # rien n'est trouvé là, recherche web en direct (agents.web_search,
+    # Tavily) pour répondre sur une société vraiment hors de tout périmètre
+    # connu de George (demandé directement par l'utilisateur — "poser des
+    # questions sur des sociétés en dehors de la liste actuelle").
+    # `chat_system.txt` distingue explicitement les trois sources :
+    # `titres_reconnus` porte la vraie analyse quantitative de George (figure
+    # détectée, confiance, décision), `actualites_recentes`/`resultats_web`
+    # ne sont qu'une information générale sans passer par son moteur de
+    # détection — jamais présentées comme équivalentes. Un échec de
+    # recherche web (pas de clé, Tavily indisponible) dégrade vers une liste
+    # vide, comme pour `agents/jane.py:ask`.
     web_results: list[dict] = []
     if not snapshots:
-        try:
-            web_results = web_search.search(question)
-        except web_search.WebSearchUnavailableError:
-            web_results = []
+        biofuel_company = _find_biofuel_company(question)
+        if biofuel_company is not None:
+            recent_news += [
+                {"entreprise": biofuel_company, "resume": entry.content, "source": entry.source_name, "url": entry.source_url}
+                for entry in company_knowledge.get_recent_company_knowledge(db, company_name=biofuel_company)
+            ]
+        if not recent_news:
+            try:
+                web_results = web_search.search(question)
+            except web_search.WebSearchUnavailableError:
+                web_results = []
 
-    # Un contexte vide (aucun titre reconnu, aucune décision ouverte, aucun
-    # résultat web) est envoyé tel quel : le prompt système impose de le
-    # signaler plutôt que d'inventer une réponse.
+    # Un contexte vide (aucun titre reconnu, aucune décision ouverte, aucune
+    # actualité, aucun résultat web) est envoyé tel quel : le prompt système
+    # impose de le signaler plutôt que d'inventer une réponse.
     context = {
         "question": question,
         "titres_reconnus": snapshots,
         "opportunites_actuelles": opportunities,
+        "actualites_recentes": recent_news,
         "resultats_web": web_results,
     }
     system_prompt = mistral_client.load_system_prompt("chat_system.txt")

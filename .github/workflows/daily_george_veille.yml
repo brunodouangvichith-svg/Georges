@@ -1,0 +1,47 @@
+name: Veille d'actualités entreprises de George (quotidienne)
+
+# Demandé directement par l'utilisateur : "Georges doit mettre à jour ses
+# connaissances en continue... scope : entreprises du Cac 40 et midcac 60 et
+# aussi les entreprises du secteur des biocarburants et des gaz
+# renouvelables". Même raisonnement "pas de scheduler dans ce projet" que
+# les autres workflows planifiés -- voir agents/george_veille.py:
+# collect_company_news pour l'implémentation (recherche Tavily + synthèse
+# multi-sources Mistral + ajout à company_news_knowledge).
+#
+# Quotidien, pas hebdomadaire comme la veille méthodologique de Jane :
+# l'actualité d'une entreprise est bien plus périssable qu'un concept
+# d'analyse technique général -- COMPANIES_PER_RUN (5) entreprises par
+# exécution, rotation déterministe sur l'univers combiné (~120 valeurs
+# suivies + la liste biocarburants/gaz renouvelables), donc chaque
+# entreprise est rafraîchie environ une fois par mois.
+#
+# 21h UTC, délibérément décalé des autres jobs quotidiens/hebdomadaires
+# (energy 6h UTC, fondamentaux 20h UTC, confidence model dimanche 20h UTC,
+# veille Jane samedi 20h UTC) pour ne pas cumuler plusieurs jobs sur le même
+# créneau.
+on:
+  schedule:
+    - cron: "0 21 * * *"
+  workflow_dispatch:
+    inputs:
+      company:
+        description: "Entreprise à rechercher (optionnel — sinon rotation quotidienne automatique)"
+        required: false
+        type: string
+
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Recherche web + synthèse (agents.george_veille)
+        run: python -m agents.george_veille "${{ inputs.company }}"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}

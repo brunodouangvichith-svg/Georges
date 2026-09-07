@@ -6,7 +6,7 @@ moitié — que la réponse du LLM les cite bien — est testée dans
 `tests/test_api.py` avec un client Mistral factice)."""
 import datetime
 
-from agents.chat import _format_opportunities, _requested_decision_type
+from agents.chat import _find_biofuel_company, _format_opportunities, _requested_decision_type
 from agents.context import basket_report_context, decision_context, security_snapshot
 from ingestion.models import Basket, Decision, PatternDetected, Security
 
@@ -227,3 +227,13 @@ def test_format_opportunities_empty_says_so_without_inventing():
     text = _format_opportunities([], "Renforcer")
     assert "renforcer" in text.lower()
     assert "aucune décision" in text.lower()
+
+
+def test_find_biofuel_company_matches_a_known_name():
+    assert _find_biofuel_company("Que penses-tu de Neste en ce moment ?") == "Neste"
+    assert _find_biofuel_company("Actualités sur Waga Energy ?") == "Waga Energy"
+
+
+def test_find_biofuel_company_returns_none_when_no_match():
+    assert _find_biofuel_company("Que penses-tu d'Apple ?") is None
+    assert _find_biofuel_company("Quelles sont les opportunités d'achat ?") is None
