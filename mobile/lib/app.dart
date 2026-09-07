@@ -7,6 +7,7 @@ import 'core/auth/auth_providers.dart';
 import 'core/auth/go_router_refresh_stream.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
+import 'features/auth/reset_password_screen.dart';
 import 'features/paniers/paniers_screen.dart';
 import 'features/portefeuille/portefeuille_screen.dart';
 import 'features/profile/profile_screen.dart';
@@ -42,6 +43,18 @@ final _goRouterProvider = Provider<GoRouter>((ref) {
       // "Page Not Found" (`GoException: no routes for location: io.supabase
       // .george://...`), vu en direct sur appareil. Il faut l'intercepter ici
       // avant le matching de routes plutôt que de le laisser 404.
+      // Le lien "mot de passe oublié" (`resetPasswordForEmail`, voir
+      // login_screen.dart:_showForgotPasswordDialog) revient par le même
+      // schéma de deep link que l'OAuth Google, mais ouvre une session de
+      // recovery — `isPasswordRecoveryProvider` (voir auth_providers.dart)
+      // force /reset-password plutôt que /univers dans ce cas précis, sinon
+      // n'importe qui avec un vieux lien de réinitialisation entrerait dans
+      // le compte sans jamais choisir de nouveau mot de passe.
+      if (ref.read(isPasswordRecoveryProvider)) {
+        return state.matchedLocation == '/reset-password'
+            ? null
+            : '/reset-password';
+      }
       if (state.uri.scheme == 'io.supabase.george') {
         return ref.read(isLoggedInProvider) ? '/univers' : '/login';
       }
@@ -53,18 +66,38 @@ final _goRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/reset-password',
+        builder: (context, state) => const ResetPasswordScreen(),
+      ),
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) => _AppShell(navigationShell: navigationShell),
+        builder: (context, state, navigationShell) =>
+            _AppShell(navigationShell: navigationShell),
         branches: [
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/univers', builder: (context, state) => const UniversScreen()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/paniers', builder: (context, state) => const PaniersScreen()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/portefeuille', builder: (context, state) => const PortefeuilleScreen()),
-          ]),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/univers',
+                builder: (context, state) => const UniversScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/paniers',
+                builder: (context, state) => const PaniersScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/portefeuille',
+                builder: (context, state) => const PortefeuilleScreen(),
+              ),
+            ],
+          ),
         ],
       ),
     ],
@@ -122,7 +155,9 @@ class _AppShellState extends State<_AppShell> {
                   padding: const EdgeInsets.only(left: 12),
                   child: Text(
                     'George v$_appVersion',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
                     overflow: TextOverflow.visible,
                     softWrap: false,
                   ),
@@ -137,16 +172,20 @@ class _AppShellState extends State<_AppShell> {
           child: Text(
             'GeorGe',
             // 22 (taille par défaut du titre d'AppBar, Material 3 titleLarge) * 1.25 * 1.10 * 1.10.
-            style: const TextStyle(fontSize: 33.275, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: const TextStyle(
+              fontSize: 33.275,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
           ),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_outline),
             tooltip: 'Profil',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ProfileScreen()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
           ),
         ],
       ),
@@ -158,9 +197,18 @@ class _AppShellState extends State<_AppShell> {
           initialLocation: index == widget.navigationShell.currentIndex,
         ),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Univers'),
-          NavigationDestination(icon: Icon(Icons.pie_chart_outline), label: 'Paniers'),
-          NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Portefeuille'),
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            label: 'Univers',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.pie_chart_outline),
+            label: 'Paniers',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            label: 'Portefeuille',
+          ),
         ],
       ),
     );

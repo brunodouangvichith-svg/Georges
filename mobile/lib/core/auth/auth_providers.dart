@@ -48,3 +48,22 @@ final isLoggedInProvider = Provider<bool>((ref) {
   if (authState.hasValue) return authState.value?.session != null;
   return Supabase.instance.client.auth.currentSession != null;
 });
+
+/// `true` dès que le dernier événement d'auth reçu est `AuthChangeEvent.
+/// passwordRecovery` — l'utilisateur vient de cliquer le lien "mot de passe
+/// oublié" reçu par email (`login_screen.dart:_showForgotPasswordDialog`,
+/// `resetPasswordForEmail`). Ce lien ouvre une session Supabase techniquement
+/// "connectée" (même schéma de deep link `io.supabase.george://
+/// login-callback/` que l'OAuth Google, voir `app.dart`), mais l'utilisateur
+/// n'a pas encore choisi de nouveau mot de passe — sans ce provider,
+/// `isLoggedInProvider` serait déjà vrai et le routeur enverrait directement
+/// vers `/univers`, laissant n'importe qui avec un vieux lien de
+/// réinitialisation entrer dans le compte sans jamais avoir à changer le mot
+/// de passe. Redevient faux dès que `updateUser(password: ...)` réussit
+/// (`reset_password_screen.dart`) : Supabase émet alors un nouvel événement
+/// `userUpdated`, pas `passwordRecovery`, donc ce provider retombe à `false`
+/// sans code supplémentaire ici.
+final isPasswordRecoveryProvider = Provider<bool>((ref) {
+  final authState = ref.watch(authStateProvider);
+  return authState.value?.event == AuthChangeEvent.passwordRecovery;
+});

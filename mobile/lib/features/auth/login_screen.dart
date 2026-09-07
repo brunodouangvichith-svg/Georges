@@ -91,37 +91,153 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// Yahoo n'est pas un fournisseur natif de Supabase Auth (contrairement à
-  /// Google) -- `OAuthProvider` accepte cependant n'importe quel identifiant
-  /// de "custom OAuth/OIDC provider" enregistré côté tableau de bord Supabase
-  /// (Auth → Providers → New Provider → Auto-discovery (OIDC)), Yahoo étant
-  /// lui-même compatible OpenID Connect. `custom:yahoo-oauth` est
-  /// l'identifiant à utiliser lors de cet enregistrement -- voir le guide
-  /// d'inscription de l'app Yahoo (developer.yahoo.com/apps) pour le détail
-  /// des étapes externes, qui nécessitent le compte Yahoo/Supabase de
-  /// l'utilisateur et ne peuvent pas être faites depuis ce dépôt.
-  Future<void> _signInWithYahoo() async {
-    setState(() => _errorMessage = null);
-    try {
-      await Supabase.instance.client.auth.signInWithOAuth(
-        OAuthProvider('custom:yahoo-oauth'),
-        redirectTo: 'io.supabase.george://login-callback/',
-      );
-    } on AuthException catch (e) {
-      setState(() => _errorMessage = e.message);
-    } catch (e) {
-      setState(() => _errorMessage = 'Erreur inattendue : $e');
-    }
+  /// Popup "mot de passe oublié" — demande juste l'email, puis
+  /// `resetPasswordForEmail` (Supabase envoie lui-même l'email contenant le
+  /// lien, rien à coder côté app pour l'envoi). Le lien renvoie vers ce même
+  /// deep link `io.supabase.george://login-callback/` que l'OAuth Google ;
+  /// voir `app.dart`/`auth_providers.dart:isPasswordRecoveryProvider` pour
+  /// la suite du parcours (forcé vers `/reset-password`, pas `/univers`).
+  ///
+  /// Pas de récupération d'"email oublié" : aucun mécanisme sûr n'existe
+  /// pour retrouver un compte sans connaître au moins son email (Supabase
+  /// n'a ni identifiant secondaire ni recherche par nom ici) — le texte
+  /// d'aide sous le lien renvoie donc vers un contact support plutôt que
+  /// d'inventer une fonctionnalité qui n'existerait que par un faux
+  /// sentiment de sécurité.
+  Future<void> _showForgotPasswordDialog() async {
+    final emailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+    var isSubmitting = false;
+    var sent = false;
+    String? dialogError;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Mot de passe oublié'),
+          content: sent
+              ? const Text(
+                  'Si un compte existe pour cet email, un lien de réinitialisation vient d\'être envoyé. '
+                  'Cliquez sur ce lien pour choisir un nouveau mot de passe.',
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Recevez un lien par email pour choisir un nouveau mot de passe.',
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: emailController,
+                      autofocus: true,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    if (dialogError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(
+                          dialogError!,
+                          style: TextStyle(
+                            color: Theme.of(dialogContext).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Vous ne vous souvenez plus de l\'email utilisé pour votre compte ? Contactez le support.',
+                      style: Theme.of(dialogContext).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+          actions: sent
+              ? [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('OK'),
+                  ),
+                ]
+              : [
+                  TextButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () => Navigator.of(dialogContext).pop(),
+                    child: const Text('❌ Annuler'),
+                  ),
+                  FilledButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () async {
+                            final email = emailController.text.trim();
+                            if (email.isEmpty) {
+                              setDialogState(
+                                () => dialogError = 'Entrez un email.',
+                              );
+                              return;
+                            }
+                            setDialogState(() {
+                              isSubmitting = true;
+                              dialogError = null;
+                            });
+                            try {
+                              await Supabase.instance.client.auth
+                                  .resetPasswordForEmail(
+                                    email,
+                                    redirectTo:
+                                        'io.supabase.george://login-callback/',
+                                  );
+                              setDialogState(() {
+                                isSubmitting = false;
+                                sent = true;
+                              });
+                            } on AuthException catch (e) {
+                              setDialogState(() {
+                                isSubmitting = false;
+                                dialogError = e.message;
+                              });
+                            } catch (e) {
+                              setDialogState(() {
+                                isSubmitting = false;
+                                dialogError = 'Erreur inattendue : $e';
+                              });
+                            }
+                          },
+                    child: isSubmitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Envoyer le lien'),
+                  ),
+                ],
+        ),
+      ),
+    );
+
+    emailController.dispose();
   }
 
-  Future<void> _showSignUpFailureDialog(BuildContext dialogContext, String message) {
+  Future<void> _showSignUpFailureDialog(
+    BuildContext dialogContext,
+    String message,
+  ) {
     return showDialog<void>(
       context: dialogContext,
       builder: (context) => AlertDialog(
         title: const Text('Création de compte échouée'),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
         ],
       ),
     );
@@ -134,7 +250,10 @@ class _LoginScreenState extends State<LoginScreen> {
   /// automatique de l'email de confirmation par Supabase lui-même : rien à
   /// coder côté app pour l'envoi, seulement pour ne plus supposer une
   /// connexion immédiate après "Enregistrer".
-  Future<void> _showConfirmationEmailSentDialog(BuildContext dialogContext, String email) {
+  Future<void> _showConfirmationEmailSentDialog(
+    BuildContext dialogContext,
+    String email,
+  ) {
     return showDialog<void>(
       context: dialogContext,
       builder: (context) => AlertDialog(
@@ -144,7 +263,10 @@ class _LoginScreenState extends State<LoginScreen> {
           'compte, puis connectez-vous ci-dessous.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
         ],
       ),
     );
@@ -171,7 +293,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.newUsername],
-                  decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -182,9 +307,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     labelText: 'Mot de passe',
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
-                      icon: Icon(obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                      tooltip: obscurePassword ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
-                      onPressed: () => setDialogState(() => obscurePassword = !obscurePassword),
+                      icon: Icon(
+                        obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                      tooltip: obscurePassword
+                          ? 'Afficher le mot de passe'
+                          : 'Masquer le mot de passe',
+                      onPressed: () => setDialogState(
+                        () => obscurePassword = !obscurePassword,
+                      ),
                     ),
                   ),
                 ),
@@ -197,9 +330,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     labelText: 'Confirmer le mot de passe',
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
-                      icon: Icon(obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                      tooltip: obscureConfirm ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
-                      onPressed: () => setDialogState(() => obscureConfirm = !obscureConfirm),
+                      icon: Icon(
+                        obscureConfirm
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                      tooltip: obscureConfirm
+                          ? 'Afficher le mot de passe'
+                          : 'Masquer le mot de passe',
+                      onPressed: () => setDialogState(
+                        () => obscureConfirm = !obscureConfirm,
+                      ),
                     ),
                   ),
                 ),
@@ -208,7 +349,9 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: isSubmitting ? null : () => Navigator.of(dialogContext).pop(),
+              onPressed: isSubmitting
+                  ? null
+                  : () => Navigator.of(dialogContext).pop(),
               child: const Text('❌ Annuler'),
             ),
             FilledButton(
@@ -217,17 +360,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   : () async {
                       final password = passwordController.text;
                       if (password != confirmController.text) {
-                        await _showSignUpFailureDialog(dialogContext, 'Les mots de passe ne correspondent pas.');
+                        await _showSignUpFailureDialog(
+                          dialogContext,
+                          'Les mots de passe ne correspondent pas.',
+                        );
                         return;
                       }
 
                       setDialogState(() => isSubmitting = true);
                       final email = emailController.text.trim();
                       try {
-                        final response = await Supabase.instance.client.auth.signUp(
-                          email: email,
-                          password: password,
-                        );
+                        final response = await Supabase.instance.client.auth
+                            .signUp(email: email, password: password);
                         if (!dialogContext.mounted) return;
                         Navigator.of(dialogContext).pop();
                         if (response.session == null) {
@@ -236,7 +380,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           // envoyé par Supabase -- on l'explique plutôt que
                           // de laisser croire que la connexion a échoué.
                           if (!mounted) return;
-                          await _showConfirmationEmailSentDialog(context, email);
+                          await _showConfirmationEmailSentDialog(
+                            context,
+                            email,
+                          );
                         }
                         // Sinon (session déjà active), le `redirect:` du
                         // routeur (voir app.dart) bascule automatiquement
@@ -245,15 +392,25 @@ class _LoginScreenState extends State<LoginScreen> {
                       } on AuthException catch (e) {
                         setDialogState(() => isSubmitting = false);
                         if (!dialogContext.mounted) return;
-                        await _showSignUpFailureDialog(dialogContext, e.message);
+                        await _showSignUpFailureDialog(
+                          dialogContext,
+                          e.message,
+                        );
                       } catch (e) {
                         setDialogState(() => isSubmitting = false);
                         if (!dialogContext.mounted) return;
-                        await _showSignUpFailureDialog(dialogContext, 'Erreur inattendue : $e');
+                        await _showSignUpFailureDialog(
+                          dialogContext,
+                          'Erreur inattendue : $e',
+                        );
                       }
                     },
               child: isSubmitting
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Text('✅ Enregistrer'),
             ),
           ],
@@ -284,7 +441,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     Align(
                       alignment: Alignment.center,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.lightBlue.shade100,
                           borderRadius: BorderRadius.circular(14),
@@ -293,11 +453,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           'GeorGe',
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                // 36 (taille par défaut Material 3 de displaySmall) * 1.20 * 1.20.
-                                fontSize: 51.84,
-                                color: Colors.black87,
-                              ),
+                            fontWeight: FontWeight.bold,
+                            // 36 (taille par défaut Material 3 de displaySmall) * 1.20 * 1.20.
+                            fontSize: 51.84,
+                            color: Colors.black87,
+                          ),
                         ),
                       ),
                     ),
@@ -305,7 +465,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (_errorMessage != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16),
-                        child: Text(_errorMessage!, style: TextStyle(color: colors.error), textAlign: TextAlign.center),
+                        child: Text(
+                          _errorMessage!,
+                          style: TextStyle(color: colors.error),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     AutofillGroup(
                       child: Column(
@@ -315,7 +479,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
                             autofillHints: const [AutofillHints.email],
-                            decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
+                            decoration: const InputDecoration(
+                              labelText: 'Email',
+                              border: OutlineInputBorder(),
+                            ),
                           ),
                           const SizedBox(height: 12),
                           TextField(
@@ -326,9 +493,17 @@ class _LoginScreenState extends State<LoginScreen> {
                               labelText: 'Mot de passe',
                               border: const OutlineInputBorder(),
                               suffixIcon: IconButton(
-                                icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                                tooltip: _obscurePassword ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
-                                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                ),
+                                tooltip: _obscurePassword
+                                    ? 'Afficher le mot de passe'
+                                    : 'Masquer le mot de passe',
+                                onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                ),
                               ),
                             ),
                             onSubmitted: (_) => _login(),
@@ -336,7 +511,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _isLoading
+                            ? null
+                            : _showForgotPasswordDialog,
+                        child: const Text('Mot de passe oublié ?'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     FilledButton.icon(
                       onPressed: _isLoading ? null : _login,
                       icon: const Icon(Icons.login),
@@ -354,21 +538,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     OutlinedButton.icon(
                       onPressed: _isLoading ? null : _signInWithGoogle,
                       icon: const Icon(Icons.login, color: Colors.black87),
-                      label: const Text('Continuer avec Google', style: TextStyle(color: Colors.black87)),
-                      style: OutlinedButton.styleFrom(backgroundColor: Colors.lightBlue.shade100),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _signInWithYahoo,
-                      icon: const Icon(Icons.login, color: Colors.black87),
-                      label: const Text('Continuer avec Yahoo', style: TextStyle(color: Colors.black87)),
-                      style: OutlinedButton.styleFrom(backgroundColor: Colors.purple.shade100),
+                      label: const Text(
+                        'Continuer avec Google',
+                        style: TextStyle(color: Colors.black87),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.lightBlue.shade100,
+                      ),
                     ),
                     if (_isLoading)
                       const Padding(
                         padding: EdgeInsets.only(top: 20),
                         child: Center(
-                          child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
                         ),
                       ),
                   ],
@@ -381,7 +567,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 bottom: 8,
                 child: Text(
                   'George v$_appVersion',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.outline),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: colors.outline),
                 ),
               ),
           ],
