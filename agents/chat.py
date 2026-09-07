@@ -11,7 +11,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from agents import mistral_client
+from agents import mistral_client, web_search
 from agents.context import security_snapshot
 from ingestion.models import Decision, PatternDetected, Security
 
@@ -140,13 +140,48 @@ def answer_question(db: Session, question: str) -> str:
     # capacité de langage naturel, seulement de restituer fidèlement des
     # données déjà entièrement formées ; le contourner élimine le risque
     # d'omission/invention plutôt que de espérer un meilleur prompt.
+    # Limite connue, acceptée telle quelle (trouvée en revue de code en
+    # ajoutant le repli web ci-dessous) : ce raccourci gagne toujours sur le
+    # repli web quand la question contient un mot-clé de décision, même pour
+    # une société hors référentiel — "dois-je vendre Apple ?" retombe ici
+    # ("vendre" -> "Alléger") et répond avec les opportunités "Alléger" de
+    # George plutôt que de chercher "Apple" sur le web. Corriger proprement
+    # demanderait de distinguer "question générale sur les opportunités"
+    # d'"une société précise, non reconnue, avec un verbe de décision" sans
+    # NLP fiable à cette échelle — accepté plutôt que d'ajouter une
+    # heuristique fragile, même logique que le reste de ce module (voir la
+    # note sur `mistral-small-latest` énumérant mal une longue liste).
     if not snapshots and requested_type is not None:
         return _format_opportunities(opportunities, requested_type)
 
-    # Un contexte vide (aucun titre reconnu, aucune décision ouverte) est
-    # envoyé tel quel : le prompt système impose de le signaler plutôt que
-    # d'inventer une réponse.
-    context = {"question": question, "titres_reconnus": snapshots, "opportunites_actuelles": opportunities}
+    # Aucun titre du référentiel suivi (~120 valeurs CAC 40/Mid 60) reconnu
+    # dans la question : recherche web réelle (agents.web_search, Tavily),
+    # pour répondre sur une société hors de cet univers (demandé directement
+    # par l'utilisateur — "poser des questions sur des sociétés en dehors de
+    # la liste actuelle") plutôt que de se limiter à dire qu'aucun titre
+    # n'est reconnu. `chat_system.txt` distingue explicitement les deux
+    # sources : `titres_reconnus` porte la vraie analyse quantitative de
+    # George (figure détectée, confiance, décision), `resultats_web` n'est
+    # qu'une information générale sans passer par son moteur de détection —
+    # jamais présentée comme équivalente. Un échec de recherche web (pas de
+    # clé, Tavily indisponible) dégrade vers une liste vide, comme pour
+    # `agents/jane.py:ask`.
+    web_results: list[dict] = []
+    if not snapshots:
+        try:
+            web_results = web_search.search(question)
+        except web_search.WebSearchUnavailableError:
+            web_results = []
+
+    # Un contexte vide (aucun titre reconnu, aucune décision ouverte, aucun
+    # résultat web) est envoyé tel quel : le prompt système impose de le
+    # signaler plutôt que d'inventer une réponse.
+    context = {
+        "question": question,
+        "titres_reconnus": snapshots,
+        "opportunites_actuelles": opportunities,
+        "resultats_web": web_results,
+    }
     system_prompt = mistral_client.load_system_prompt("chat_system.txt")
     user_message = json.dumps(context, ensure_ascii=False)
     return mistral_client.complete(system_prompt, user_message, model=mistral_client.MODEL_SMALL)

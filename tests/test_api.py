@@ -466,6 +466,27 @@ def test_chat_with_no_recognized_security_says_so_via_empty_context(client, mock
     assert resp.status_code == 200
     answer = resp.json()["answer"]
     assert '"titres_reconnus": []' in answer
+    assert '"resultats_web": []' in answer
+
+
+def test_chat_falls_back_to_web_search_for_a_security_outside_the_tracked_universe(client, mock_llm, monkeypatch):
+    """Une société hors du référentiel suivi (~120 valeurs CAC 40/Mid 60) --
+    `find_relevant_securities` ne reconnaît rien, donc `answer_question` doit
+    interroger `agents.web_search` et fournir les résultats à George en plus
+    de `titres_reconnus` (vide)."""
+    monkeypatch.setattr(
+        web_search,
+        "search",
+        lambda query, max_results=web_search.MAX_RESULTS: [
+            {"titre": "Apple Inc. (AAPL)", "extrait": "Apple est une société technologique américaine...", "url": "https://example.com/aapl"}
+        ],
+    )
+    resp = client.post("/chat", json={"question": "Que penses-tu d'Apple ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert '"titres_reconnus": []' in answer
+    assert "Apple Inc. (AAPL)" in answer
+    assert "https://example.com/aapl" in answer
 
 
 def test_chat_does_not_false_positive_match_short_symbol_roots_inside_words(client, mock_llm):
