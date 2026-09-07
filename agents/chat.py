@@ -6,6 +6,7 @@ pgvector, réservé aux rapports/notes longs, tâche 4 de la Phase 4)."""
 from __future__ import annotations
 
 import json
+import logging
 import re
 
 from sqlalchemy import select
@@ -15,6 +16,8 @@ from agents import company_knowledge, mistral_client, web_search
 from agents.context import security_snapshot
 from agents.george_veille import BIOFUEL_RENEWABLE_GAS_COMPANIES
 from ingestion.models import Decision, PatternDetected, Security
+
+logger = logging.getLogger(__name__)
 
 OPEN_STATUSES = ("proposee", "confirmee")
 
@@ -212,10 +215,14 @@ def answer_question(db: Session, question: str) -> str:
             # ou vides en pratique (constaté en direct via l'app), le moteur
             # de recherche ayant trop peu de contexte pour cibler une
             # entreprise précise plutôt qu'un nom de famille générique.
+            search_query = f"{question} société entreprise"
             try:
-                web_results = web_search.search(f"{question} société entreprise")
-            except web_search.WebSearchUnavailableError:
+                web_results = web_search.search(search_query)
+            except web_search.WebSearchUnavailableError as err:
+                logger.warning("Recherche web /chat en échec pour %r : %s", search_query, err)
                 web_results = []
+            if not web_results:
+                logger.info("Recherche web /chat sans résultat pour %r", search_query)
 
     # Un contexte vide (aucun titre reconnu, aucune décision ouverte, aucune
     # actualité, aucun résultat web) est envoyé tel quel : le prompt système
