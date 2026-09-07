@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -11,10 +14,23 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// passe/confirmation, boutons ❌ Annuler / ✅ Enregistrer) suit exactement
 /// `JADE/mobile/lib/features/auth/login_screen.dart:_showSignUpDialog` ;
 /// le bouton "Continuer avec Google" (`signInWithOAuth`) suit le flux déjà
-/// prouvé en production de `MeteoIA/static/index.html`. Aucune navigation
-/// manuelle après un succès (connexion, inscription, ou retour OAuth) : le
-/// `redirect:` du routeur bascule tout seul dès que `authStateProvider`
-/// voit une session.
+/// prouvé en production de `MeteoIA/static/index.html`.
+///
+/// **La navigation après connexion n'est plus uniquement laissée au
+/// `redirect:` du routeur** (contrairement à l'affirmation initiale de ce
+/// commentaire, invalidée en pratique) : un bug réel a été rapporté par
+/// l'utilisateur sur "Continuer avec Google" — premier essai renvoyant sur
+/// cet écran sans connexion, second essai identique aboutissant. Même
+/// classe de bug que celui déjà trouvé et corrigé côté déconnexion (voir
+/// `profile_screen.dart:_logout`) : `redirect:` ne se ré-évalue qu'une fois
+/// `authStateProvider` mis à jour de façon asynchrone, et rien ne garantit
+/// que cette mise à jour arrive à temps pour la relecture de `state.uri`
+/// faite par le routeur au moment précis du retour du deep link OAuth.
+/// `_authSubscription` ci-dessous s'abonne directement au flux Supabase et
+/// navigue explicitement dès qu'une session apparaît — même mécanisme que
+/// `JADE/mobile/lib/features/auth/login_screen.dart` (prouvé en
+/// production), qui ne s'est jamais reposé sur un redirect de routeur pour
+/// ce cas précis.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -31,10 +47,25 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
   String? _appVersion;
 
+  StreamSubscription<AuthState>? _authSubscription;
+
   @override
   void initState() {
     super.initState();
     _loadAppVersion();
+    // Ne gère que le cas "session apparue, pas une récupération de mot de
+    // passe" — `AuthChangeEvent.passwordRecovery` reste géré par
+    // `isPasswordRecoveryProvider`/`app.dart`, qui doit forcer
+    // `/reset-password`, jamais `/univers` directement (voir sa docstring
+    // pour le vrai risque de contrôle d'accès évité).
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) {
+      if (!mounted) return;
+      if (data.session == null) return;
+      if (data.event == AuthChangeEvent.passwordRecovery) return;
+      context.go('/univers');
+    });
   }
 
   Future<void> _loadAppVersion() async {
@@ -45,6 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _authSubscription?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
