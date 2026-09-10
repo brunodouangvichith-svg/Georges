@@ -12,7 +12,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from agents import company_knowledge, external_analysis, mistral_client, web_search
+from agents import company_knowledge, external_analysis, jane_knowledge, mistral_client, web_search
 from agents.context import security_snapshot
 from agents.george_veille import BIOFUEL_RENEWABLE_GAS_COMPANIES
 from ingestion.models import CompanyFundamentals, Decision, PatternDetected, Security
@@ -20,6 +20,17 @@ from ingestion.models import CompanyFundamentals, Decision, PatternDetected, Sec
 logger = logging.getLogger(__name__)
 
 OPEN_STATUSES = ("proposee", "confirmee")
+
+# Mots-clés d'intention "apprends ceci" — demandé directement par
+# l'utilisateur ("to learn on the go"), reconnus seulement en DÉBUT de la
+# partie de la question avant le premier ":" (ex. "ajoute à tes skills cette
+# information : ..."), jamais n'importe où dans la phrase (voir
+# `_extract_taught_knowledge`) : "ajoute"/"retiens" sont aussi des verbes
+# ordinaires qui apparaissent au milieu d'une vraie question financière.
+# Volontairement une liste de mots-clés larges plutôt qu'une correspondance
+# exacte de phrase : tolère "ajoute à tes connaissances", "ajoutes à tes
+# skills", "retiens ceci :", etc. sans avoir à les énumérer toutes.
+TEACH_INTENT_KEYWORDS = ("ajoute", "ajoutes", "retiens", "retenez", "mémorise", "memorise", "apprends", "note ceci", "note bien")
 
 # Mots-clés de la question -> type de décision (`decisions.decision_type`) —
 # filtrer ici plutôt que de laisser le LLM filtrer/compter lui-même une
@@ -38,6 +49,43 @@ DECISION_TYPE_KEYWORDS = {
     "alleger": "Alléger",
     "vendre": "Alléger",
 }
+
+
+def _extract_taught_knowledge(question: str) -> str | None:
+    """Reconnaît une intention "apprends ceci" dans la question elle-même —
+    demandé directement par l'utilisateur ("to learn on the go") : envoyer
+    depuis le chat une phrase comme "ajoute à tes skills cette information :
+    <contenu>" doit faire persister `<contenu>` dans `jane_knowledge`
+    (`agents/jane_knowledge.py`, déjà l'infrastructure RAG générale du
+    projet — pgvector + dédoublonnage par similarité cosinus), réutilisable
+    ensuite pour n'importe quelle question ultérieure, pas seulement une
+    liste d'entreprises précise.
+
+    Découpage volontairement simple : mot-clé d'intention avant le premier
+    ':', contenu après. Pas d'appel LLM ici — une intention "j'enseigne
+    quelque chose" est un signal fort et peu ambigu (contrairement à
+    l'extraction de nom d'entreprise dans `agents/external_analysis.py`, qui
+    a besoin du LLM car la formulation y est bien plus libre), et
+    l'important est justement de stocker le contenu tel quel, sans
+    reformulation qui risquerait de perdre ou déformer une information."""
+    if ":" not in question:
+        return None
+    intent, _, content = question.partition(":")
+    intent_lower = intent.lower()
+    # Ancré en DÉBUT de segment (`re.match`, pas `re.search`) plutôt qu'une
+    # simple présence n'importe où : un mot-clé comme "ajoute" ou "retiens"
+    # est aussi un verbe ordinaire au milieu d'une vraie question financière
+    # ("un investisseur ajoute des actions Alpha SA à son portefeuille : quel
+    # est l'impact ?", "je retiens que le secteur est en croissance : qu'en
+    # penses-tu ?") — une frontière de mot seule (`\b...\b` n'importe où dans
+    # la phrase) ne suffit pas à écarter ce cas, trouvé en `/code-review`.
+    # Une véritable intention "enseigne-moi ceci" se formule quasi toujours
+    # à l'impératif en tête de phrase ("Ajoute à tes skills...", "Retiens
+    # ceci :", "Note bien :"), jamais noyée au milieu d'une autre question.
+    if not any(re.match(rf"\s*{re.escape(keyword)}\b", intent_lower) for keyword in TEACH_INTENT_KEYWORDS):
+        return None
+    content = content.strip()
+    return content or None
 
 
 def _requested_decision_type(question: str) -> str | None:
@@ -176,6 +224,27 @@ def _format_opportunities(decisions: list[dict], decision_type: str) -> str:
 
 
 def answer_question(db: Session, question: str) -> str:
+    # Intention "apprends ceci" : premier contrôle, avant tout autre
+    # traitement — voir `_extract_taught_knowledge`. Rendu déterministe, sans
+    # appel LLM, même principe que `_format_opportunities` : confirmer un
+    # enregistrement réel ne demande aucune capacité de langage naturel.
+    taught_content = _extract_taught_knowledge(question)
+    if taught_content is not None:
+        # `add_knowledge` embedde via Mistral avant d'écrire : un échec
+        # (indisponibilité/rate-limit, déjà un incident réel documenté dans
+        # ce projet) doit dégrader comme partout ailleurs dans ce fichier
+        # (voir `learned_knowledge` plus bas), pas remonter en 503 brut —
+        # seul chemin de `answer_question` qui appelait Mistral sans ce
+        # filet avant ce correctif.
+        try:
+            entry = jane_knowledge.add_knowledge(db, content=taught_content, source_name="Enseigné via /chat")
+        except mistral_client.MistralUnavailableError as err:
+            logger.warning("Enregistrement d'une connaissance enseignée en échec pour %r : %s", taught_content, err)
+            return "Je n'ai pas pu enregistrer cette information pour le moment, réessaie un peu plus tard."
+        if entry is None:
+            return "C'est déjà dans mes connaissances, je n'ai rien ajouté de nouveau."
+        return "C'est noté, j'ai ajouté cette information à mes connaissances."
+
     securities = find_relevant_securities(db, question)
     snapshots = [
         {
@@ -295,10 +364,24 @@ def answer_question(db: Session, question: str) -> str:
                         "detectee_le": match.detected_at.isoformat(),
                     }
 
+    # Connaissances enseignées via `_extract_taught_knowledge` (voir plus
+    # haut) — recherche sémantique systématique, pas seulement pour les
+    # questions hors référentiel : contrairement à `resultats_web`, une note
+    # apprise par l'utilisateur (ex. "pour les entreprises françaises,
+    # regarde plutôt Pappers.fr") peut être pertinente même en complément
+    # d'un titre déjà suivi. Échec Mistral (embedding) dégradé vers une
+    # liste vide, même principe que le reste du module — ne doit jamais
+    # bloquer `/chat`.
+    try:
+        learned_knowledge = [entry.content for entry in jane_knowledge.search_jane_knowledge(db, question, limit=3)]
+    except mistral_client.MistralUnavailableError as err:
+        logger.warning("Recherche de connaissances apprises en échec pour %r : %s", question, err)
+        learned_knowledge = []
+
     # Un contexte vide (aucun titre reconnu, aucune décision ouverte, aucune
-    # actualité, aucun résultat web, aucune analyse externe) est envoyé tel
-    # quel : le prompt système impose de le signaler plutôt que d'inventer
-    # une réponse.
+    # actualité, aucun résultat web, aucune analyse externe, aucune
+    # connaissance apprise) est envoyé tel quel : le prompt système impose
+    # de le signaler plutôt que d'inventer une réponse.
     context = {
         "question": question,
         "titres_reconnus": snapshots,
@@ -306,6 +389,7 @@ def answer_question(db: Session, question: str) -> str:
         "actualites_recentes": recent_news,
         "resultats_web": web_results,
         "analyse_technique_externe": company_technical_analysis,
+        "connaissances_apprises": learned_knowledge,
     }
     system_prompt = mistral_client.load_system_prompt("chat_system.txt")
     user_message = json.dumps(context, ensure_ascii=False)

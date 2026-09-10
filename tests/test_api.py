@@ -17,6 +17,7 @@ from sqlalchemy.orm import sessionmaker
 
 import agents.company_knowledge as company_knowledge
 import agents.external_analysis as external_analysis
+import agents.jane_knowledge as jane_knowledge
 import agents.mistral_client as mistral_client
 import agents.web_search as web_search
 import api.auth as auth
@@ -472,9 +473,12 @@ def test_chat_answers_cite_real_data(client, mock_llm):
     assert "AAA.PA" in answer
     assert "129.0" in answer
     assert "77.0" in answer
-    # `fondamentaux` doit être présent (null) plutôt qu'absent quand
-    # `ingestion.fundamentals` n'a encore jamais tourné pour ce titre.
-    assert '"fondamentaux": null' in answer
+    # `fondamentaux` doit être présent avec les données réelles les plus
+    # récentes du fixture partagé (deux instantanés insérés pour AAA.PA plus
+    # haut ; le plus ancien, "industry": "Ancien", ne doit pas apparaître).
+    assert '"activite": null' in answer
+    assert "Le plus récent" in answer
+    assert "Ancien" not in answer
 
 
 def test_chat_includes_fundamentals_when_available(client, mock_llm):
@@ -507,6 +511,125 @@ def test_chat_with_no_recognized_security_says_so_via_empty_context(client, mock
     assert '"titres_reconnus": []' in answer
     assert '"actualites_recentes": []' in answer
     assert '"resultats_web": []' in answer
+
+
+def test_chat_teach_intent_stores_knowledge_without_calling_the_llm(client, mock_llm):
+    """"apprends sur le tas" (demandé directement par l'utilisateur) : une
+    question du type "ajoute à tes skills cette information : <contenu>"
+    doit persister `<contenu>` dans `jane_knowledge` et répondre par une
+    confirmation déterministe — jamais un texte généré par le LLM (vérifié
+    ici en s'assurant que la réponse ne contient pas le marqueur
+    `[modèle]` qu'ajoute `_fake_complete`)."""
+    resp = client.post(
+        "/chat",
+        json={"question": "Ajoute à tes skills cette information : Pappers.fr est utile pour les bilans d'entreprises françaises."},
+    )
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert answer == "C'est noté, j'ai ajouté cette information à mes connaissances."
+    assert "[" not in answer  # pas le marqueur `[model]` de `_fake_complete` : aucun appel LLM sur ce chemin
+
+    with deps.SessionLocal() as db:
+        entries = jane_knowledge.search_jane_knowledge(db, "Pappers.fr", limit=5)
+    assert len(entries) == 1
+    assert entries[0].content == "Pappers.fr est utile pour les bilans d'entreprises françaises."
+    assert entries[0].source_name == "Enseigné via /chat"
+
+
+def test_chat_teach_intent_ignores_a_colon_without_a_teaching_keyword(client, mock_llm):
+    """Une question contenant ":" mais aucun mot-clé d'intention
+    (`TEACH_INTENT_KEYWORDS`) doit suivre le chemin normal — sinon toute
+    question un peu structurée ("horaires : quand ouvre la Bourse de Paris
+    ?") serait interprétée à tort comme un enseignement."""
+    resp = client.post("/chat", json={"question": "Horaires : quand ouvre la Bourse de Paris ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert answer != "C'est noté, j'ai ajouté cette information à mes connaissances."
+
+    with deps.SessionLocal() as db:
+        entries = jane_knowledge.search_jane_knowledge(db, "Bourse de Paris", limit=5)
+    assert entries == []
+
+
+def test_chat_teach_intent_requires_a_word_boundary_match(client, mock_llm):
+    """Régression trouvée en `/code-review` : `TEACH_INTENT_KEYWORDS` ("ajoute"
+    notamment) matchait par simple sous-chaîne, sans frontière de mot — même
+    piège déjà rencontré deux fois dans ce fichier pour
+    `find_relevant_securities` (voir sa docstring). Une vraie question
+    financière contenant "ajoute" avant ":" était donc avalée à tort comme un
+    enseignement au lieu d'être répondue."""
+    resp = client.post(
+        "/chat",
+        json={"question": "Un investisseur ajoute des actions Alpha SA à son portefeuille : quel est l'impact sur le George Index ?"},
+    )
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert answer != "C'est noté, j'ai ajouté cette information à mes connaissances."
+    assert "AAA.PA" in answer  # la vraie question a bien été traitée normalement (titre reconnu)
+
+
+def test_chat_teach_intent_degrades_gracefully_when_mistral_is_unavailable(client, mock_llm, monkeypatch):
+    """Régression trouvée en `/code-review` : `add_knowledge` embedde via
+    Mistral avant d'écrire, sans le même filet `MistralUnavailableError` que
+    le reste de ce fichier (ex. `learned_knowledge` juste en dessous) —
+    seul chemin qui remontait une 503 brute plutôt que de dégrader."""
+
+    def _fail(texts, model=None):
+        raise mistral_client.MistralUnavailableError("indisponible")
+
+    monkeypatch.setattr(mistral_client, "embed", _fail)
+    resp = client.post("/chat", json={"question": "Ajoute à tes skills cette information : Pappers.fr est utile."})
+    assert resp.status_code == 200
+    assert resp.json()["answer"] == "Je n'ai pas pu enregistrer cette information pour le moment, réessaie un peu plus tard."
+
+
+def test_chat_teach_intent_reports_when_content_is_already_known(client, mock_llm, monkeypatch):
+    """Deux enseignements de contenu identique (même texte -> même vecteur
+    d'embedding avec ce faux `embed`) doivent dédupliquer, même principe que
+    `tests/test_jane_knowledge.py:test_add_knowledge_skips_near_duplicate_content` :
+    `mock_llm` seul ne convient pas ici (`_fake_embed` renvoie un vecteur nul
+    identique pour tout texte, ce qui empêcherait de distinguer un vrai
+    doublon d'un contenu different)."""
+
+    def _distinct_vector_embed(texts, model=None):
+        from ingestion.models import EMBEDDING_DIM
+
+        return [[1.0] + [0.0] * (EMBEDDING_DIM - 1) if "Pappers" in text else [0.0, 1.0] + [0.0] * (EMBEDDING_DIM - 2) for text in texts]
+
+    monkeypatch.setattr(mistral_client, "embed", _distinct_vector_embed)
+
+    first = client.post("/chat", json={"question": "Retiens ceci : Pappers.fr est utile pour les bilans."})
+    assert first.json()["answer"] == "C'est noté, j'ai ajouté cette information à mes connaissances."
+
+    duplicate = client.post("/chat", json={"question": "Retiens ceci : Pappers.fr est utile pour les bilans."})
+    assert duplicate.json()["answer"] == "C'est déjà dans mes connaissances, je n'ai rien ajouté de nouveau."
+
+    with deps.SessionLocal() as db:
+        entries = jane_knowledge.search_jane_knowledge(db, "Pappers.fr est utile pour les bilans.", limit=5)
+    assert len(entries) == 1
+
+
+def test_chat_includes_previously_taught_knowledge_in_later_answers(client, mock_llm, monkeypatch):
+    """Une connaissance enseignée doit être réutilisable pour toute question
+    ultérieure, pas seulement au moment de l'enseignement — demandé
+    directement par l'utilisateur ("to learn on the go")."""
+
+    def _distinct_vector_embed(texts, model=None):
+        from ingestion.models import EMBEDDING_DIM
+
+        return [[1.0] + [0.0] * (EMBEDDING_DIM - 1) for _ in texts]
+
+    monkeypatch.setattr(mistral_client, "embed", _distinct_vector_embed)
+
+    teach = client.post(
+        "/chat", json={"question": "Ajoute à tes skills cette information : Zonebourse.com est utile pour le consensus analystes."}
+    )
+    assert teach.json()["answer"] == "C'est noté, j'ai ajouté cette information à mes connaissances."
+
+    resp = client.post("/chat", json={"question": "Où trouver le consensus des analystes ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert "Zonebourse.com est utile pour le consensus analystes." in answer
 
 
 def test_chat_enriches_a_tracked_security_with_recent_company_news(client, mock_llm, monkeypatch):
