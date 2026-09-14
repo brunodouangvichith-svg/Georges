@@ -125,3 +125,24 @@ app.include_router(share.router, dependencies=[Depends(require_user)])
 @app.get("/health", tags=["meta"])
 def health():
     return {"status": "ok"}
+
+
+# TEMPORAIRE — diagnostic en direct d'un bug réel (graphique vide pour tous
+# les titres, mobile ET web, alors que price_history_long est bien peuplée :
+# vérifié via une action GitHub read-only, 255 785 lignes / 102 titres, 2587
+# pour ETL.PA). Teste la MÊME connexion (`api.deps.engine`/`SessionLocal`)
+# que `list_security_prices` en production, pas une connexion séparée — pour
+# distinguer un problème de connexion DB (Render) d'un bug de requête/route.
+# À supprimer une fois la cause trouvée.
+@app.get("/debug/price-count/{symbol}", tags=["meta"])
+def debug_price_count(symbol: str):
+    from sqlalchemy import func, select
+
+    from api import deps
+    from ingestion.models import PriceHistoryLong
+
+    with deps.SessionLocal() as db:
+        total = db.scalar(select(func.count()).select_from(PriceHistoryLong))
+        symbol_count = db.scalar(select(func.count()).select_from(PriceHistoryLong).where(PriceHistoryLong.symbol == symbol))
+        latest = db.scalar(select(func.max(PriceHistoryLong.ts)).where(PriceHistoryLong.symbol == symbol))
+    return {"symbol": symbol, "table_total_rows": total, "symbol_rows": symbol_count, "symbol_latest_ts": str(latest)}
