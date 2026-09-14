@@ -146,3 +146,32 @@ def debug_price_count(symbol: str):
         symbol_count = db.scalar(select(func.count()).select_from(PriceHistoryLong).where(PriceHistoryLong.symbol == symbol))
         latest = db.scalar(select(func.max(PriceHistoryLong.ts)).where(PriceHistoryLong.symbol == symbol))
     return {"symbol": symbol, "table_total_rows": total, "symbol_rows": symbol_count, "symbol_latest_ts": str(latest)}
+
+
+# TEMPORAIRE — reproduit EXACTEMENT `securities.list_security_prices` (même
+# requête, même tri/limite/offset, même reversed()), pour voir si le bug est
+# dans cette logique précise ou ailleurs (route real appelée par le client,
+# sérialisation Page[PriceBarOut], auth...). À supprimer avec le reste.
+@app.get("/debug/price-query/{symbol}", tags=["meta"])
+def debug_price_query(symbol: str):
+    from sqlalchemy import func, select
+
+    from api import deps
+    from api.schemas import Page, PriceBarOut
+    from ingestion.models import PriceHistoryLong, Security
+
+    with deps.SessionLocal() as db:
+        security = db.execute(select(Security).where(Security.symbol == symbol)).scalars().first()
+        if security is None:
+            return {"error": f"aucune Security pour {symbol!r}"}
+
+        stmt = select(PriceHistoryLong).where(PriceHistoryLong.symbol == symbol)
+        total = db.scalar(select(func.count()).select_from(stmt.subquery()))
+        rows = db.execute(stmt.order_by(PriceHistoryLong.ts.desc()).limit(250).offset(0)).scalars().all()
+        try:
+            page = Page(items=list(reversed(rows)), total=total or 0, limit=250, offset=0)
+            validated = Page[PriceBarOut].model_validate(page, from_attributes=True)
+            sample = validated.items[-1].model_dump(mode="json") if validated.items else None
+        except Exception as err:  # noqa: BLE001 -- diagnostic temporaire, on veut voir l'erreur telle quelle
+            return {"security_found": True, "raw_row_count": len(rows), "total": total, "serialization_error": f"{type(err).__name__}: {err}"}
+    return {"security_found": True, "raw_row_count": len(rows), "total": total, "validated_item_count": len(validated.items), "last_item_sample": sample}
