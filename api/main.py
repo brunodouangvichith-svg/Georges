@@ -17,6 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from agents.mistral_client import MistralUnavailableError
 from api.auth import SupabaseUnavailableError, require_user
 from api.routers import agents, baskets, carry_trade, chat, decisions, energy, jane, news, portfolios, prices, reports, securities, share
+from api.schemas import Page, PriceBarOut
 from notifications.email_client import EmailUnavailableError
 
 # Sans ceci, le niveau racine par défaut de Python (WARNING) rend tout
@@ -168,3 +169,19 @@ def debug_price_query(symbol: str):
         return {"ok": True, "total": result.total, "item_count": len(result.items)}
     except Exception as err:  # noqa: BLE001 -- diagnostic temporaire, on veut voir l'erreur telle quelle, y compris HTTPException/ImportError
         return {"ok": False, "error_type": type(err).__name__, "error": str(err), "traceback": traceback.format_exc()}
+
+
+# TEMPORAIRE — teste PRÉCISÉMENT la sérialisation FastAPI (`response_model=
+# Page[PriceBarOut]`, comme la vraie route) : l'appel direct ci-dessus prouve
+# que `list_security_prices` elle-même fonctionne (total=2590, 250 items),
+# donc soit la sérialisation du `response_model` échoue, soit c'est
+# spécifique à la vraie route enregistrée via `app.include_router` (auth,
+# routing). Route volontairement SANS `Depends(require_user)` pour écarter
+# l'authentification de ce test précis. À supprimer avec le reste.
+@app.get("/debug/price-serialize/{symbol}", response_model=Page[PriceBarOut], tags=["meta"])
+def debug_price_serialize(symbol: str):
+    from api import deps
+    from api.routers.securities import list_security_prices
+
+    with deps.SessionLocal() as db:
+        return list_security_prices(symbol, limit=250, offset=0, db=db)
