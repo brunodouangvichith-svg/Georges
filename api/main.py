@@ -148,30 +148,23 @@ def debug_price_count(symbol: str):
     return {"symbol": symbol, "table_total_rows": total, "symbol_rows": symbol_count, "symbol_latest_ts": str(latest)}
 
 
-# TEMPORAIRE — reproduit EXACTEMENT `securities.list_security_prices` (même
-# requête, même tri/limite/offset, même reversed()), pour voir si le bug est
-# dans cette logique précise ou ailleurs (route real appelée par le client,
-# sérialisation Page[PriceBarOut], auth...). À supprimer avec le reste.
+# TEMPORAIRE — appelle la VRAIE fonction de route `list_security_prices`
+# directement (même code, pas une réplique), avec le traceback complet
+# capturé et renvoyé en JSON plutôt que transformé en 500 générique. Le
+# précédent essai (une réplique manuelle de la requête) renvoyait lui-même
+# une "Internal Server Error" brute sans passer par mon `try/except` --
+# signe que l'échec se produit avant, donc plus la peine de deviner : on
+# capture tout, y compris les erreurs d'import. À supprimer avec le reste.
 @app.get("/debug/price-query/{symbol}", tags=["meta"])
 def debug_price_query(symbol: str):
-    from sqlalchemy import func, select
+    import traceback
 
-    from api import deps
-    from api.schemas import Page, PriceBarOut
-    from ingestion.models import PriceHistoryLong, Security
+    try:
+        from api import deps
+        from api.routers.securities import list_security_prices
 
-    with deps.SessionLocal() as db:
-        security = db.execute(select(Security).where(Security.symbol == symbol)).scalars().first()
-        if security is None:
-            return {"error": f"aucune Security pour {symbol!r}"}
-
-        stmt = select(PriceHistoryLong).where(PriceHistoryLong.symbol == symbol)
-        total = db.scalar(select(func.count()).select_from(stmt.subquery()))
-        rows = db.execute(stmt.order_by(PriceHistoryLong.ts.desc()).limit(250).offset(0)).scalars().all()
-        try:
-            page = Page(items=list(reversed(rows)), total=total or 0, limit=250, offset=0)
-            validated = Page[PriceBarOut].model_validate(page, from_attributes=True)
-            sample = validated.items[-1].model_dump(mode="json") if validated.items else None
-        except Exception as err:  # noqa: BLE001 -- diagnostic temporaire, on veut voir l'erreur telle quelle
-            return {"security_found": True, "raw_row_count": len(rows), "total": total, "serialization_error": f"{type(err).__name__}: {err}"}
-    return {"security_found": True, "raw_row_count": len(rows), "total": total, "validated_item_count": len(validated.items), "last_item_sample": sample}
+        with deps.SessionLocal() as db:
+            result = list_security_prices(symbol, limit=250, offset=0, db=db)
+        return {"ok": True, "total": result.total, "item_count": len(result.items)}
+    except Exception as err:  # noqa: BLE001 -- diagnostic temporaire, on veut voir l'erreur telle quelle, y compris HTTPException/ImportError
+        return {"ok": False, "error_type": type(err).__name__, "error": str(err), "traceback": traceback.format_exc()}
