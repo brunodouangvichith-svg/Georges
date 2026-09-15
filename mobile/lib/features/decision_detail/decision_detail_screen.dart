@@ -136,7 +136,33 @@ class DecisionDetailScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           pricesAsync.when(
             loading: () => const SizedBox(height: 150, child: Center(child: CircularProgressIndicator())),
-            error: (e, st) => const SizedBox(height: 150),
+            // Régression trouvée en direct : une erreur ici (réseau, 500
+            // serveur...) rendait un `SizedBox` vide -- aucun message, aucun
+            // indice, l'écran affichait juste un trou silencieux à la place
+            // du graphique. `debugPrint` (visible via `flutter logs`/logcat)
+            // aide à diagnostiquer la cause réelle la prochaine fois, en plus
+            // du message maintenant visible pour l'utilisateur. Cause réelle
+            // trouvée pour le cas qui a motivé ce correctif : cold start
+            // Render (plan gratuit) dépassant même le `receiveTimeout` déjà
+            // généreux de `PricesRepository.fetch` (voir ce fichier) --
+            // message explicite plutôt que de laisser croire à une vraie
+            // absence de données.
+            error: (e, st) {
+              debugPrint('Échec du chargement des prix pour ${security.symbol} : $e');
+              return SizedBox(
+                height: 150,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      "Le serveur met parfois jusqu'à 1-2 minutes à répondre après une pause (plan gratuit) — réessaie dans un instant.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Theme.of(context).colorScheme.outline, fontSize: 12),
+                    ),
+                  ),
+                ),
+              );
+            },
             data: (pricesPage) {
               final pattern = patternsAsync.value?.items.firstOrNull;
               final indexOffset = pricesPage.total - pricesPage.items.length;

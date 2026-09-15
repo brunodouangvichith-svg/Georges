@@ -162,7 +162,11 @@ export default function Univers() {
   const selectedDecision = selectedSymbol ? decisionsMap[selectedSymbol] : null;
 
   const { data: selectedPatternsPage } = useSecurityPatterns(selectedSymbol, { limit: 1 });
-  const { data: selectedPricesPage } = useSecurityPrices(selectedSymbol, { limit: 250 });
+  const {
+    data: selectedPricesPage,
+    isLoading: pricesLoading,
+    isError: pricesError,
+  } = useSecurityPrices(selectedSymbol, { limit: 250 });
   const { data: selectedFundamentals } = useSecurityFundamentals(selectedSymbol);
   const { data: selectedDividendsPage } = useSecurityDividends(selectedSymbol, { limit: 5 });
 
@@ -348,6 +352,8 @@ export default function Univers() {
                 <div className="border rounded-[10px] mb-4 overflow-hidden" style={{ borderColor: "var(--hairline)", background: "var(--panel-alt)" }}>
                   <CandlestickChart
                     candles={priceItems}
+                    loading={pricesLoading}
+                    error={pricesError}
                     context={selectedPattern?.context ?? null}
                     indexOffset={indexOffset}
                     takeProfit={selectedDecision?.take_profit ?? null}

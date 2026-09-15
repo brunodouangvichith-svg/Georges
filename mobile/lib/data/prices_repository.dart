@@ -10,9 +10,21 @@ class PricesRepository {
 
   final Ref _ref;
 
+  /// `receiveTimeout` explicite (120s, au-delà du défaut 60s de `ApiClient`) :
+  /// un vrai cold start Render observé en direct a pris ~84s ("Finish: 1.4
+  /// min" dans les DevTools) avant même de répondre, ce qui dépassait déjà
+  /// le défaut — l'appli affichait alors "pas d'historique de prix" comme
+  /// si le titre n'avait vraiment aucune donnée, alors que `price_history_long`
+  /// en contenait bien (confirmé en direct contre la vraie base), purement
+  /// un abandon prématuré côté client pendant que Render finissait de se
+  /// réveiller.
   Future<Page<PriceBar>> fetch(String symbol, {int limit = 250}) async {
     final client = _ref.read(apiClientProvider);
-    final json = await client.get('/securities/$symbol/prices', params: {'limit': limit});
+    final json = await client.get(
+      '/securities/$symbol/prices',
+      params: {'limit': limit},
+      receiveTimeout: const Duration(seconds: 120),
+    );
     return Page.fromJson(json as Map<String, dynamic>, PriceBar.fromJson);
   }
 }

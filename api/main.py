@@ -17,7 +17,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from agents.mistral_client import MistralUnavailableError
 from api.auth import SupabaseUnavailableError, require_user
 from api.routers import agents, baskets, carry_trade, chat, decisions, energy, jane, news, portfolios, prices, reports, securities, share
-from api.schemas import Page, PriceBarOut
 from notifications.email_client import EmailUnavailableError
 
 # Sans ceci, le niveau racine par défaut de Python (WARNING) rend tout
@@ -126,62 +125,3 @@ app.include_router(share.router, dependencies=[Depends(require_user)])
 @app.get("/health", tags=["meta"])
 def health():
     return {"status": "ok"}
-
-
-# TEMPORAIRE — diagnostic en direct d'un bug réel (graphique vide pour tous
-# les titres, mobile ET web, alors que price_history_long est bien peuplée :
-# vérifié via une action GitHub read-only, 255 785 lignes / 102 titres, 2587
-# pour ETL.PA). Teste la MÊME connexion (`api.deps.engine`/`SessionLocal`)
-# que `list_security_prices` en production, pas une connexion séparée — pour
-# distinguer un problème de connexion DB (Render) d'un bug de requête/route.
-# À supprimer une fois la cause trouvée.
-@app.get("/debug/price-count/{symbol}", tags=["meta"])
-def debug_price_count(symbol: str):
-    from sqlalchemy import func, select
-
-    from api import deps
-    from ingestion.models import PriceHistoryLong
-
-    with deps.SessionLocal() as db:
-        total = db.scalar(select(func.count()).select_from(PriceHistoryLong))
-        symbol_count = db.scalar(select(func.count()).select_from(PriceHistoryLong).where(PriceHistoryLong.symbol == symbol))
-        latest = db.scalar(select(func.max(PriceHistoryLong.ts)).where(PriceHistoryLong.symbol == symbol))
-    return {"symbol": symbol, "table_total_rows": total, "symbol_rows": symbol_count, "symbol_latest_ts": str(latest)}
-
-
-# TEMPORAIRE — appelle la VRAIE fonction de route `list_security_prices`
-# directement (même code, pas une réplique), avec le traceback complet
-# capturé et renvoyé en JSON plutôt que transformé en 500 générique. Le
-# précédent essai (une réplique manuelle de la requête) renvoyait lui-même
-# une "Internal Server Error" brute sans passer par mon `try/except` --
-# signe que l'échec se produit avant, donc plus la peine de deviner : on
-# capture tout, y compris les erreurs d'import. À supprimer avec le reste.
-@app.get("/debug/price-query/{symbol}", tags=["meta"])
-def debug_price_query(symbol: str):
-    import traceback
-
-    try:
-        from api import deps
-        from api.routers.securities import list_security_prices
-
-        with deps.SessionLocal() as db:
-            result = list_security_prices(symbol, limit=250, offset=0, db=db)
-        return {"ok": True, "total": result.total, "item_count": len(result.items)}
-    except Exception as err:  # noqa: BLE001 -- diagnostic temporaire, on veut voir l'erreur telle quelle, y compris HTTPException/ImportError
-        return {"ok": False, "error_type": type(err).__name__, "error": str(err), "traceback": traceback.format_exc()}
-
-
-# TEMPORAIRE — teste PRÉCISÉMENT la sérialisation FastAPI (`response_model=
-# Page[PriceBarOut]`, comme la vraie route) : l'appel direct ci-dessus prouve
-# que `list_security_prices` elle-même fonctionne (total=2590, 250 items),
-# donc soit la sérialisation du `response_model` échoue, soit c'est
-# spécifique à la vraie route enregistrée via `app.include_router` (auth,
-# routing). Route volontairement SANS `Depends(require_user)` pour écarter
-# l'authentification de ce test précis. À supprimer avec le reste.
-@app.get("/debug/price-serialize/{symbol}", response_model=Page[PriceBarOut], tags=["meta"])
-def debug_price_serialize(symbol: str):
-    from api import deps
-    from api.routers.securities import list_security_prices
-
-    with deps.SessionLocal() as db:
-        return list_security_prices(symbol, limit=250, offset=0, db=db)

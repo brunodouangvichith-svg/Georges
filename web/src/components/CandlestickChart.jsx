@@ -41,6 +41,8 @@ function buildOverlay(context, indexOffset, candleCount) {
 
 export default function CandlestickChart({
   candles,
+  loading = false,
+  error = false,
   context = null,
   indexOffset = 0,
   takeProfit = null,
@@ -53,7 +55,21 @@ export default function CandlestickChart({
     [context, indexOffset, candles?.length]
   );
 
-  if (!candles || candles.length === 0) {
+  // `loading`/`error` distincts d'un historique réellement vide — trouvé en
+  // debuggant en direct un cas où le graphique affichait "pas d'historique"
+  // pour un titre qui en avait bien un (255 785 lignes vérifiées en base) :
+  // le service Render (plan gratuit) venait de se réveiller après une
+  // pause, la requête a pris ~84s, et pendant ce temps `candles` valait `[]`
+  // par défaut (chargement) -- rendu identique à "vraiment aucune donnée",
+  // ce qui donnait un message trompeur pendant que le serveur répondait
+  // encore.
+  const emptyStateMessage = loading
+    ? "Chargement de l'historique…"
+    : error
+      ? "Le serveur met parfois jusqu'à 1-2 minutes à répondre après une pause (plan gratuit) — réessaie dans un instant."
+      : "Pas d'historique de prix disponible pour ce titre.";
+
+  if (loading || error || !candles || candles.length === 0) {
     return (
       <div
         style={{
@@ -68,7 +84,7 @@ export default function CandlestickChart({
           padding: "0 12px",
         }}
       >
-        Pas d'historique de prix disponible pour ce titre.
+        {emptyStateMessage}
       </div>
     );
   }

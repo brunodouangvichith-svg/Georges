@@ -1,0 +1,23 @@
+name: Maintien en éveil de george-api (anti cold-start Render)
+
+# Render (plan gratuit, voir CLAUDE.md section Hosting) met le service en
+# veille après 15 min sans requête entrante, et peut ensuite mettre jusqu'à
+# 1-2 minutes à répondre au premier appel suivant — confirmé en direct
+# (~84s observés, "graphique de prix vide sur tous les titres" alors que les
+# données existaient bien, voir CLAUDE.md pour l'investigation complète).
+# Un simple ping régulier sur /health (endpoint public, sans DB ni auth)
+# empêche le service de jamais atteindre ce seuil d'inactivité. Cadence à
+# 10 min plutôt que les 14 min théoriquement suffisants : GitHub Actions ne
+# garantit pas l'heure exacte d'un déclenchement programmé (retards
+# documentés sous charge), une marge de 5 min absorbe ça.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health
+        run: curl -sf --max-time 30 https://george-api-mmut.onrender.com/health
