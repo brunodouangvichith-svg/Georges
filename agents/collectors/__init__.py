@@ -2,6 +2,7 @@ from agents.collectors.eurostat import collect_donnees_eurostat
 from agents.collectors.macro import collect_donnees_macro
 from agents.collectors.synthesis import collect_synthese_document
 from agents.collectors.tic import collect_donnees_tic
+from agents.collectors.worldbank import collect_donnees_worldbank
 
 # Registre des sous-agents de collecte (Phase 7, MVP) — chacun un module
 # indépendant avec un périmètre d'écriture limité (voir
@@ -18,6 +19,7 @@ COLLECTORS = {
     "synthese_document": collect_synthese_document,
     "donnees_eurostat": collect_donnees_eurostat,
     "donnees_tic": collect_donnees_tic,
+    "donnees_worldbank": collect_donnees_worldbank,
 }
 
 __all__ = [
@@ -26,4 +28,5 @@ __all__ = [
     "collect_synthese_document",
     "collect_donnees_eurostat",
     "collect_donnees_tic",
+    "collect_donnees_worldbank",
 ]

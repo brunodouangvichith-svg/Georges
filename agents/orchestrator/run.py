@@ -28,7 +28,7 @@ from ingestion.models import AgentEvent, CollectedInfoQuarantine, MacroIndicator
 # temps (voir `ingestion/models.py:MacroIndicatorSnapshot`) plutôt que de
 # rester noyée dans `agent_events`. `synthese_document` en est délibérément
 # exclu : son `CollectedItem.value` est un résumé texte, pas un nombre.
-NUMERIC_INDICATOR_TASK_TYPES = {"donnees_macro", "donnees_eurostat", "donnees_tic"}
+NUMERIC_INDICATOR_TASK_TYPES = {"donnees_macro", "donnees_eurostat", "donnees_tic", "donnees_worldbank"}
 
 
 def _upsert_indicator_snapshots(db: Session, label: str, items, reliability_score: float) -> None:
