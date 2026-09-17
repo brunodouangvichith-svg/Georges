@@ -1,15 +1,17 @@
 # George — Whitelist de journaux nationaux par pays
 
-Liste de référence pour l'agent « événements géopolitiques et sociaux » par pays (pilier 7). 68 pays/territoires couverts. Document vivant, à enrichir au fil de l'extension géographique de George.
+Liste de référence pour l'agent « événements géopolitiques et sociaux » par pays (pilier 7). 77 pays/territoires couverts. Document vivant, à enrichir au fil de l'extension géographique de George.
 
 | Pays | Journal(aux) | Langue | Site web |
 |---|---|---|---|
 | Afrique du Sud | News24 (continu, référence), Mail & Guardian (investigation), Daily Maverick (indépendant, investigation) | anglais | news24.com, mg.co.za, dailymaverick.co.za |
 | Algérie | El Watan (indépendant, francophone), El Khabar (généraliste, arabophone), Le Soir d'Algérie (généraliste, francophone) | français / arabe | elwatan.com, elkhabar.com, lesoirdalgerie.com |
 | Allemagne | FAZ (centre droit), Süddeutsche Zeitung (centre gauche), Die Welt (conservateur), Bild (populaire) | allemand | faz.net, sueddeutsche.de, welt.de, bild.de |
+| Angola | Jornal de Angola (officiel, gouvernemental), Novo Jornal (indépendant) | portugais | jornaldeangola.ao, novojornal.co.ao |
 | Arabie saoudite | Asharq Al-Awsat (panarabe, basé à Londres), Arab News (anglophone national), Al Riyadh (national, arabe) | arabe / anglais | aawsat.com, arabnews.com, alriyadh.com |
 | Argentine | Clarín (indépendant, grand tirage), La Nación (centre droit), Página/12 (centre gauche) | espagnol | clarin.com, lanacion.com.ar, pagina12.com.ar |
 | Australie | The Australian (centre droit), Sydney Morning Herald (centre libéral), The Age (centre gauche), AFR (économie), ABC News (public) | anglais | theaustralian.com.au, smh.com.au, theage.com.au, afr.com, abc.net.au |
+| Azerbaïdjan | Azernews (semi-officiel, anglophone), APA (agence de presse d'État), Turan (agence indépendante) | azéri / russe / anglais | azernews.az, apa.az, turan.az |
 | Bangladesh | Prothom Alo (le plus influent, bengali), The Daily Star (anglophone) | bengali / anglais | prothomalo.com, thedailystar.net |
 | Belgique | Le Soir (centre gauche), La Libre Belgique (centre droit), De Standaard (centre droit), De Morgen (centre gauche), L'Écho/De Tijd (économie) | français / néerlandais | lesoir.be, lalibre.be, standaard.be, demorgen.be, lecho.be, tijd.be |
 | Cameroun | Cameroon Tribune (gouvernemental, bilingue), EcoMatin (économie), Investir au Cameroun (économie) | français / anglais | cameroon-tribune.cm, ecomatin.net, investiraucameroun.com |
@@ -30,6 +32,7 @@ Liste de référence pour l'agent « événements géopolitiques et sociaux » p
 | Espagne | El País (centre gauche), El Mundo (centre droit), ABC (conservateur), La Vanguardia (centre) | espagnol | elpais.com, elmundo.es, abc.es, lavanguardia.com |
 | États-Unis | NY Times (centre gauche), WSJ (centre droit / économie), Washington Post (centre gauche), LA Times (centre, côte Ouest), USA Today (centre, généraliste) | anglais | nytimes.com, wsj.com, washingtonpost.com, latimes.com, usatoday.com |
 | France | Le Monde (centre gauche), Le Figaro (centre droit), Les Échos (économie), Libération (gauche) | français | lemonde.fr, lefigaro.fr, lesechos.fr, liberation.fr |
+| Grèce | Kathimerini (référence, centre droit), Ta Nea (centre), To Vima (centre) | grec | kathimerini.gr, tanea.gr, tovima.gr |
 | Guatemala | Prensa Libre (plus grand quotidien national), El Periódico (investigation, politique) | espagnol | prensalibre.com, elperiodico.com.gt |
 | Inde | Times of India (grand tirage), The Hindu (centre gauche), Indian Express (investigation), Economic Times (économie) | anglais | timesofindia.indiatimes.com, thehindu.com, indianexpress.com, economictimes.indiatimes.com |
 | Indonésie | The Jakarta Post (indépendant, anglophone), Kompas (plus grand tirage national) | anglais / indonésien | thejakartapost.com, kompas.id |
@@ -42,9 +45,11 @@ Liste de référence pour l'agent « événements géopolitiques et sociaux » p
 | Kenya | Daily Nation (majeur, généraliste), The Standard (historique) | anglais | nation.africa, standardmedia.co.ke |
 | Kirghizistan | Vecherny Bishkek (généraliste, russe), Kaktus Media (indépendant), AKIpress (agence de presse indépendante) | russe / kirghiz / anglais | vb.kg, kaktus.media, akipress.org |
 | Liban | L'Orient-Le Jour (francophone, référence régionale), An-Nahar (historique, arabe) | français / arabe | lorientlejour.com, annahar.com |
+| Libye | Libya Observer (indépendant, anglophone), Libya Herald (économie/politique, anglophone) | arabe / anglais | libyaobserver.ly, libyaherald.com |
 | Maroc | Le Matin (proche des institutions), Aujourd'hui le Maroc (généraliste, français), Hespress (1er site d'actualité, arabe/français) | français / arabe | lematin.ma, aujourdhui.ma, hespress.com |
 | Mexique | El Universal | espagnol | eluniversal.com.mx |
 | Nigeria | The Punch | anglais | punchng.com |
+| Norvège | Aftenposten (référence, centriste), VG (populaire, plus fort tirage), Dagens Næringsliv (économie) | norvégien | aftenposten.no, vg.no, dn.no |
 | Nouvelle-Zélande | NZ Herald (principal, Auckland), Stuff (majeur, en ligne), Otago Daily Times (le plus ancien, indépendant), BusinessDesk (économie) | anglais | nzherald.co.nz, stuff.co.nz, odt.co.nz, businessdesk.co.nz |
 | Ouzbékistan | Xalq So'zi / Narodnoye Slovo (gouvernemental), Gazeta.uz (indépendant, influent), Kun.uz (portail le plus consulté) | ouzbek / russe / anglais | xs.uz, gazeta.uz, kun.uz |
 | Pakistan | Dawn (indépendant, référence), The News International (généraliste) | anglais | dawn.com, thenews.com.pk |
@@ -61,8 +66,10 @@ Liste de référence pour l'agent « événements géopolitiques et sociaux » p
 | Salvador | La Prensa Gráfica (généraliste), El Faro (indépendant, investigation, référence régionale) | espagnol | laprensagrafica.com, elfaro.net |
 | Sénégal | Le Soleil (national, généraliste), EnQuête (investigation), Walf Fadjri (indépendant) | français | lesoleil.sn, enqueteplus.com, walf-groupe.com |
 | Singapour | The Straits Times (référence), CNA (continu, régional), Lianhe Zaobao (sinophone) | anglais / chinois | straitstimes.com, channelnewsasia.com, zaobao.com.sg |
+| Soudan | Sudan Tribune (indépendant, diaspora, anglophone), Al-Sudani (généraliste, arabophone) | arabe / anglais | sudantribune.com, alsudani.sd |
 | Sri Lanka | Daily Mirror (information générale) | anglais | dailymirror.lk |
 | Suisse | NZZ (libéral-conservateur, allemand), Le Temps (centre, français) | français / allemand | nzz.ch, letemps.ch |
+| Syrie | SANA (agence de presse officielle), Al-Watan (proche du gouvernement), Enab Baladi (indépendant, opposition, en exil) | arabe | sana.sy, alwatan.sy, enabbaladi.net |
 | Tadjikistan | Asia-Plus (indépendant, principal réseau d'info), Jumhuriyat (officiel gouvernemental) | tadjik / russe / anglais | asiaplustj.info, jumhuriyat.tj |
 | Taïwan | Taipei Times (anglophone), Liberty Times (souverainiste), China Times (favorable aux échanges avec Pékin) | anglais / chinois | taipeitimes.com, ltn.com.tw, chinatimes.com |
 | Thaïlande | Bangkok Post (historique, référence), The Nation (politique / économie) | anglais | bangkokpost.com, nationthailand.com |
@@ -71,7 +78,9 @@ Liste de référence pour l'agent « événements géopolitiques et sociaux » p
 | Turquie | Sabah (pro-gouvernement), Sozcu (opposition, laïque), Cumhuriyet (opposition, historique), Yeni Safak (islamo-conservateur), Hürriyet / Hürriyet Daily News (centre, éd. anglaise), Daily Sabah (anglais, pro-gouvernement), TRT World (public international) | turc / anglais | sabah.com.tr, sozcu.com.tr, cumhuriyet.com.tr, yenisafak.com, hurriyet.com.tr, hurriyetdailynews.com, dailysabah.com, trtworld.com |
 | Ukraine | Ukrayinska Pravda | ukrainien | pravda.com.ua |
 | Uruguay | El País (centre droit), La Diaria (centre gauche) | espagnol | elpais.com.uy, ladiaria.com.uy |
+| Venezuela | El Universal (indépendant, référence historique), El Nacional (indépendant, opposition, en exil numérique), Últimas Noticias (grand public) | espagnol | eluniversal.com, elnacional.com, ultimasnoticias.com.ve |
 | Vietnam | Tuoi Tre News (édition anglaise, grand public), VnExpress (principal site d'info en ligne) | vietnamien / anglais | tuoitrenews.vn, e.vnexpress.net |
+| Yémen | Al-Masdar Online (indépendant), Saba (agence de presse d'État, selon la faction en contrôle) | arabe | almasdaronline.com, sabanews.net |
 
 ## Médias transnationaux et revues de presse
 

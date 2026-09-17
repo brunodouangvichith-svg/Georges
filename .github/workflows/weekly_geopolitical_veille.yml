@@ -1,0 +1,49 @@
+name: Veille géopolitique de George (hebdomadaire, pilier 7)
+
+# Porté depuis un projet sœur de l'utilisateur (Wchecks) qui avait construit
+# un agent équivalent sur whitelist_journaux.md/.json -- réimplémenté selon
+# les conventions déjà établies dans CE projet (recherche Tavily + synthèse
+# Mistral, pas de scraping site-spécifique) -- voir agents/geopolitical_veille.py
+# pour l'implémentation et le détail du budget Tavily.
+#
+# Hebdomadaire, pas quotidien comme la veille entreprises
+# (daily_george_veille.yml) : budget Tavily déjà largement utilisé par cette
+# dernière (~900/1000 requêtes/mois), et une situation géopolitique par pays
+# est bien moins périssable qu'une actualité d'entreprise -- COUNTRIES_PER_RUN
+# (8) pays par exécution, rotation déterministe sur les 77 pays de
+# whitelist_journaux.json, donc chaque pays est rafraîchi environ tous les
+# 2 mois et demi.
+#
+# Dimanche 22h UTC, délibérément décalé des autres jobs (confidence model
+# dimanche 20h UTC, fondamentaux quotidien 20h UTC -- déjà sur le même
+# créneau que confidence model tous les dimanches, préexistant, pas touché
+# ici -- veille entreprises quotidienne 21h UTC -- donc *aussi* tous les
+# dimanches --, veille Jane samedi 20h UTC) : 22h UTC est le seul créneau
+# du dimanche encore libre parmi ces jobs -- trouvé en /code-review après
+# un premier choix (21h) qui entrait en collision avec daily_george_veille.yml.
+on:
+  schedule:
+    - cron: "0 22 * * 0"
+  workflow_dispatch:
+    inputs:
+      country:
+        description: "Pays à rechercher (optionnel — sinon rotation hebdomadaire automatique)"
+        required: false
+        type: string
+
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Recherche web + synthèse (agents.geopolitical_veille)
+        run: python -m agents.geopolitical_veille "${{ inputs.country }}"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}

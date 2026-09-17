@@ -96,13 +96,22 @@ def add_knowledge(
     return entry
 
 
-def search_jane_knowledge(db: Session, query: str, limit: int = 5) -> list[JaneKnowledge]:
+def search_jane_knowledge(
+    db: Session, query: str, limit: int = 5, query_embedding: list[float] | None = None
+) -> list[JaneKnowledge]:
     """Recherche sémantique dans `jane_knowledge`, même principe que
     `agents/reports.py:search_reports` — utilisé par
     `agents.jane.second_opinion` pour injecter le savoir le plus pertinent
     au contexte de la décision en cours plutôt que le corpus figé du prompt
-    système en entier."""
-    [query_embedding] = mistral_client.embed([query])
+    système en entier.
+
+    `query_embedding` est optionnel (calculé à partir de `query` si absent) —
+    permet à un appelant qui interroge déjà plusieurs bases de connaissances
+    pour la MÊME question (voir `agents.chat.answer_question`, qui interroge
+    aussi `geopolitical_knowledge`) d'embedder `query` une seule fois plutôt
+    qu'un appel Mistral redondant par base interrogée."""
+    if query_embedding is None:
+        [query_embedding] = mistral_client.embed([query])
     stmt = select(JaneKnowledge).order_by(JaneKnowledge.embedding.cosine_distance(query_embedding)).limit(limit)
     return db.execute(stmt).scalars().all()
 

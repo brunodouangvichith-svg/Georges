@@ -12,7 +12,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from agents import company_knowledge, external_analysis, jane_knowledge, macro_context, mistral_client, web_search
+from agents import company_knowledge, external_analysis, geopolitical_knowledge, jane_knowledge, macro_context, mistral_client, web_search
 from agents.context import security_snapshot
 from agents.george_veille import BIOFUEL_RENEWABLE_GAS_COMPANIES
 from ingestion.models import CompanyFundamentals, Decision, PatternDetected, Security
@@ -364,19 +364,32 @@ def answer_question(db: Session, question: str) -> str:
                         "detectee_le": match.detected_at.isoformat(),
                     }
 
-    # Connaissances enseignées via `_extract_taught_knowledge` (voir plus
-    # haut) — recherche sémantique systématique, pas seulement pour les
-    # questions hors référentiel : contrairement à `resultats_web`, une note
-    # apprise par l'utilisateur (ex. "pour les entreprises françaises,
-    # regarde plutôt Pappers.fr") peut être pertinente même en complément
-    # d'un titre déjà suivi. Échec Mistral (embedding) dégradé vers une
-    # liste vide, même principe que le reste du module — ne doit jamais
-    # bloquer `/chat`.
+    # Connaissances enseignées (`jane_knowledge`) et actualités géopolitiques
+    # par pays ("pilier 7", `geopolitical_knowledge`, alimentées en continu
+    # par agents/geopolitical_veille.py) — deux recherches sémantiques
+    # systématiques sur la MÊME question, pas seulement pour les questions
+    # hors référentiel : contrairement à `resultats_web`, une note apprise
+    # par l'utilisateur (ex. "pour les entreprises françaises, regarde
+    # plutôt Pappers.fr") ou un contexte pays peut être pertinent même en
+    # complément d'un titre déjà suivi. La question n'est embeddée qu'UNE
+    # fois (`query_embedding`, réutilisé pour les deux recherches) plutôt que
+    # deux appels Mistral redondants pour le même texte — voir
+    # `search_jane_knowledge`/`search_geopolitical_knowledge`. Échec Mistral
+    # (embedding) dégradé vers deux listes vides, même principe que le reste
+    # du module — ne doit jamais bloquer `/chat`.
     try:
-        learned_knowledge = [entry.content for entry in jane_knowledge.search_jane_knowledge(db, question, limit=3)]
+        [question_embedding] = mistral_client.embed([question])
+        learned_knowledge = [
+            entry.content for entry in jane_knowledge.search_jane_knowledge(db, question, limit=3, query_embedding=question_embedding)
+        ]
+        geopolitical_context = [
+            {"pays": entry.country, "resume": entry.content, "source": entry.source_name}
+            for entry in geopolitical_knowledge.search_geopolitical_knowledge(db, question, limit=3, query_embedding=question_embedding)
+        ]
     except mistral_client.MistralUnavailableError as err:
-        logger.warning("Recherche de connaissances apprises en échec pour %r : %s", question, err)
+        logger.warning("Recherche de connaissances apprises/contexte géopolitique en échec pour %r : %s", question, err)
         learned_knowledge = []
+        geopolitical_context = []
 
     # Derniers indicateurs macro connus (BCE/FRED/Eurostat/TIC via
     # agents/collectors/macro.py, eurostat.py, tic.py) — simple lecture DB,
@@ -387,8 +400,9 @@ def answer_question(db: Session, question: str) -> str:
 
     # Un contexte vide (aucun titre reconnu, aucune décision ouverte, aucune
     # actualité, aucun résultat web, aucune analyse externe, aucune
-    # connaissance apprise, aucun indicateur macro) est envoyé tel quel : le
-    # prompt système impose de le signaler plutôt que d'inventer une réponse.
+    # connaissance apprise, aucun indicateur macro, aucun contexte
+    # géopolitique) est envoyé tel quel : le prompt système impose de le
+    # signaler plutôt que d'inventer une réponse.
     context = {
         "question": question,
         "titres_reconnus": snapshots,
@@ -398,6 +412,7 @@ def answer_question(db: Session, question: str) -> str:
         "analyse_technique_externe": company_technical_analysis,
         "connaissances_apprises": learned_knowledge,
         "indicateurs_macro": macro_indicators,
+        "actualites_geopolitiques": geopolitical_context,
     }
     system_prompt = mistral_client.load_system_prompt("chat_system.txt")
     user_message = json.dumps(context, ensure_ascii=False)

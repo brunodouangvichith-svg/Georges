@@ -17,6 +17,7 @@ from sqlalchemy.orm import sessionmaker
 
 import agents.company_knowledge as company_knowledge
 import agents.external_analysis as external_analysis
+import agents.geopolitical_knowledge as geopolitical_knowledge
 import agents.jane_knowledge as jane_knowledge
 import agents.macro_context as macro_context
 import agents.mistral_client as mistral_client
@@ -650,6 +651,24 @@ def test_chat_includes_latest_macro_indicators(client, mock_llm, monkeypatch):
     answer = resp.json()["answer"]
     assert "Taux de change EUR/USD" in answer
     assert "1.1385" in answer
+
+
+def test_chat_includes_geopolitical_context(client, mock_llm, monkeypatch):
+    """`actualites_geopolitiques` (voir `agents/geopolitical_knowledge.py`)
+    est une recherche sémantique, mockée directement au niveau du module —
+    même style que le test équivalent pour `indicateurs_macro`."""
+    fake_entry = type(
+        "FakeEntry", (), {"country": "France", "content": "Tensions commerciales en hausse.", "source_name": "Veille web"}
+    )()
+    monkeypatch.setattr(
+        geopolitical_knowledge,
+        "search_geopolitical_knowledge",
+        lambda db, question, limit=3, query_embedding=None: [fake_entry],
+    )
+    resp = client.post("/chat", json={"question": "Quel est le risque géopolitique en France ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert "Tensions commerciales en hausse." in answer
 
 
 def test_chat_enriches_a_tracked_security_with_recent_company_news(client, mock_llm, monkeypatch):

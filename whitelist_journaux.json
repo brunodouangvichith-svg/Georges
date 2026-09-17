@@ -44,6 +44,18 @@
     ]
   },
   {
+    "country": "Angola",
+    "language": "portugais",
+    "outlets": [
+      "Jornal de Angola (officiel, gouvernemental)",
+      "Novo Jornal (indépendant)"
+    ],
+    "sites": [
+      "jornaldeangola.ao",
+      "novojornal.co.ao"
+    ]
+  },
+  {
     "country": "Arabie saoudite",
     "language": "arabe / anglais",
     "outlets": [
@@ -90,6 +102,20 @@
     ]
   },
   {
+    "country": "Azerbaïdjan",
+    "language": "azéri / russe / anglais",
+    "outlets": [
+      "Azernews (semi-officiel, anglophone)",
+      "APA (agence de presse d'État)",
+      "Turan (agence indépendante)"
+    ],
+    "sites": [
+      "azernews.az",
+      "apa.az",
+      "turan.az"
+    ]
+  },
+  {
     "country": "Bangladesh",
     "language": "bengali / anglais",
     "outlets": [
@@ -121,20 +147,6 @@
     ]
   },
   {
-    "country": "Cameroun",
-    "language": "français / anglais",
-    "outlets": [
-      "Cameroon Tribune (gouvernemental, bilingue)",
-      "EcoMatin (économie)",
-      "Investir au Cameroun (économie)"
-    ],
-    "sites": [
-      "cameroon-tribune.cm",
-      "ecomatin.net",
-      "investiraucameroun.com"
-    ]
-  },
-  {
     "country": "Brésil",
     "language": "portugais",
     "outlets": [
@@ -146,6 +158,20 @@
       "folha.uol.com.br",
       "oglobo.globo.com",
       "estadao.com.br"
+    ]
+  },
+  {
+    "country": "Cameroun",
+    "language": "français / anglais",
+    "outlets": [
+      "Cameroon Tribune (gouvernemental, bilingue)",
+      "EcoMatin (économie)",
+      "Investir au Cameroun (économie)"
+    ],
+    "sites": [
+      "cameroon-tribune.cm",
+      "ecomatin.net",
+      "investiraucameroun.com"
     ]
   },
   {
@@ -269,18 +295,6 @@
     ]
   },
   {
-    "country": "Côte d'Ivoire",
-    "language": "français",
-    "outlets": [
-      "Fraternité Matin (gouvernemental)",
-      "L'Inter (indépendant)"
-    ],
-    "sites": [
-      "fratmat.info",
-      "linfodrome.com"
-    ]
-  },
-  {
     "country": "Cuba",
     "language": "espagnol",
     "outlets": [
@@ -305,34 +319,15 @@
     ]
   },
   {
-    "country": "Égypte",
-    "language": "arabe / anglais",
+    "country": "Côte d'Ivoire",
+    "language": "français",
     "outlets": [
-      "Al-Ahram (le plus ancien, officiel)",
-      "Al-Masry Al-Youm (indépendant, référence)",
-      "Al-Shorouk (indépendant)",
-      "Youm7 (très fort trafic)"
+      "Fraternité Matin (gouvernemental)",
+      "L'Inter (indépendant)"
     ],
     "sites": [
-      "ahram.org.eg",
-      "english.ahram.org.eg",
-      "almasryalyoum.com",
-      "shorouknews.com",
-      "youm7.com"
-    ]
-  },
-  {
-    "country": "Émirats arabes unis",
-    "language": "anglais / arabe",
-    "outlets": [
-      "The National (référence, Abou Dabi)",
-      "Gulf News (grand public, Dubaï)",
-      "Al-Ittihad (historique, arabe)"
-    ],
-    "sites": [
-      "thenationalnews.com",
-      "gulfnews.com",
-      "alittihad.ae"
+      "fratmat.info",
+      "linfodrome.com"
     ]
   },
   {
@@ -352,24 +347,6 @@
     ]
   },
   {
-    "country": "États-Unis",
-    "language": "anglais",
-    "outlets": [
-      "NY Times (centre gauche)",
-      "WSJ (centre droit / économie)",
-      "Washington Post (centre gauche)",
-      "LA Times (centre, côte Ouest)",
-      "USA Today (centre, généraliste)"
-    ],
-    "sites": [
-      "nytimes.com",
-      "wsj.com",
-      "washingtonpost.com",
-      "latimes.com",
-      "usatoday.com"
-    ]
-  },
-  {
     "country": "France",
     "language": "français",
     "outlets": [
@@ -383,6 +360,20 @@
       "lefigaro.fr",
       "lesechos.fr",
       "liberation.fr"
+    ]
+  },
+  {
+    "country": "Grèce",
+    "language": "grec",
+    "outlets": [
+      "Kathimerini (référence, centre droit)",
+      "Ta Nea (centre)",
+      "To Vima (centre)"
+    ],
+    "sites": [
+      "kathimerini.gr",
+      "tanea.gr",
+      "tovima.gr"
     ]
   },
   {
@@ -560,6 +551,18 @@
     ]
   },
   {
+    "country": "Libye",
+    "language": "arabe / anglais",
+    "outlets": [
+      "Libya Observer (indépendant, anglophone)",
+      "Libya Herald (économie/politique, anglophone)"
+    ],
+    "sites": [
+      "libyaobserver.ly",
+      "libyaherald.com"
+    ]
+  },
+  {
     "country": "Maroc",
     "language": "français / arabe",
     "outlets": [
@@ -591,6 +594,20 @@
     ],
     "sites": [
       "punchng.com"
+    ]
+  },
+  {
+    "country": "Norvège",
+    "language": "norvégien",
+    "outlets": [
+      "Aftenposten (référence, centriste)",
+      "VG (populaire, plus fort tirage)",
+      "Dagens Næringsliv (économie)"
+    ],
+    "sites": [
+      "aftenposten.no",
+      "vg.no",
+      "dn.no"
     ]
   },
   {
@@ -664,18 +681,6 @@
     ]
   },
   {
-    "country": "Pérou",
-    "language": "espagnol",
-    "outlets": [
-      "El Comercio (centre droit)",
-      "La República (centre gauche)"
-    ],
-    "sites": [
-      "elcomercio.pe",
-      "larepublica.pe"
-    ]
-  },
-  {
     "country": "Philippines",
     "language": "anglais",
     "outlets": [
@@ -685,24 +690,6 @@
     "sites": [
       "inquirer.net",
       "rappler.com"
-    ]
-  },
-  {
-    "country": "Portugal",
-    "language": "portugais",
-    "outlets": [
-      "Público (centre gauche)",
-      "Diário de Notícias (centre)",
-      "Jornal de Notícias (centre droit)",
-      "Expresso (centre droit)",
-      "Jornal de Negócios (économie)"
-    ],
-    "sites": [
-      "publico.pt",
-      "dn.pt",
-      "jn.pt",
-      "expresso.pt",
-      "jornaldenegocios.pt"
     ]
   },
   {
@@ -728,15 +715,33 @@
     ]
   },
   {
-    "country": "République dominicaine",
-    "language": "espagnol",
+    "country": "Portugal",
+    "language": "portugais",
     "outlets": [
-      "Listín Diario (le plus ancien)",
-      "Diario Libre (gratuit, numérique)"
+      "Público (centre gauche)",
+      "Diário de Notícias (centre)",
+      "Jornal de Notícias (centre droit)",
+      "Expresso (centre droit)",
+      "Jornal de Negócios (économie)"
     ],
     "sites": [
-      "listindiario.com",
-      "diariolibre.com"
+      "publico.pt",
+      "dn.pt",
+      "jn.pt",
+      "expresso.pt",
+      "jornaldenegocios.pt"
+    ]
+  },
+  {
+    "country": "Pérou",
+    "language": "espagnol",
+    "outlets": [
+      "El Comercio (centre droit)",
+      "La República (centre gauche)"
+    ],
+    "sites": [
+      "elcomercio.pe",
+      "larepublica.pe"
     ]
   },
   {
@@ -770,6 +775,18 @@
     ]
   },
   {
+    "country": "République dominicaine",
+    "language": "espagnol",
+    "outlets": [
+      "Listín Diario (le plus ancien)",
+      "Diario Libre (gratuit, numérique)"
+    ],
+    "sites": [
+      "listindiario.com",
+      "diariolibre.com"
+    ]
+  },
+  {
     "country": "Salvador",
     "language": "espagnol",
     "outlets": [
@@ -779,20 +796,6 @@
     "sites": [
       "laprensagrafica.com",
       "elfaro.net"
-    ]
-  },
-  {
-    "country": "Sénégal",
-    "language": "français",
-    "outlets": [
-      "Le Soleil (national, généraliste)",
-      "EnQuête (investigation)",
-      "Walf Fadjri (indépendant)"
-    ],
-    "sites": [
-      "lesoleil.sn",
-      "enqueteplus.com",
-      "walf-groupe.com"
     ]
   },
   {
@@ -807,6 +810,18 @@
       "straitstimes.com",
       "channelnewsasia.com",
       "zaobao.com.sg"
+    ]
+  },
+  {
+    "country": "Soudan",
+    "language": "arabe / anglais",
+    "outlets": [
+      "Sudan Tribune (indépendant, diaspora, anglophone)",
+      "Al-Sudani (généraliste, arabophone)"
+    ],
+    "sites": [
+      "sudantribune.com",
+      "alsudani.sd"
     ]
   },
   {
@@ -829,6 +844,34 @@
     "sites": [
       "nzz.ch",
       "letemps.ch"
+    ]
+  },
+  {
+    "country": "Syrie",
+    "language": "arabe",
+    "outlets": [
+      "SANA (agence de presse officielle)",
+      "Al-Watan (proche du gouvernement)",
+      "Enab Baladi (indépendant, opposition, en exil)"
+    ],
+    "sites": [
+      "sana.sy",
+      "alwatan.sy",
+      "enabbaladi.net"
+    ]
+  },
+  {
+    "country": "Sénégal",
+    "language": "français",
+    "outlets": [
+      "Le Soleil (national, généraliste)",
+      "EnQuête (investigation)",
+      "Walf Fadjri (indépendant)"
+    ],
+    "sites": [
+      "lesoleil.sn",
+      "enqueteplus.com",
+      "walf-groupe.com"
     ]
   },
   {
@@ -941,6 +984,20 @@
     ]
   },
   {
+    "country": "Venezuela",
+    "language": "espagnol",
+    "outlets": [
+      "El Universal (indépendant, référence historique)",
+      "El Nacional (indépendant, opposition, en exil numérique)",
+      "Últimas Noticias (grand public)"
+    ],
+    "sites": [
+      "eluniversal.com",
+      "elnacional.com",
+      "ultimasnoticias.com.ve"
+    ]
+  },
+  {
     "country": "Vietnam",
     "language": "vietnamien / anglais",
     "outlets": [
@@ -950,6 +1007,67 @@
     "sites": [
       "tuoitrenews.vn",
       "e.vnexpress.net"
+    ]
+  },
+  {
+    "country": "Yémen",
+    "language": "arabe",
+    "outlets": [
+      "Al-Masdar Online (indépendant)",
+      "Saba (agence de presse d'État, selon la faction en contrôle)"
+    ],
+    "sites": [
+      "almasdaronline.com",
+      "sabanews.net"
+    ]
+  },
+  {
+    "country": "Égypte",
+    "language": "arabe / anglais",
+    "outlets": [
+      "Al-Ahram (le plus ancien, officiel)",
+      "Al-Masry Al-Youm (indépendant, référence)",
+      "Al-Shorouk (indépendant)",
+      "Youm7 (très fort trafic)"
+    ],
+    "sites": [
+      "ahram.org.eg",
+      "english.ahram.org.eg",
+      "almasryalyoum.com",
+      "shorouknews.com",
+      "youm7.com"
+    ]
+  },
+  {
+    "country": "Émirats arabes unis",
+    "language": "anglais / arabe",
+    "outlets": [
+      "The National (référence, Abou Dabi)",
+      "Gulf News (grand public, Dubaï)",
+      "Al-Ittihad (historique, arabe)"
+    ],
+    "sites": [
+      "thenationalnews.com",
+      "gulfnews.com",
+      "alittihad.ae"
+    ]
+  },
+  {
+    "country": "États-Unis",
+    "language": "anglais",
+    "outlets": [
+      "NY Times (centre gauche)",
+      "WSJ (centre droit / économie)",
+      "Washington Post (centre gauche)",
+      "LA Times (centre, côte Ouest)",
+      "USA Today (centre, généraliste)"
+    ],
+    "sites": [
+      "nytimes.com",
+      "wsj.com",
+      "washingtonpost.com",
+      "latimes.com",
+      "usatoday.com"
     ]
   }
 ]

@@ -558,3 +558,38 @@ class CompanyNewsKnowledge(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class GeopoliticalKnowledge(Base):
+    """Base de connaissances d'actualités géopolitiques/économiques par pays
+    (Phase 7, "pilier 7" du roadmap — voir `whitelist_journaux.md`/`.json`,
+    jusqu'ici jamais exploités par aucun code) — ad hoc dans sa réalisation
+    concrète (recherche Tavily + synthèse Mistral, pas l'orchestrateur
+    LangGraph/Celery/scraping prévu par le roadmap complet). Même principe
+    indexé-par-embedding que `CompanyNewsKnowledge` juste au-dessus, alimenté
+    en continu par `agents/geopolitical_veille.py`, mais scopé par pays
+    (`country`/`region`) plutôt que par entreprise — consommé par
+    `agents.chat.answer_question` en complément de l'analyse quantitative
+    (un investisseur demandant "quel est le risque géopolitique en Russie ?"
+    obtient une vraie synthèse plutôt qu'un silence, sans jamais faire dire à
+    George qu'il détecte lui-même un risque chiffré).
+
+    `region` (Europe & UK, Amérique du Nord & Latine, Asie...) vient de
+    `agents/geopolitical_veille.py:COUNTRY_TO_REGION` — PAS de
+    `whitelist_journaux.md`/`.json` eux-mêmes, qui n'ont aucune colonne
+    région (une seule table plate par pays). Texte libre, pas un enum, même
+    choix que `CompanyFundamentals.sector` pour rester tolérant aux libellés
+    changeants d'une source de référence externe."""
+
+    __tablename__ = "geopolitical_knowledge"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    country: Mapped[str] = mapped_column(Text, nullable=False)
+    region: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    source_name: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
