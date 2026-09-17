@@ -12,7 +12,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from agents import company_knowledge, external_analysis, jane_knowledge, mistral_client, web_search
+from agents import company_knowledge, external_analysis, jane_knowledge, macro_context, mistral_client, web_search
 from agents.context import security_snapshot
 from agents.george_veille import BIOFUEL_RENEWABLE_GAS_COMPANIES
 from ingestion.models import CompanyFundamentals, Decision, PatternDetected, Security
@@ -378,10 +378,17 @@ def answer_question(db: Session, question: str) -> str:
         logger.warning("Recherche de connaissances apprises en échec pour %r : %s", question, err)
         learned_knowledge = []
 
+    # Derniers indicateurs macro connus (BCE/FRED/Eurostat/TIC via
+    # agents/collectors/macro.py, eurostat.py, tic.py) — simple lecture DB,
+    # aucun appel réseau/LLM, donc toujours incluse sans condition ni garde-
+    # fou de dégradation (contrairement à learned_knowledge/web_results),
+    # même principe que opportunites_actuelles/recent_news juste au-dessus.
+    macro_indicators = macro_context.get_latest_macro_snapshots(db)
+
     # Un contexte vide (aucun titre reconnu, aucune décision ouverte, aucune
     # actualité, aucun résultat web, aucune analyse externe, aucune
-    # connaissance apprise) est envoyé tel quel : le prompt système impose
-    # de le signaler plutôt que d'inventer une réponse.
+    # connaissance apprise, aucun indicateur macro) est envoyé tel quel : le
+    # prompt système impose de le signaler plutôt que d'inventer une réponse.
     context = {
         "question": question,
         "titres_reconnus": snapshots,
@@ -390,6 +397,7 @@ def answer_question(db: Session, question: str) -> str:
         "resultats_web": web_results,
         "analyse_technique_externe": company_technical_analysis,
         "connaissances_apprises": learned_knowledge,
+        "indicateurs_macro": macro_indicators,
     }
     system_prompt = mistral_client.load_system_prompt("chat_system.txt")
     user_message = json.dumps(context, ensure_ascii=False)

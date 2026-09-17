@@ -18,6 +18,7 @@ from sqlalchemy.orm import sessionmaker
 import agents.company_knowledge as company_knowledge
 import agents.external_analysis as external_analysis
 import agents.jane_knowledge as jane_knowledge
+import agents.macro_context as macro_context
 import agents.mistral_client as mistral_client
 import agents.web_search as web_search
 import api.auth as auth
@@ -630,6 +631,25 @@ def test_chat_includes_previously_taught_knowledge_in_later_answers(client, mock
     assert resp.status_code == 200
     answer = resp.json()["answer"]
     assert "Zonebourse.com est utile pour le consensus analystes." in answer
+
+
+def test_chat_includes_latest_macro_indicators(client, mock_llm, monkeypatch):
+    """`indicateurs_macro` (voir `agents/macro_context.py`) est une simple
+    requête DB, mockée directement au niveau du module plutôt que de seeder
+    une vraie ligne — même style que le test équivalent pour
+    `company_knowledge` juste en dessous."""
+    monkeypatch.setattr(
+        macro_context,
+        "get_latest_macro_snapshots",
+        lambda db: [
+            {"indicateur": "Taux de change EUR/USD", "valeur": 1.1385, "unite": None, "source": "FRED", "observe_le": "2026-09-15"}
+        ],
+    )
+    resp = client.post("/chat", json={"question": "Quel est le taux de change EUR/USD ?"})
+    assert resp.status_code == 200
+    answer = resp.json()["answer"]
+    assert "Taux de change EUR/USD" in answer
+    assert "1.1385" in answer
 
 
 def test_chat_enriches_a_tracked_security_with_recent_company_news(client, mock_llm, monkeypatch):
