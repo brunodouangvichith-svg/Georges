@@ -1,12 +1,15 @@
 """Tests de `agents/geopolitical_veille.py`. `_load_countries`/
-`_pick_weekly_countries` sont purs (aucune DB/réseau) — contrairement à
-`collect_geopolitical_news`, qui a besoin de Tavily/Mistral réels et n'est
-donc pas testé unitairement ici (même tiering que
-`agents/george_veille.py`/`tests/test_george_veille.py`)."""
+`_pick_weekly_countries` sont purs (aucune DB/réseau). `collect_geopolitical_news`
+a besoin de Tavily/GDELT/Mistral réels pour tourner en production, mais est
+testable en mockant `web_search.search`/`gdelt_client.search_articles`/
+`mistral_client.complete` — même principe que
+`tests/test_george_veille.py:test_collect_company_news_synthesizes_multiple_sources_and_uses_small_model`."""
 
 import datetime
 
 import agents.geopolitical_veille as geopolitical_veille
+import agents.mistral_client as mistral_client
+from agents import gdelt_client, web_search
 from agents.geopolitical_veille import COUNTRIES_PER_RUN, _load_countries, _pick_weekly_countries
 
 
@@ -79,3 +82,99 @@ def test_pick_weekly_countries_handles_fewer_countries_than_requested():
 
 def test_pick_weekly_countries_returns_empty_list_for_no_countries():
     assert _pick_weekly_countries([], n=8) == []
+
+
+def test_collect_geopolitical_news_merges_tavily_and_gdelt_into_one_mistral_call(monkeypatch):
+    tavily_results = [{"titre": "Reuters — Iran", "extrait": "Tensions en hausse...", "url": "https://reuters.com/iran"}]
+    gdelt_results = [{"titre": "Drone strike hits oil facility near Isfahan", "extrait": "", "url": "https://example.com/gdelt"}]
+    monkeypatch.setattr(web_search, "search", lambda query, max_results=2: tavily_results)
+    monkeypatch.setattr(gdelt_client, "search_articles", lambda country, max_records=10, timespan="7d": gdelt_results)
+
+    captured = {}
+
+    def fake_complete(system_prompt, user_message, model=None, **kwargs):
+        captured["model"] = model
+        captured["user_message"] = user_message
+        return "Tensions confirmées par deux sources indépendantes."
+
+    monkeypatch.setattr(mistral_client, "complete", fake_complete)
+
+    entry = type("FakeEntry", (), {"id": 1, "created_at": datetime.datetime(2026, 9, 17, tzinfo=datetime.timezone.utc)})()
+    monkeypatch.setattr(
+        geopolitical_veille.geopolitical_knowledge,
+        "add_geopolitical_knowledge",
+        lambda db, content, country, region=None, source_name="", source_url=None: entry,
+    )
+
+    groups = geopolitical_veille.collect_geopolitical_news(db=None, engine=None, scope={"country": "Iran"})
+
+    assert captured["model"] == mistral_client.MODEL_SMALL
+    assert "Reuters" in captured["user_message"]
+    assert "Drone strike hits oil facility near Isfahan" in captured["user_message"]
+
+    label, items = groups[0]
+    assert "ajoutée à geopolitical_knowledge" in label
+    assert "GDELT" in items[0].source_name
+    assert "2 sources" in items[0].source_name
+
+
+def test_collect_geopolitical_news_returns_empty_group_when_both_sources_are_empty(monkeypatch):
+    monkeypatch.setattr(web_search, "search", lambda query, max_results=2: [])
+    monkeypatch.setattr(gdelt_client, "search_articles", lambda country, max_records=10, timespan="7d": [])
+
+    def _fail_if_called(*args, **kwargs):
+        raise AssertionError("Mistral ne doit pas être appelé sans aucune source.")
+
+    monkeypatch.setattr(mistral_client, "complete", _fail_if_called)
+
+    groups = geopolitical_veille.collect_geopolitical_news(db=None, engine=None, scope={"country": "Islande"})
+    assert groups == []
+
+
+def test_collect_geopolitical_news_source_name_omits_gdelt_when_gdelt_found_nothing(monkeypatch):
+    """`source_name` ne doit mentionner GDELT que s'il a effectivement
+    contribué des résultats -- sinon il mentirait sur la provenance."""
+    tavily_results = [{"titre": "Reuters — France", "extrait": "...", "url": "https://reuters.com/france"}]
+    monkeypatch.setattr(web_search, "search", lambda query, max_results=2: tavily_results)
+    monkeypatch.setattr(gdelt_client, "search_articles", lambda country, max_records=10, timespan="7d": [])
+    monkeypatch.setattr(mistral_client, "complete", lambda system_prompt, user_message, model=None, **kwargs: "Résumé.")
+
+    entry = type("FakeEntry", (), {"id": 1, "created_at": datetime.datetime(2026, 9, 17, tzinfo=datetime.timezone.utc)})()
+    monkeypatch.setattr(
+        geopolitical_veille.geopolitical_knowledge,
+        "add_geopolitical_knowledge",
+        lambda db, content, country, region=None, source_name="", source_url=None: entry,
+    )
+
+    groups = geopolitical_veille.collect_geopolitical_news(db=None, engine=None, scope={"country": "France"})
+
+    _, items = groups[0]
+    assert "GDELT" not in items[0].source_name
+    assert "1 sources" in items[0].source_name
+
+
+def test_collect_geopolitical_news_falls_back_to_gdelt_when_tavily_is_unavailable(monkeypatch):
+    """Une panne Tavily (`WebSearchUnavailableError`) ne doit jamais faire
+    remonter d'exception -- dégradation vers GDELT seul, comme le documente
+    la docstring de `collect_geopolitical_news`."""
+
+    def _raise(*args, **kwargs):
+        raise web_search.WebSearchUnavailableError("Tavily indisponible : boom")
+
+    monkeypatch.setattr(web_search, "search", _raise)
+    gdelt_results = [{"titre": "GDELT only", "extrait": "", "url": "https://example.com/gdelt-only"}]
+    monkeypatch.setattr(gdelt_client, "search_articles", lambda country, max_records=10, timespan="7d": gdelt_results)
+    monkeypatch.setattr(mistral_client, "complete", lambda system_prompt, user_message, model=None, **kwargs: "Résumé GDELT seul.")
+
+    entry = type("FakeEntry", (), {"id": 1, "created_at": datetime.datetime(2026, 9, 17, tzinfo=datetime.timezone.utc)})()
+    monkeypatch.setattr(
+        geopolitical_veille.geopolitical_knowledge,
+        "add_geopolitical_knowledge",
+        lambda db, content, country, region=None, source_name="", source_url=None: entry,
+    )
+
+    groups = geopolitical_veille.collect_geopolitical_news(db=None, engine=None, scope={"country": "Iran"})
+
+    _, items = groups[0]
+    assert "GDELT" in items[0].source_name
+    assert "1 sources" in items[0].source_name

@@ -14,6 +14,19 @@ Scrapy n'a jamais été ajouté) — même discipline "accurate" que
 structurelle directe, juste scopée par pays plutôt que par entreprise (voir
 `agents/geopolitical_knowledge.py`).
 
+**GDELT, intégré à la même synthèse Mistral, pas une table séparée** —
+demandé directement par l'utilisateur pour compléter Tavily (quelques
+résultats choisis) par une vraie recherche systématique sur un flux
+d'actualité mondial (voir `agents/gdelt_client.py`). `collect_geopolitical_news`
+concatène les résultats Tavily et GDELT avant l'appel Mistral unique : les
+deux sources se recoupent dans la même synthèse, gouvernée par les mêmes
+règles anti-hallucination (`geopolitical_veille_system.txt`), plutôt que
+deux flux parallèles à réconcilier ailleurs. GDELT est gratuit/sans clé
+(pas de contrainte de budget comme Tavily) mais sa Doc API ne renvoie que
+titre/URL par article (pas de texte de page, voir `agents/gdelt_client.py`
+pour pourquoi ce n'est pas comblé par du scraping) — un signal plus pauvre
+que Tavily mais un vrai titre réel reste exploitable par Mistral.
+
 `whitelist_journaux.json` sert de liste de pays (et de noms de journaux de
 référence injectés dans la requête Tavily pour la cibler) — PAS d'URL à
 scraper : le champ `sites` du JSON n'est ici qu'un indice de recherche
@@ -45,7 +58,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-from agents import geopolitical_knowledge, mistral_client, web_search
+from agents import gdelt_client, geopolitical_knowledge, mistral_client, web_search
 from agents.orchestrator.types import CollectedItem
 
 logger = logging.getLogger(__name__)
@@ -183,14 +196,19 @@ def collect_geopolitical_news(db, engine, scope: dict | None) -> list[tuple[str,
     `outlets` — noms de journaux de référence utilisés pour cibler la
     recherche, jamais fetchés directement, voir docstring du module).
 
-    Recherche Tavily + synthèse multi-sources Mistral en un seul appel —
-    même discipline "accurate" que `agents/george_veille.py:collect_company_news`
-    (voir sa docstring) : les résultats indépendants sont fournis ensemble,
+    Recherche Tavily + GDELT (voir `agents/gdelt_client.py`) + synthèse
+    multi-sources Mistral en un seul appel — même discipline "accurate" que
+    `agents/george_veille.py:collect_company_news` (voir sa docstring) : les
+    résultats des deux sources sont fournis ENSEMBLE au même appel Mistral,
     le prompt système (`agents/prompts/geopolitical_veille_system.txt`)
     priorise ce qui est confirmé par plusieurs sources et signale les
-    désaccords/faits à source unique. Aucun résultat Tavily (clé absente,
-    service en échec, rien trouvé) renvoie une liste vide plutôt qu'une
-    erreur — cette fonction est censée tourner sans supervision via un job
+    désaccords/faits à source unique. GDELT est gratuit (pas de garde-fou de
+    quota nécessaire, contrairement à Tavily) et interrogé sans condition ;
+    un échec de l'une ou l'autre source dégrade vers une liste vide pour
+    cette source (jamais une exception, y compris pour Tavily dont
+    `WebSearchUnavailableError` est ici attrapée pour respecter cette
+    garantie) — seule l'absence des DEUX renvoie un groupe vide plutôt qu'une
+    erreur, cette fonction étant censée tourner sans supervision via un job
     planifié."""
     if not scope or not scope.get("country"):
         raise ValueError("La collecte 'actualites_geopolitiques' requiert 'country' dans le périmètre.")
@@ -202,7 +220,13 @@ def collect_geopolitical_news(db, engine, scope: dict | None) -> list[tuple[str,
     # sans jamais les fetcher directement (voir docstring du module).
     outlet_hint = " ".join(scope.get("outlets", [])[:2])
     query = f"{country} {outlet_hint} actualité économique géopolitique tensions sociales conflits"
-    results = web_search.search(query, max_results=RESULTS_PER_COUNTRY)
+    try:
+        tavily_results = web_search.search(query, max_results=RESULTS_PER_COUNTRY)
+    except web_search.WebSearchUnavailableError:
+        logger.warning("Tavily indisponible pour « %s », repli sur GDELT seul.", country)
+        tavily_results = []
+    gdelt_results = gdelt_client.search_articles(country)
+    results = tavily_results + gdelt_results
     if not results:
         return []
 
@@ -213,7 +237,10 @@ def collect_geopolitical_news(db, engine, scope: dict | None) -> list[tuple[str,
     system_prompt = mistral_client.load_system_prompt("geopolitical_veille_system.txt")
     summary = mistral_client.complete(system_prompt, sources_payload, model=mistral_client.MODEL_SMALL)
 
-    source_name = f"Recherche web ({len(results)} sources) — {country}"
+    # "GDELT" n'apparaît que si des résultats GDELT ont effectivement
+    # contribué -- sinon la mention mentirait sur la provenance réelle.
+    source_label = "Recherche web + GDELT" if gdelt_results else "Recherche web"
+    source_name = f"{source_label} ({len(results)} sources) — {country}"
     entry = geopolitical_knowledge.add_geopolitical_knowledge(
         db, content=summary, country=country, region=region, source_name=source_name, source_url=results[0]["url"]
     )

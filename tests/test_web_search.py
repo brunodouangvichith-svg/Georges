@@ -75,3 +75,18 @@ def test_search_handles_missing_fields_gracefully(monkeypatch):
     results = web_search.search("question")
 
     assert results == [{"titre": "", "extrait": "", "url": "https://example.com/no-title"}]
+
+
+def test_search_raises_web_search_unavailable_on_malformed_response(monkeypatch):
+    """Un 200 OK avec `{"results": null}` (payload malformé, pas une panne
+    réseau/HTTP) doit quand même lever `WebSearchUnavailableError`, jamais un
+    `TypeError`/`AttributeError` brut échappant à l'appelant -- même garantie
+    que pour un échec réseau."""
+    monkeypatch.setenv("TAVILY_API_KEY", "tvly-test")
+    monkeypatch.setattr(web_search.httpx, "post", lambda *a, **k: _FakeTavilyResponse(None))
+
+    try:
+        web_search.search("question")
+        assert False, "devait lever WebSearchUnavailableError"
+    except web_search.WebSearchUnavailableError:
+        pass

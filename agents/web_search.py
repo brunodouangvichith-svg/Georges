@@ -46,9 +46,9 @@ def search(query: str, max_results: int = MAX_RESULTS) -> list[dict]:
         )
         response.raise_for_status()
         data = response.json()
-    except Exception as err:  # noqa: BLE001 — échec réseau/API/parsing, tous traités pareil
+        return [
+            {"titre": item.get("title", ""), "extrait": item.get("content", ""), "url": item.get("url", "")}
+            for item in data.get("results", [])
+        ]
+    except Exception as err:  # noqa: BLE001 — échec réseau/API/parsing/forme inattendue, tous traités pareil
         raise WebSearchUnavailableError(f"Recherche web Tavily indisponible : {err}") from err
-    return [
-        {"titre": item.get("title", ""), "extrait": item.get("content", ""), "url": item.get("url", "")}
-        for item in data.get("results", [])
-    ]
