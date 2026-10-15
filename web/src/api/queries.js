@@ -305,3 +305,50 @@ export function useRefreshBonds() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bonds"] }),
   });
 }
+
+// Onglet "Trading" — cycle de vie des décisions (Phase 6, voir
+// api/routers/decisions.py) : proposee → confirmee → sortie_proposee →
+// cloturee. Aucune de ces actions ne passe d'ordre chez un courtier : elles
+// changent seulement le statut de la décision côté George.
+function useInvalidateDecisions() {
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: ["decisions"] });
+    queryClient.invalidateQueries({ queryKey: ["portfolios"] });
+  };
+}
+
+export function useConfirmDecision() {
+  const invalidate = useInvalidateDecisions();
+  return useMutation({
+    mutationFn: ({ id, takeProfit, stopLoss }) =>
+      apiPost(`/decisions/${id}/confirm`, { take_profit: takeProfit, stop_loss: stopLoss }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useProposeLevels() {
+  const invalidate = useInvalidateDecisions();
+  return useMutation({
+    mutationFn: (id) => apiPost(`/decisions/${id}/propose-levels`),
+    onSuccess: invalidate,
+  });
+}
+
+export function useConfirmExit() {
+  const invalidate = useInvalidateDecisions();
+  return useMutation({
+    mutationFn: (id) => apiPost(`/decisions/${id}/confirm-exit`),
+    onSuccess: invalidate,
+  });
+}
+
+export function useProposeDecisions() {
+  const invalidate = useInvalidateDecisions();
+  return useMutation({ mutationFn: () => apiPost("/decisions/propose"), onSuccess: invalidate });
+}
+
+export function useMonitorDecisions() {
+  const invalidate = useInvalidateDecisions();
+  return useMutation({ mutationFn: () => apiPost("/decisions/monitor"), onSuccess: invalidate });
+}

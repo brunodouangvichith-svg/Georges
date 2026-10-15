@@ -4,17 +4,14 @@ const NAV = [
   { key: "univers", label: "Univers", icon: "◆" },
   { key: "paniers", label: "Paniers", icon: "▤" },
   { key: "portefeuille", label: "Mon Portefeuille", icon: "★" },
+  { key: "trading", label: "Trading", icon: "⇅" },
   { key: "obligataire", label: "Obligataire", icon: "≈" },
 ];
-
-// Vues déjà passées au thème "Paper Lab" (voir index.css) ; les autres
-// gardent le thème sombre d'origine en attendant leur refonte.
-const PAPERLAB_VIEWS = new Set(["univers"]);
 
 export default function Layout({ view, setView, children }) {
   return (
     <div
-      className={`grid h-screen ${PAPERLAB_VIEWS.has(view) ? "theme-paperlab" : ""}`}
+      className="grid h-screen"
       // minmax(0, 1fr) : la colonne ne s'élargit jamais au-delà de l'écran ;
       // sur téléphone, c'est la barre du haut qui défile horizontalement.
       style={{ gridTemplateRows: "56px 1fr", gridTemplateColumns: "minmax(0, 1fr)", background: "var(--bg)", color: "var(--text)" }}
