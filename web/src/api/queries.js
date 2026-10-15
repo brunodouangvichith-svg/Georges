@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiDelete, apiFetch, apiPost } from "./client";
+import { apiDelete, apiFetch, apiPatch, apiPost } from "./client";
 
 // Chaque hook correspond à un endpoint de l'API George (Phase 3, voir
 // api/routers/). Pas d'endpoint de lot pour "pattern/prix par titre" côté
@@ -247,5 +247,61 @@ export function useTriggerCollection() {
   return useMutation({
     mutationFn: (taskType) => apiPost("/agents/collect", { task_type: taskType }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agent-activity"] }),
+  });
+}
+
+// Obligataire Watch (onglet "Obligataire", voir api/routers/bonds.py). Toutes
+// les clés commencent par "bonds" : une mise à jour (collecte ou seuil)
+// invalide tout l'onglet d'un coup.
+export function useBondDashboard() {
+  return useQuery({ queryKey: ["bonds", "dashboard"], queryFn: () => apiFetch("/bonds") });
+}
+
+export function useBondHistory(instrument, { limit = 2000 } = {}) {
+  return useQuery({
+    queryKey: ["bonds", "history", instrument, limit],
+    queryFn: () => apiFetch(`/bonds/${instrument}/history`, { limit }),
+    enabled: Boolean(instrument),
+  });
+}
+
+export function useBondThresholds() {
+  return useQuery({ queryKey: ["bonds", "thresholds"], queryFn: () => apiFetch("/bonds/alerts/thresholds") });
+}
+
+export function useBondAlertEvents({ status, limit = 50 } = {}) {
+  return useQuery({
+    queryKey: ["bonds", "events", { status, limit }],
+    queryFn: () => apiFetch("/bonds/alerts/events", { status, limit }),
+  });
+}
+
+export function useBondCollectionRuns({ limit = 10 } = {}) {
+  return useQuery({
+    queryKey: ["bonds", "runs", limit],
+    queryFn: () => apiFetch("/bonds/collection-runs", { limit }),
+  });
+}
+
+export function useBondBulletin() {
+  return useQuery({ queryKey: ["bonds", "bulletin"], queryFn: () => apiFetch("/bonds/bulletin") });
+}
+
+export function useUpdateBondThreshold() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, thresholdPct, enabled }) =>
+      apiPatch(`/bonds/alerts/thresholds/${id}`, { threshold_pct: thresholdPct, enabled }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bonds"] }),
+  });
+}
+
+// Collecte manuelle (4 appels FRED côté serveur, synchrone et rapide —
+// contrairement à useRefreshPrices, pas de polling nécessaire).
+export function useRefreshBonds() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiPost("/bonds/refresh"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bonds"] }),
   });
 }
