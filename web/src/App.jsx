@@ -3,6 +3,7 @@ import Layout from "./components/Layout";
 import Univers from "./views/Univers";
 import Paniers from "./views/Paniers";
 import MonPortefeuille from "./views/MonPortefeuille";
+import Obligataire from "./views/Obligataire";
 
 export default function App() {
   const [view, setView] = useState("univers");
@@ -12,6 +13,7 @@ export default function App() {
       {view === "univers" && <Univers />}
       {view === "paniers" && <Paniers />}
       {view === "portefeuille" && <MonPortefeuille />}
+      {view === "obligataire" && <Obligataire />}
     </Layout>
   );
 }
