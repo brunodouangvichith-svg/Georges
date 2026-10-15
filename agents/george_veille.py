@@ -117,8 +117,7 @@ def collect_company_news(db, engine, scope: dict | None) -> list[tuple[str, list
     suivi — sert à la fois de scope de dédup/lecture dans
     `company_news_knowledge` et de FK valide pour `AgentEvent.symbol`
     lorsqu'il est renseigné ; les entreprises biocarburants/gaz renouvelables
-    n'en ont pas, `symbol=None`, comme pour `AgentEvent.symbol` avec les
-    paires de devises du carry trade — voir CLAUDE.md).
+    n'en ont pas, `symbol=None`).
 
     Recherche Tavily + synthèse multi-sources Mistral en un seul appel —
     même discipline "accurate" que `agents/jane_veille.py:collect_veille_web`

@@ -297,8 +297,8 @@ class MacroIndicatorSnapshot(Base):
     phase du roadmap. Remplace l'écriture uniquement dans `agent_events`/
     `collected_info_quarantine` (toujours faite en parallèle, pour le flux
     d'activité) par une vraie table interrogeable dans le temps, même
-    principe que `CarryRateSnapshot`/`CotPositioning` (panier Carry Trade)
-    et `CompanyFundamentals` (yfinance) déjà présents dans ce fichier.
+    principe que `BondYieldSnapshot` (Obligataire Watch) et
+    `CompanyFundamentals` (yfinance) déjà présents dans ce fichier.
 
     `indicator` réutilise directement le `label` déjà défini dans chaque
     collecteur (ex. "Taux de change EUR/USD") plutôt que d'inventer une
@@ -366,68 +366,11 @@ class EnergyPriceSnapshot(Base):
     )
 
 
-class CurrencyPair(Base):
-    """Univers des paires de devises suivies pour le panier Carry Trade (ad
-    hoc, pas une phase du roadmap) — schéma FX dédié plutôt qu'une
-    réutilisation de `Security`, dont `country`/`sector` (NOT NULL) n'ont
-    aucun sens pour une paire de devises. `symbol` est le ticker yfinance
-    (ex. `"AUDJPY=X"`)."""
-
-    __tablename__ = "currency_pairs"
-
-    symbol: Mapped[str] = mapped_column(Text, primary_key=True)
-    name: Mapped[str] = mapped_column(Text, nullable=False)
-    funding_currency: Mapped[str] = mapped_column(Text, nullable=False)  # devise vendue/empruntée, ex. "JPY"
-    target_currency: Mapped[str] = mapped_column(Text, nullable=False)  # devise achetée/investie, ex. "AUD"
-
-
-class FxPriceOHLCV(Base):
-    """Table Postgres classique (plus une hypertable TimescaleDB, voir
-    `PriceOHLCV` ci-dessus) — historique quotidien d'une paire de devises
-    (`ingestion/fx_rates.py`, via yfinance). Même forme que `PriceOHLCV`
-    mais FK vers `currency_pairs` — `volume` vaut toujours 0 pour le FX spot
-    (yfinance n'en fournit pas de réel), conservé pour rester dans la même
-    forme que `PriceOHLCV` plutôt que de retirer la colonne pour ce seul cas."""
-
-    __tablename__ = "fx_prices_ohlcv"
-
-    symbol: Mapped[str] = mapped_column(ForeignKey("currency_pairs.symbol"), primary_key=True)
-    ts: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), primary_key=True)
-    open: Mapped[float] = mapped_column(Numeric, nullable=False)
-    high: Mapped[float] = mapped_column(Numeric, nullable=False)
-    low: Mapped[float] = mapped_column(Numeric, nullable=False)
-    close: Mapped[float] = mapped_column(Numeric, nullable=False)
-    volume: Mapped[int] = mapped_column(BigInteger, nullable=False)
-
-
-class CarryRateSnapshot(Base):
-    """Dernier taux court connu par devise (`ingestion/carry_rates.py`,
-    FRED) — pas de FK vers `securities`/`currency_pairs` (une devise, pas un
-    titre ni une paire) : réutiliser `AgentEvent.symbol` était tentant mais
-    porte une contrainte de clé étrangère vers `securities.symbol`, où une
-    devise n'a pas sa place (même piège que le collecteur Finnhub, voir
-    CLAUDE.md). Unique par (devise, date d'observation) pour une ingestion
-    idempotente."""
-
-    __tablename__ = "carry_rate_snapshots"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    currency: Mapped[str] = mapped_column(Text, nullable=False)  # code ISO 3 lettres, ex. "JPY"
-    rate_pct: Mapped[float] = mapped_column(Numeric, nullable=False)
-    observed_at: Mapped[datetime.date] = mapped_column(Date, nullable=False)
-    source_name: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime.datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
-    )
-
-    __table_args__ = (UniqueConstraint("currency", "observed_at", name="uq_carry_rate_snapshot_currency_date"),)
-
-
 class CompanyFundamentals(Base):
     """Instantané quotidien des données fondamentales/entreprise d'un titre
     (`ingestion/fundamentals.py`, via yfinance `Ticker.info`) — ad hoc, pas
-    une phase du roadmap. Contrairement à `CarryRateSnapshot`/`CotPositioning`
-    (une seule ligne "dernière valeur connue" par clé), chaque exécution
+    une phase du roadmap. Contrairement à une table qui ne garde que la
+    dernière valeur connue par clé (écrasée à chaque collecte), chaque exécution
     quotidienne insère une nouvelle ligne plutôt que d'écraser la
     précédente : les fondamentaux évoluent lentement mais un vrai historique
     (ex. évolution du PE ou du market cap dans le temps) a de la valeur, pas
@@ -469,8 +412,7 @@ class CompanyFundamentals(Base):
 class Dividend(Base):
     """Un versement de dividende par ligne (`ingestion/fundamentals.py`, via
     yfinance `Ticker.dividends`) — ad hoc, pas une phase du roadmap. Unique
-    par (titre, date ex-dividende) pour une ingestion quotidienne idempotente
-    (même précédent que `CarryRateSnapshot`/`CotPositioning`)."""
+    par (titre, date ex-dividende) pour une ingestion quotidienne idempotente."""
 
     __tablename__ = "dividends"
 
@@ -480,29 +422,6 @@ class Dividend(Base):
     amount: Mapped[float] = mapped_column(Numeric, nullable=False)
 
     __table_args__ = (UniqueConstraint("symbol", "ex_date", name="uq_dividend_symbol_ex_date"),)
-
-
-class CotPositioning(Base):
-    """Dernier positionnement spéculatif connu par devise (rapport CFTC
-    "TFF — Futures Only", `ingestion/cot_positioning.py`) — `lev_money_long`/
-    `lev_money_short` sont les positions "Leveraged Funds" (l'équivalent TFF
-    des spéculateurs). Unique par (devise, date du rapport) pour une
-    ingestion idempotente."""
-
-    __tablename__ = "cot_positioning"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    currency: Mapped[str] = mapped_column(Text, nullable=False)
-    report_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
-    lev_money_long: Mapped[int] = mapped_column(Integer, nullable=False)
-    lev_money_short: Mapped[int] = mapped_column(Integer, nullable=False)
-    open_interest_all: Mapped[int] = mapped_column(Integer, nullable=False)
-    source_name: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime.datetime] = mapped_column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
-    )
-
-    __table_args__ = (UniqueConstraint("currency", "report_date", name="uq_cot_positioning_currency_date"),)
 
 
 class PriceHistoryLong(Base):
@@ -541,10 +460,9 @@ class CompanyNewsKnowledge(Base):
 
     `symbol` est nullable et volontairement SANS clé étrangère vers
     `securities.symbol` : les entreprises du secteur biocarburants/gaz
-    renouvelables ciblées ici n'y ont pour la plupart aucune ligne — même
-    piège de contrainte déjà rencontré et évité pour `AgentEvent.symbol`
-    avec les paires de devises du carry trade (voir CLAUDE.md, section
-    Panier Carry Trade)."""
+    renouvelables ciblées ici n'y ont pour la plupart aucune ligne — une
+    FK stricte casserait l'ingestion dès la première entreprise hors
+    univers suivi."""
 
     __tablename__ = "company_news_knowledge"
 

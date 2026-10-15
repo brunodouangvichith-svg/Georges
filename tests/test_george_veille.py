@@ -137,8 +137,9 @@ def test_collect_company_news_reports_deduped_when_add_company_knowledge_skips(m
 
 def test_collect_company_news_for_untracked_biofuel_company_has_no_symbol(monkeypatch):
     """Une entreprise du secteur biocarburants/gaz renouvelables n'a pas de
-    ligne `securities` -- `symbol` doit rester `None` de bout en bout (voir
-    le piège FK déjà documenté pour AgentEvent.symbol/carry trade)."""
+    ligne `securities` -- `symbol` doit rester `None` de bout en bout (une
+    FK stricte casserait l'ingestion dès la première entreprise hors
+    univers suivi)."""
     monkeypatch.setattr(
         web_search,
         "search",

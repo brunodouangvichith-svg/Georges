@@ -4,7 +4,6 @@ const NAV = [
   { key: "univers", label: "Univers", icon: "◆" },
   { key: "paniers", label: "Paniers", icon: "▤" },
   { key: "portefeuille", label: "Mon Portefeuille", icon: "★" },
-  { key: "carry-trade", label: "Carry Trade", icon: "⇄" },
 ];
 
 export default function Layout({ view, setView, children }) {

@@ -2,7 +2,7 @@
 première suivie (Brent, WTI, gaz naturel, produits raffinés), alimenté par
 `ingestion/energy_prices.py` (OilPriceAPI, import quotidien planifié via
 GitHub Actions). Liste brute, pas de `Page[T]` — même précédent que
-`GET /baskets`/`GET /carry-trade` (6 lignes au maximum)."""
+`GET /baskets` (6 lignes au maximum)."""
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
