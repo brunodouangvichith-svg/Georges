@@ -38,6 +38,7 @@ export function buildRadar(securities, patternsBySymbol, decisionsMap) {
         name: s.name,
         angle,
         confidence: pattern ? Math.max(0, Math.min(100, pattern.confidence)) : null,
+        decision,
         lighten: decision != null && decision !== "Achat" && decision !== "Renforcer" && decision !== "Surveiller",
       });
       slot++;

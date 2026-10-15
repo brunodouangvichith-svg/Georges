@@ -1,8 +1,8 @@
 import Sparkline from "./Sparkline";
 import { useSecurityPatterns, useSecurityPrices } from "../api/queries";
-import { decisionTagClass } from "../data";
+import { decisionColor, decisionTagClass } from "../data";
 
-const cell = { padding: "5px 6px", borderBottom: "1px solid var(--accent-dim)" };
+const cell = { padding: "8px 10px", borderBottom: "1px solid var(--hairline)" };
 
 // Une ligne = ses propres requêtes (pattern le plus récent + un court
 // historique pour le sparkline) — pas d'endpoint de lot côté API pour ça,
@@ -15,6 +15,7 @@ export default function WatchlistRow({ security, decision, selected, onSelect })
   const pattern = patternsPage?.items?.[0] ?? null;
   const closes = (pricesPage?.items ?? []).map((bar) => bar.close);
   const decisionType = decision?.decision_type ?? null;
+  const color = decisionType ? decisionColor(decisionType) : "var(--text-dim)";
 
   return (
     <tr
@@ -27,41 +28,37 @@ export default function WatchlistRow({ security, decision, selected, onSelect })
       }}
       tabIndex={0}
       aria-selected={selected}
-      className="cursor-pointer"
-      style={{
-        background: selected ? "var(--panel-alt)" : "transparent",
-        outline: selected ? "1px solid var(--text)" : "none",
-        outlineOffset: -1,
-      }}
+      className="cursor-pointer gd-focus"
+      style={{ background: selected ? "var(--panel-alt)" : "transparent" }}
     >
       <td style={cell}>
-        <div className="font-bold text-[12px]">{security.symbol}</div>
-        <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
+        <div className="mono font-semibold text-[13px]">{security.symbol}</div>
+        <div className="text-[12.5px]" style={{ color: "var(--text-dim)" }}>
           {security.name}
         </div>
       </td>
-      <td className="text-[11.5px]" style={{ ...cell, color: "var(--text-dim)" }}>
+      <td className="text-[12.5px]" style={{ ...cell, color: "var(--text-dim)" }}>
         {security.sector}
       </td>
       <td style={cell}>
         {closes.length > 1 ? (
-          <Sparkline points={closes} color="var(--text)" width={80} height={20} />
+          <Sparkline points={closes} color={color} width={80} height={22} />
         ) : (
           <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
             —
           </span>
         )}
       </td>
-      <td className="text-[11.5px]" style={cell}>
+      <td className="text-[12.5px]" style={cell}>
         {pattern?.pattern_type ?? "—"}
       </td>
       <td style={cell}>
         {pattern ? (
-          <div className="flex items-center gap-1.5">
-            <div style={{ width: 64, height: 6, background: "var(--accent-dim)" }}>
-              <div style={{ height: 6, width: `${pattern.confidence}%`, background: "var(--text)" }} />
+          <div className="flex items-center">
+            <div className="w-[64px] h-[5px] rounded-full overflow-hidden" style={{ background: "var(--panel-alt)" }}>
+              <div className="h-full rounded-full" style={{ width: `${pattern.confidence}%`, background: color }} />
             </div>
-            <span className="text-[11.5px] font-semibold">{Math.round(pattern.confidence)}%</span>
+            <span className="mono text-xs ml-2">{Math.round(pattern.confidence)}%</span>
           </div>
         ) : (
           <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>

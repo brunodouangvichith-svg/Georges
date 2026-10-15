@@ -1,13 +1,15 @@
 import { useMemo } from "react";
+import { decisionColor } from "../data";
 import { buildRadar, CX, CY, R_IN, R_TICK_IN, R_TICK_OUT, R_BAR, BAR_SCALE } from "./universRadarLayout";
 
-// Radar de l'univers (écran Univers, thème Paper Lab).
+// Radar de l'univers (écran Univers).
 //
 // - Chaque trait autour du cercle = une valeur suivie, regroupées par
 //   secteur (`securities.sector`, le plus gros secteur en premier).
 // - La barre radiale = la confiance de la dernière figure détectée
-//   (0-100 → 0-50 px) ; pas de barre = aucune figure. Trait épais au-delà de
-//   75 %, pointillé quand la décision en cours est un allègement.
+//   (0-100 → 0-50 px) ; pas de barre = aucune figure. Couleur = décision en
+//   cours (vert achat/renfort, orange surveiller, rouge alléger, bleu aucune),
+//   trait épais au-delà de 75 %.
 // - La valeur sélectionnée est surlignée et sa trajectoire de prix réelle
 //   (les `closes` passés en prop) traverse le cercle, avec une perle toutes
 //   les ~N séances et un double anneau sur la dernière.
@@ -87,20 +89,22 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
   );
   const trail = useMemo(() => buildTrail(closes), [closes]);
 
+  // Barres regroupées par couleur de décision (vert achat/renfort, orange
+  // surveiller, rouge alléger, bleu sans décision) et par épaisseur
+  // (≥ 75 % de confiance = trait épais) : un <path> par groupe.
   const paths = useMemo(() => {
     let ticks = "";
-    let bars = "";
-    let strong = "";
-    let light = "";
+    const groups = new Map();
     for (const it of items) {
       ticks += segment(it.angle, R_TICK_IN, R_TICK_OUT);
       if (it.confidence == null || it.symbol === selectedSymbol) continue;
-      const seg = segment(it.angle, R_BAR, R_BAR + it.confidence * BAR_SCALE);
-      if (it.lighten) light += seg;
-      else if (it.confidence >= 75) strong += seg;
-      else bars += seg;
+      const color = it.decision ? decisionColor(it.decision) : "var(--accent)";
+      const strong = it.confidence >= 75;
+      const key = `${color}|${strong}`;
+      if (!groups.has(key)) groups.set(key, { color, strong, d: "" });
+      groups.get(key).d += segment(it.angle, R_BAR, R_BAR + it.confidence * BAR_SCALE);
     }
-    return { ticks, bars, strong, light };
+    return { ticks, groups: [...groups.values()] };
   }, [items, selectedSymbol]);
 
   const selected = items.find((it) => it.symbol === selectedSymbol) ?? null;
@@ -124,28 +128,35 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
   return (
     <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={ariaLabel} style={{ width: "100%", height: "auto", display: "block" }}>
       <circle cx={CX} cy={CY} r={R_IN} fill="var(--panel)" />
-      <path d={FLOW_D} fill="none" stroke="var(--text)" strokeWidth={0.55} strokeOpacity={0.3} aria-hidden="true" />
+      <path d={FLOW_D} fill="none" stroke="var(--accent)" strokeWidth={0.55} strokeOpacity={0.28} aria-hidden="true" />
       {trail.d && (
         <g aria-hidden="true">
-          <path d={trail.d} fill="none" stroke="var(--text)" strokeWidth={1} />
+          <path d={trail.d} fill="none" stroke="var(--text)" strokeWidth={1.2} />
           {trail.beads.map((b, i) => (
             <circle
               key={i}
               cx={b.x}
               cy={b.y}
               r={b.last ? 6.5 : 3.6}
-              fill="var(--bg)"
-              stroke="var(--text)"
+              fill="var(--panel)"
+              stroke={b.last ? "var(--accent)" : "var(--text)"}
               strokeWidth={b.last ? 2 : 1}
             />
           ))}
         </g>
       )}
-      <circle cx={CX} cy={CY} r={R_IN + 2} fill="none" stroke="var(--text)" strokeWidth={1.2} />
-      <path d={paths.ticks} fill="none" stroke="var(--text)" strokeWidth={0.8} />
-      <path d={paths.bars} fill="none" stroke="var(--text)" strokeWidth={1} strokeOpacity={0.55} />
-      <path d={paths.strong} fill="none" stroke="var(--text)" strokeWidth={2.2} />
-      <path d={paths.light} fill="none" stroke="var(--text)" strokeWidth={1.4} strokeDasharray="2 2" />
+      <circle cx={CX} cy={CY} r={R_IN + 2} fill="none" stroke="var(--hairline)" strokeWidth={1.2} />
+      <path d={paths.ticks} fill="none" stroke="var(--text-dim)" strokeWidth={0.8} />
+      {paths.groups.map((g) => (
+        <path
+          key={`${g.color}|${g.strong}`}
+          d={g.d}
+          fill="none"
+          stroke={g.color}
+          strokeWidth={g.strong ? 2.4 : 1.2}
+          strokeOpacity={g.strong ? 1 : 0.7}
+        />
+      ))}
       {selected && (
         <path
           d={
@@ -167,7 +178,7 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
           fontFamily="IBM Plex Mono, monospace"
           fontSize={11}
           fontWeight={600}
-          fill="var(--text)"
+          fill="var(--text-dim)"
           stroke="var(--panel)"
           strokeWidth={4}
           paintOrder="stroke"
@@ -184,7 +195,7 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
           fontSize={11.5}
           fontWeight={700}
           fill="var(--text)"
-          stroke="var(--bg)"
+          stroke="var(--panel)"
           strokeWidth={4}
           paintOrder="stroke"
         >

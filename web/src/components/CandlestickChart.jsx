@@ -49,10 +49,6 @@ export default function CandlestickChart({
   stopLoss = null,
   width = 290,
   height = 150,
-  // Thème Paper Lab (écran Univers) : bougies haussières creuses,
-  // baissières pleines, TP plein / SL en contour — la direction se lit à la
-  // forme, pas à la couleur.
-  mono = false,
 }) {
   const { markers, hlines } = useMemo(
     () => buildOverlay(context, indexOffset, candles?.length ?? 0),
@@ -107,10 +103,10 @@ export default function CandlestickChart({
   const bodyW = Math.max(2, step * 0.55);
   const x = (i) => i * step + step / 2;
 
-  const priceTag = (level, fill, textFill, key, stroke = "none", dash = "4,3") => (
+  const priceTag = (level, fill, textFill, key) => (
     <g key={key}>
-      <line x1={0} y1={scaleY(level)} x2={width - 46} y2={scaleY(level)} stroke={stroke === "none" ? fill : stroke} strokeWidth={1.3} strokeDasharray={dash} />
-      <rect x={width - 45} y={scaleY(level) - 8} width={45} height={16} rx={mono ? 0 : 3} fill={fill} stroke={stroke} />
+      <line x1={0} y1={scaleY(level)} x2={width - 46} y2={scaleY(level)} stroke={fill} strokeWidth={1.3} strokeDasharray="4,3" />
+      <rect x={width - 45} y={scaleY(level) - 8} width={45} height={16} rx={3} fill={fill} />
       <text x={width - 22.5} y={scaleY(level) + 4} textAnchor="middle" fontSize={9.5} fontFamily="IBM Plex Mono" fill={textFill} fontWeight={600}>
         {level.toFixed(2)}
       </text>
@@ -119,19 +115,12 @@ export default function CandlestickChart({
 
   return (
     <svg width={width} height={height} style={{ display: "block" }}>
-      {takeProfit != null &&
-        (mono
-          ? priceTag(takeProfit, "var(--text)", "var(--bg)", "tp", "none", "6,3")
-          : priceTag(takeProfit, "var(--positive)", "#08130d", "tp"))}
-      {stopLoss != null &&
-        (mono
-          ? priceTag(stopLoss, "var(--bg)", "var(--text)", "sl", "var(--text)", "1,3")
-          : priceTag(stopLoss, "var(--negative)", "#1a0a0a", "sl"))}
+      {takeProfit != null && priceTag(takeProfit, "var(--positive)", "#08130d", "tp")}
+      {stopLoss != null && priceTag(stopLoss, "var(--negative)", "#1a0a0a", "sl")}
 
       {candles.map((c, i) => {
         const up = c.close >= c.open;
-        const color = mono ? "var(--text)" : up ? "var(--positive)" : "var(--negative)";
-        const bodyFill = mono && up ? "var(--panel-alt)" : color;
+        const color = up ? "var(--positive)" : "var(--negative)";
         const yOpen = scaleY(c.open);
         const yClose = scaleY(c.close);
         const yHigh = scaleY(c.high);
@@ -141,7 +130,7 @@ export default function CandlestickChart({
         return (
           <g key={i}>
             <line x1={x(i)} y1={yHigh} x2={x(i)} y2={yLow} stroke={color} strokeWidth={1} />
-            <rect x={x(i) - bodyW / 2} y={bodyTop} width={bodyW} height={bodyH} fill={bodyFill} stroke={mono ? color : "none"} strokeWidth={mono ? 0.8 : 0} />
+            <rect x={x(i) - bodyW / 2} y={bodyTop} width={bodyW} height={bodyH} fill={color} />
           </g>
         );
       })}
@@ -163,7 +152,7 @@ export default function CandlestickChart({
       ))}
 
       <line x1={0} y1={scaleY(lastClose)} x2={width - 46} y2={scaleY(lastClose)} stroke="var(--text-dim)" strokeWidth={1} strokeDasharray="2,3" />
-      <rect x={width - 45} y={scaleY(lastClose) - 8} width={45} height={16} rx={mono ? 0 : 3} fill="var(--panel-alt)" stroke="var(--hairline)" />
+      <rect x={width - 45} y={scaleY(lastClose) - 8} width={45} height={16} rx={3} fill="var(--panel-alt)" stroke="var(--hairline)" />
       <text x={width - 22.5} y={scaleY(lastClose) + 4} textAnchor="middle" fontSize={9.5} fontFamily="IBM Plex Mono" fill="var(--text)" fontWeight={600}>
         {lastClose.toFixed(2)}
       </text>

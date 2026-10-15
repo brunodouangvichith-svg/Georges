@@ -23,10 +23,10 @@ import {
   useTriggerCollection,
 } from "../api/queries";
 
-// Écran Univers — thème "Paper Lab" (noir et blanc, monospace, radar
-// central, grille de panneaux). Le thème lui-même est porté par Layout
-// (classe .theme-paperlab, voir index.css). Toutes les données affichées
-// viennent de l'API : aucun chiffre de démonstration ici.
+// Écran Univers — radar central + grille de panneaux, dans le thème George
+// d'origine (bleu nuit, blanc, accent bleu ; vert/orange/rouge pour les
+// décisions). Toutes les données affichées viennent de l'API : aucun
+// chiffre de démonstration ici.
 
 const ENERGY_LABELS = {
   BRENT_CRUDE_USD: "Brent",
@@ -41,6 +41,7 @@ const ENERGY_ORDER = Object.keys(ENERGY_LABELS);
 const FILTERS = ["Tous", "Achat", "Surveiller", "Alléger"];
 
 const AGENT_STATUS_LABEL = { validated: "validé", pending: "en attente", quarantine: "quarantaine" };
+const AGENT_STATUS_COLOR = { validated: "var(--positive)", pending: "var(--warning)", quarantine: "var(--negative)" };
 
 const BULLISH = new Set(["Achat", "Renforcer"]);
 
@@ -54,17 +55,17 @@ function EmptyState({ children }) {
 
 function Panel({ title, children, className = "", style, label }) {
   return (
-    <section aria-label={label ?? title} className={`pl-panel ${className}`} style={style}>
-      <h2 className="pl-label">{title}</h2>
+    <section aria-label={label ?? title} className={`gd-panel ${className}`} style={style}>
+      <h2 className="gd-label">{title}</h2>
       {children}
     </section>
   );
 }
 
-function Counter({ label, value, ratio }) {
+function Counter({ label, value, ratio, color = "var(--accent)" }) {
   return (
     <div className="flex flex-col gap-1.5" style={{ minWidth: 110, flex: "1 1 110px", maxWidth: 190 }}>
-      <div className="pl-label" style={{ color: "var(--text-dim)" }}>
+      <div className="gd-label" style={{ color: "var(--text-dim)" }}>
         {label}
       </div>
       <div className="text-[18px] font-bold">{value}</div>
@@ -74,7 +75,8 @@ function Counter({ label, value, ratio }) {
             position: "absolute",
             inset: 0,
             width: `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`,
-            background: "var(--text)",
+            background: color,
+            borderRadius: 2,
           }}
         />
       </div>
@@ -280,37 +282,38 @@ export default function Univers() {
           {/* En-tête + compteurs */}
           <header className="flex flex-wrap items-start justify-between" style={{ gap: "16px 40px" }}>
             <div className="flex flex-col gap-1" style={{ minWidth: 260 }}>
-              <h1 className="m-0 text-[20px] font-bold tracking-wide">
-                GEORGE / <span>Univers</span>
+              <h1 className="display m-0 text-[20px] font-semibold">
+                George / <span>Univers</span>
               </h1>
-              <div className="pl-label" style={{ color: "var(--text-dim)" }}>
+              <div className="gd-label" style={{ color: "var(--text-dim)" }}>
                 CAC 40 &amp; CAC Mid 60 → décisions expliquées
               </div>
             </div>
             <div className="flex flex-wrap justify-end" style={{ gap: "14px 28px", flex: "1 1 600px" }}>
               <Counter label="Valeurs" value={securitiesLoading ? "…" : securities.length} ratio={1} />
               <Counter label="Figures actives" value={activePatterns} ratio={activePatterns / universeSize} />
-              <Counter label="Achat" value={decisionCounts.achat} ratio={decisionCounts.achat / universeSize} />
+              <Counter label="Achat" value={decisionCounts.achat} ratio={decisionCounts.achat / universeSize} color="var(--positive)" />
               <Counter
                 label="Surveiller"
                 value={decisionCounts.surveiller}
                 ratio={decisionCounts.surveiller / universeSize}
+                color="var(--warning)"
               />
-              <Counter label="Alléger" value={decisionCounts.alleger} ratio={decisionCounts.alleger / universeSize} />
+              <Counter label="Alléger" value={decisionCounts.alleger} ratio={decisionCounts.alleger / universeSize} color="var(--negative)" />
             </div>
           </header>
 
           {/* Barre d'actions */}
           <div
             className="flex flex-wrap items-center gap-2.5 pt-2 text-[11px]"
-            style={{ borderTop: "1px solid var(--text)", color: "var(--text-dim)" }}
+            style={{ borderTop: "1px solid var(--hairline)", color: "var(--text-dim)" }}
           >
             <span>{securitiesLoading ? "Chargement…" : `${securities.length} valeurs suivies`}</span>
             <div className="ml-auto flex flex-wrap gap-1.5">
-              <button className="pl-btn" onClick={refreshPrices} disabled={refreshPricesMutation.isPending}>
+              <button className="gd-btn" onClick={refreshPrices} disabled={refreshPricesMutation.isPending}>
                 {refreshPricesMutation.isPending ? "Mise à jour…" : "Mise à jour des prix"}
               </button>
-              <button className="pl-btn" onClick={triggerMacroCollection} disabled={triggerCollectionMutation.isPending}>
+              <button className="gd-btn" onClick={triggerMacroCollection} disabled={triggerCollectionMutation.isPending}>
                 {triggerCollectionMutation.isPending ? "Collecte…" : "Collecte macro"}
               </button>
             </div>
@@ -323,7 +326,7 @@ export default function Univers() {
           )}
 
           {/* Radar + valeur sélectionnée */}
-          <div className="flex flex-wrap gap-4 pb-3.5" style={{ borderBottom: "1px solid var(--text)" }}>
+          <div className="flex flex-wrap gap-4 pb-3.5" style={{ borderBottom: "1px solid var(--hairline)" }}>
             <section aria-label="Radar de l'univers" style={{ flex: "999 1 520px", minWidth: 0 }}>
               {securities.length > 0 ? (
                 <UniversRadar
@@ -342,8 +345,8 @@ export default function Univers() {
             </section>
 
             <div className="flex flex-col gap-3" style={{ flex: "1 1 340px", minWidth: 0 }}>
-              <section aria-label="Valeur sélectionnée" className="flex flex-col gap-2 p-3" style={{ border: "1px solid var(--text)" }}>
-                <h2 className="pl-label">Valeur sélectionnée</h2>
+              <section aria-label="Valeur sélectionnée" className="gd-panel">
+                <h2 className="gd-label">Valeur sélectionnée</h2>
                 {!selectedSecurity ? (
                   <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
                     Sélectionnez une valeur dans la liste.
@@ -366,13 +369,12 @@ export default function Univers() {
                         takeProfit={selectedDecision?.take_profit ?? null}
                         stopLoss={selectedDecision?.stop_loss ?? null}
                         width={320}
-                        mono
                       />
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-dim)" }}>
                       {selectedPattern ? (
                         <>
-                          <span className="inline-block w-3.5" style={{ borderTop: "1.5px dashed var(--text)" }} />
+                          <span className="inline-block w-3.5" style={{ borderTop: "1.5px dashed var(--accent)" }} />
                           Figure détectée par George : {selectedPattern.pattern_type}
                         </>
                       ) : (
@@ -400,29 +402,29 @@ export default function Univers() {
                     {selectedDecision && (
                       <>
                         <div className="grid gap-2 text-center" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-                          <div className="p-2" style={{ background: "var(--text)", color: "var(--bg)" }}>
-                            <div className="pl-label">Take-profit</div>
-                            <div className="text-[14px] font-bold mt-0.5">
+                          <div className="p-2 rounded-lg border" style={{ borderColor: "var(--hairline)" }}>
+                            <div className="gd-label">Take-profit</div>
+                            <div className="mono text-[15px] font-semibold mt-0.5" style={{ color: "var(--positive)" }}>
                               {selectedDecision.take_profit != null ? `${selectedDecision.take_profit.toFixed(2)} €` : "—"}
                             </div>
                           </div>
-                          <div className="p-2" style={{ border: "1px solid var(--text)" }}>
-                            <div className="pl-label">Stop-loss</div>
-                            <div className="text-[14px] font-bold mt-0.5">
+                          <div className="p-2 rounded-lg border" style={{ borderColor: "var(--hairline)" }}>
+                            <div className="gd-label">Stop-loss</div>
+                            <div className="mono text-[15px] font-semibold mt-0.5" style={{ color: "var(--negative)" }}>
                               {selectedDecision.stop_loss != null ? `${selectedDecision.stop_loss.toFixed(2)} €` : "—"}
                             </div>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <button
-                            className="pl-btn pl-btn--solid"
+                            className="gd-btn gd-btn--solid"
                             style={{ flex: "1 1 140px", minHeight: 40 }}
                             onClick={() => setDockMsg(`Niveaux validés pour ${selectedSymbol}.`)}
                           >
                             Valider les niveaux
                           </button>
                           <button
-                            className="pl-btn"
+                            className="gd-btn"
                             style={{ flex: "1 1 100px", minHeight: 40 }}
                             onClick={() => setDockMsg(`Ajustement des niveaux pour ${selectedSymbol} en cours de discussion.`)}
                           >
@@ -437,7 +439,7 @@ export default function Univers() {
 
               {selectedSecurity && (
                 <Panel title="Raisonnement / George">
-                  <pre className="m-0 text-[11.5px] leading-relaxed whitespace-pre-wrap" style={{ fontFamily: "inherit" }}>
+                  <pre className="mono m-0 text-[11.5px] leading-relaxed whitespace-pre-wrap">
                     {reasoningLines.map((line, i) => `${String(31 + i).padStart(3, "0")}  ${line}`).join("\n")}
                   </pre>
                   <p className="m-0 text-[12px] leading-relaxed" style={{ color: "var(--text-dim)" }}>
@@ -448,7 +450,7 @@ export default function Univers() {
                   </p>
                   {selectedDecision && (
                     <button
-                      className="pl-btn self-start"
+                      className="gd-btn self-start"
                       disabled={explainMutation.isPending}
                       onClick={() => {
                         const title = `George explique — ${selectedSymbol}`;
@@ -492,7 +494,7 @@ export default function Univers() {
               )}
             </Panel>
 
-            <Panel title="Watchlist / figures actives" label="Watchlist" className="pl-wide">
+            <Panel title="Watchlist / figures actives" label="Watchlist" className="gd-wide">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
                   Univers suivi — CAC 40 &amp; CAC Mid 60
@@ -501,7 +503,7 @@ export default function Univers() {
                   {FILTERS.map((f) => (
                     <button
                       key={f}
-                      className="pl-btn"
+                      className="gd-btn"
                       style={{ minHeight: 30, padding: "0 10px", fontSize: 10.5 }}
                       aria-pressed={filter === f}
                       onClick={() => setFilter(f)}
@@ -525,11 +527,11 @@ export default function Univers() {
                           <th
                             key={h}
                             scope="col"
-                            className="pl-label text-left"
+                            className="gd-label text-left"
                             style={{
                               color: "var(--text-dim)",
                               padding: "4px 6px",
-                              borderBottom: "1px solid var(--text)",
+                              borderBottom: "1px solid var(--hairline)",
                               position: "sticky",
                               top: 0,
                               background: "var(--panel)",
@@ -595,7 +597,7 @@ export default function Univers() {
                 </dl>
                 {(selectedDividendsPage?.items?.length ?? 0) > 0 && (
                   <>
-                    <div className="pl-label mt-1" style={{ color: "var(--text-dim)" }}>
+                    <div className="gd-label mt-1" style={{ color: "var(--text-dim)" }}>
                       Derniers dividendes
                     </div>
                     {selectedDividendsPage.items.map((d) => (
@@ -624,13 +626,13 @@ export default function Univers() {
                         <span className="font-bold overflow-hidden text-ellipsis whitespace-nowrap">{a.name}</span>
                         <span style={{ color: "var(--text-dim)" }}>{AGENT_STATUS_LABEL[a.status] ?? a.status}</span>
                       </div>
-                      <div style={{ height: 8, background: "var(--accent-dim)" }}>
+                      <div style={{ height: 6, borderRadius: 3, background: "var(--panel-alt)" }}>
                         <div
-                          className={a.status === "validated" ? "" : "pl-hatch"}
                           style={{
-                            height: 8,
+                            height: 6,
+                            borderRadius: 3,
                             width: `${Math.round((a.count / maxAgentCount) * 100)}%`,
-                            background: a.status === "validated" ? "var(--text)" : undefined,
+                            background: AGENT_STATUS_COLOR[a.status] ?? "var(--text-dim)",
                           }}
                         />
                       </div>
@@ -639,7 +641,7 @@ export default function Univers() {
                 </div>
               )}
               <div className="text-[10.5px]" style={{ color: "var(--text-dim)" }}>
-                barre = événements récents · plein = validé, hachures = en attente ou quarantaine
+                barre = événements récents · vert validé, orange en attente, rouge quarantaine
               </div>
             </Panel>
 
@@ -655,10 +657,10 @@ export default function Univers() {
                     return (
                       <div key={e.commodity_code} className="contents">
                         <span style={{ color: "var(--text-dim)" }}>{ENERGY_LABELS[e.commodity_code] ?? e.commodity_code}</span>
-                        <span className="text-right">
+                        <span className="mono text-right">
                           {e.price.toFixed(2)} {e.currency}
                         </span>
-                        <span className="text-right font-bold">
+                        <span className="mono text-right font-semibold" style={{ color: up ? "var(--positive)" : "var(--negative)" }}>
                           <span aria-hidden="true">{up ? "▲" : "▼"}</span>
                           <span className="sr-only">{up ? "en hausse" : "en baisse"}</span>
                           {e.change_24h_pct != null ? ` ${Math.abs(e.change_24h_pct).toFixed(2)} %` : ""}
@@ -675,13 +677,13 @@ export default function Univers() {
           <section
             aria-label="Poser une question à George"
             className="sticky bottom-0 flex flex-col gap-2 px-3 py-2.5 mb-4"
-            style={{ border: "1px solid var(--text)", background: "var(--bg)" }}
+            style={{ border: "1px solid var(--hairline)", borderRadius: 10, background: "var(--panel)" }}
           >
             <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
               {dockMsg ?? "Sélectionnez une valeur pour voir le raisonnement complet, ou posez une question."}
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
-              <label htmlFor="ask-george" className="pl-label whitespace-nowrap">
+              <label htmlFor="ask-george" className="gd-label whitespace-nowrap">
                 George explique ›
               </label>
               <input
@@ -692,8 +694,9 @@ export default function Univers() {
                   minWidth: 0,
                   minHeight: 40,
                   fontFamily: "inherit",
-                  border: "1px solid var(--text)",
-                  background: "var(--bg)",
+                  border: "1px solid var(--hairline)",
+                  borderRadius: 8,
+                  background: "var(--panel-alt)",
                   color: "var(--text)",
                 }}
                 placeholder="Poser une question à George…"
@@ -706,7 +709,7 @@ export default function Univers() {
                   }
                 }}
               />
-              <button className="pl-btn pl-btn--solid inline-flex items-center gap-2" style={{ minHeight: 40 }} onClick={voice.start}>
+              <button className="gd-btn gd-btn--solid inline-flex items-center gap-2" style={{ minHeight: 40 }} onClick={voice.start}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                   <rect x="9" y="3" width="6" height="11" rx="3" />
                   <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
