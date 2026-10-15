@@ -1,15 +1,13 @@
 import Sparkline from "./Sparkline";
 import { useSecurityPatterns, useSecurityPrices } from "../api/queries";
-import { decisionColor } from "../data";
+import { decisionTagClass } from "../data";
 
-function tagStyle(dec) {
-  const color = decisionColor(dec);
-  return { color, background: `color-mix(in srgb, ${color} 15%, transparent)` };
-}
+const cell = { padding: "5px 6px", borderBottom: "1px solid var(--accent-dim)" };
 
 // Une ligne = ses propres requêtes (pattern le plus récent + un court
 // historique pour le sparkline) — pas d'endpoint de lot côté API pour ça,
-// voir la note dans src/api/queries.js.
+// voir la note dans src/api/queries.js. Le radar de l'écran Univers
+// réutilise la même clé de cache pour la figure (useLatestPatterns).
 export default function WatchlistRow({ security, decision, selected, onSelect }) {
   const { data: patternsPage } = useSecurityPatterns(security.symbol, { limit: 1 });
   const { data: pricesPage } = useSecurityPrices(security.symbol, { limit: 20 });
@@ -17,40 +15,53 @@ export default function WatchlistRow({ security, decision, selected, onSelect })
   const pattern = patternsPage?.items?.[0] ?? null;
   const closes = (pricesPage?.items ?? []).map((bar) => bar.close);
   const decisionType = decision?.decision_type ?? null;
-  const sparkColor = decisionType ? decisionColor(decisionType) : "var(--text-dim)";
 
   return (
     <tr
       onClick={() => onSelect(security.symbol)}
-      className="cursor-pointer border-b"
-      style={{ borderColor: "var(--hairline)", background: selected ? "var(--panel-alt)" : "transparent" }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(security.symbol);
+        }
+      }}
+      tabIndex={0}
+      aria-selected={selected}
+      className="cursor-pointer"
+      style={{
+        background: selected ? "var(--panel-alt)" : "transparent",
+        outline: selected ? "1px solid var(--text)" : "none",
+        outlineOffset: -1,
+      }}
     >
-      <td className="px-2.5 py-2.5">
-        <div className="mono font-semibold text-[13px]">{security.symbol}</div>
-        <div className="text-[13px]" style={{ color: "var(--text-dim)" }}>
+      <td style={cell}>
+        <div className="font-bold text-[12px]">{security.symbol}</div>
+        <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
           {security.name}
         </div>
       </td>
-      <td className="px-2.5 py-2.5 text-[13px]" style={{ color: "var(--text-dim)" }}>
+      <td className="text-[11.5px]" style={{ ...cell, color: "var(--text-dim)" }}>
         {security.sector}
       </td>
-      <td className="px-2.5 py-2.5">
+      <td style={cell}>
         {closes.length > 1 ? (
-          <Sparkline points={closes} color={sparkColor} />
+          <Sparkline points={closes} color="var(--text)" width={80} height={20} />
         ) : (
           <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
             —
           </span>
         )}
       </td>
-      <td className="px-2.5 py-2.5 text-[13px]">{pattern?.pattern_type ?? "—"}</td>
-      <td className="px-2.5 py-2.5">
+      <td className="text-[11.5px]" style={cell}>
+        {pattern?.pattern_type ?? "—"}
+      </td>
+      <td style={cell}>
         {pattern ? (
-          <div className="flex items-center">
-            <div className="w-[70px] h-[5px] rounded-full overflow-hidden" style={{ background: "var(--panel-alt)" }}>
-              <div className="h-full rounded-full" style={{ width: `${pattern.confidence}%`, background: sparkColor }} />
+          <div className="flex items-center gap-1.5">
+            <div style={{ width: 64, height: 6, background: "var(--accent-dim)" }}>
+              <div style={{ height: 6, width: `${pattern.confidence}%`, background: "var(--text)" }} />
             </div>
-            <span className="mono text-xs ml-2">{Math.round(pattern.confidence)}%</span>
+            <span className="text-[11.5px] font-semibold">{Math.round(pattern.confidence)}%</span>
           </div>
         ) : (
           <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
@@ -58,11 +69,9 @@ export default function WatchlistRow({ security, decision, selected, onSelect })
           </span>
         )}
       </td>
-      <td className="px-2.5 py-2.5">
+      <td style={cell}>
         {decisionType ? (
-          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-md" style={tagStyle(decisionType)}>
-            {decisionType}
-          </span>
+          <span className={decisionTagClass(decisionType)}>{decisionType}</span>
         ) : (
           <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
             —

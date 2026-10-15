@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiDelete, apiFetch, apiPost } from "./client";
 
 // Chaque hook correspond à un endpoint de l'API George (Phase 3, voir
@@ -20,6 +21,27 @@ export function useSecurityPatterns(symbol, { limit = 1 } = {}) {
     queryKey: ["security-patterns", symbol, limit],
     queryFn: () => apiFetch(`/securities/${symbol}/patterns`, { limit }),
     enabled: Boolean(symbol),
+  });
+}
+
+// Dernière figure de chaque titre, pour le radar de l'écran Univers. Même
+// clé de cache que useSecurityPatterns(symbol, { limit: 1 }) : les lignes
+// de la watchlist lancent déjà ces requêtes, le radar les réutilise sans
+// appel supplémentaire. Renvoie { [symbol]: pattern | null }.
+export function useLatestPatterns(symbols) {
+  // combine stable tant que la liste de titres ne change pas : React Query
+  // ne recalcule alors le dictionnaire que quand une requête évolue.
+  const combine = useCallback(
+    (results) => Object.fromEntries(symbols.map((symbol, i) => [symbol, results[i]?.data?.items?.[0] ?? null])),
+    [symbols]
+  );
+  return useQueries({
+    queries: symbols.map((symbol) => ({
+      queryKey: ["security-patterns", symbol, 1],
+      queryFn: () => apiFetch(`/securities/${symbol}/patterns`, { limit: 1 }),
+      enabled: Boolean(symbol),
+    })),
+    combine,
   });
 }
 
