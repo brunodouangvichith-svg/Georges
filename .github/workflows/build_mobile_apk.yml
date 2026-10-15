@@ -1,0 +1,52 @@
+name: Build mobile APK (release)
+
+# Déclenchement manuel uniquement (build à la demande, pas à chaque push) --
+# aucun sandbox de développement ne peut construire cet APK localement (SDK
+# Android absent, dl.google.com -- SDK Android + dépôt Maven Google --
+# bloqué par la politique réseau de l'environnement cloud), donc ce
+# workflow tourne sur les runners GitHub (hors de cette restriction).
+#
+# Reprend exactement les --dart-define de scripts/build-mobile-release.ps1
+# (build local Windows, voir ce script) : sans eux, mobile/lib/core/env.dart
+# retombe sur des défauts vides pour SUPABASE_URL/SUPABASE_ANON_KEY et
+# "Continuer avec Google"/"Continuer avec Yahoo" plante
+# (PlatformException ACTIVITY_NOT_FOUND). La clé Supabase ci-dessous est
+# volontairement en clair : c'est la clé anon/publishable publique du
+# projet Supabase george-auth, conçue par Supabase pour être embarquée
+# côté client -- même clé déjà compilée telle quelle dans chaque APK
+# distribué, donc pas un secret GitHub Actions.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: flutter pub get
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: flutter build apk --release
+        working-directory: mobile
+        run: |
+          flutter build apk --release \
+            --dart-define=API_BASE_URL=https://george-api-mmut.onrender.com \
+            --dart-define=SUPABASE_URL=https://wziegminwqfrhshnrwes.supabase.co \
+            --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6aWVnbWlud3FmcmhzaG5yd2VzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NDMxODcsImV4cCI6MjEwMTIxOTE4N30.YXpMTXeoK_AHbhAj8UpnKPoxok_zwC21A3RUE-ZHIy0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: george-mobile-apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
