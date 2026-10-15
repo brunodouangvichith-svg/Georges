@@ -12,6 +12,7 @@ vi.mock("../api/queries", () => ({
   useExplainDecision: vi.fn(),
   useProposeDecisions: vi.fn(),
   useMonitorDecisions: vi.fn(),
+  usePerformance: vi.fn(),
 }));
 
 import {
@@ -20,6 +21,7 @@ import {
   useDecisions,
   useExplainDecision,
   useMonitorDecisions,
+  usePerformance,
   useProposeDecisions,
   useProposeLevels,
 } from "../api/queries";
@@ -43,6 +45,7 @@ describe("Trading", () => {
     useExplainDecision.mockReturnValue(mutation());
     useProposeDecisions.mockReturnValue(mutation());
     useMonitorDecisions.mockReturnValue(mutation());
+    usePerformance.mockReturnValue({ data: undefined, isLoading: false, isError: false });
   });
 
   it("shows one column per lifecycle status with its decisions", () => {
@@ -87,5 +90,31 @@ describe("Trading", () => {
     fireEvent.click(screen.getByRole("button", { name: "Surveiller les positions", hidden: true }));
     act(() => m.mutate.mock.calls[0][1].onSuccess([{ id: 9 }, { id: 10 }]));
     expect(screen.getByText("2 sortie(s) proposée(s).")).toBeInTheDocument();
+  });
+
+  it("shows realised performance and the result on closed cards", () => {
+    byStatus.cloturee = [{ ...base, id: 6, symbol: "TTE.PA", decision_type: "Achat", status: "cloturee", entry_price: 58, take_profit: 63, stop_loss: 55 }];
+    usePerformance.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        summary: { count: 2, wins: 1, losses: 1, win_rate_pct: 50, avg_pnl_pct: 1.5, avg_gain_pct: 8.62, avg_loss_pct: -5.62, total_pnl_pct: 3, best_pnl_pct: 8.62, worst_pnl_pct: -5.62 },
+        by_pattern: [{ pattern_type: "Bull Flag", count: 2, wins: 1, losses: 1, win_rate_pct: 50, avg_pnl_pct: 1.5, avg_gain_pct: 8.62, avg_loss_pct: -5.62, total_pnl_pct: 3, best_pnl_pct: 8.62, worst_pnl_pct: -5.62 }],
+        trades: [{ decision_id: 6, symbol: "TTE.PA", decision_type: "Achat", pattern_type: "Bull Flag", entry_price: 58, result: "take_profit_hit", pnl_pct: 8.62, closed_at: "2026-09-30T08:00:00Z" }],
+      },
+    });
+    render(<Trading />);
+    expect(screen.getAllByText("50 %")).toHaveLength(2); // résumé + tableau par figure
+    expect(screen.getAllByText("-5.62 %").length).toBeGreaterThan(0);
+    expect(screen.getByText(/pas significatifs/)).toBeInTheDocument();
+    expect(screen.getByText(/Take-profit touché/)).toBeInTheDocument();
+    expect(screen.getAllByText("+8.62 %").length).toBeGreaterThan(0);
+    byStatus.cloturee = [];
+  });
+
+  it("says when no position has been closed yet", () => {
+    usePerformance.mockReturnValue({ isLoading: false, isError: false, data: { summary: { count: 0, wins: 0, losses: 0 }, by_pattern: [], trades: [] } });
+    render(<Trading />);
+    expect(screen.getByText(/aucune position clôturée pour l'instant/i)).toBeInTheDocument();
   });
 });

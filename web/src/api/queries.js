@@ -318,6 +318,13 @@ function useInvalidateDecisions() {
   };
 }
 
+// Gains/pertes réalisés des décisions clôturées (GET /decisions/performance,
+// calculs dans engine/performance.py). Clé sous "decisions" : une sortie
+// confirmée invalide aussi la performance.
+export function usePerformance() {
+  return useQuery({ queryKey: ["decisions", "performance"], queryFn: () => apiFetch("/decisions/performance") });
+}
+
 export function useConfirmDecision() {
   const invalidate = useInvalidateDecisions();
   return useMutation({

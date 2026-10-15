@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import Counter from "../components/Counter";
 import ResponsePopup from "../components/ResponsePopup";
 import {
   useBaskets,
@@ -9,7 +10,7 @@ import {
   useGeorgeIndex,
   useSecurities,
 } from "../api/queries";
-import { decisionColor, scoreColor } from "../data";
+import { decisionTagClass, scoreColor } from "../data";
 
 const PIE_COLORS = ["#ffb020", "#3ddc84", "#5aa9ff", "#ff5c5c", "#c58aff", "#4fd6c5", "#e0975a", "#8b95a1", "#e85d9a", "#7fd6ff"];
 const DECISION_TYPES = ["Achat", "Renforcer", "Surveiller", "Alléger"];
@@ -83,8 +84,8 @@ export default function Paniers() {
   const apiUnreachable = basketsError || securitiesError || decisionsError;
 
   const baskets = basketsPage ?? [];
-  const securities = securitiesPage?.items ?? [];
-  const decisions = decisionsPage?.items ?? [];
+  const securities = useMemo(() => securitiesPage?.items ?? [], [securitiesPage]);
+  const decisions = useMemo(() => decisionsPage?.items ?? [], [decisionsPage]);
 
   const sectorAgg = useMemo(() => {
     const map = {};
@@ -194,8 +195,11 @@ export default function Paniers() {
     });
   }, [decisions, minConfidence, decisionTypeFilter, statusFilter, sortKey, sortDir]);
 
+  const typeColor = { Achat: "var(--positive)", Renforcer: "var(--positive)", Surveiller: "var(--warning)", Alléger: "var(--negative)" };
+  const decisionTotal = Math.max(1, decisions.length);
+
   return (
-    <div className="h-full overflow-y-auto gd-scrollbar px-5 py-6">
+    <div className="h-full overflow-y-auto gd-scrollbar">
       <ResponsePopup popup={popup} onClose={() => setPopup(null)} />
       {createModalOpen && (
         <div
@@ -251,57 +255,115 @@ export default function Paniers() {
           </div>
         </div>
       )}
-      <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
-          <div>
-            <div className="text-xs tracking-widest" style={{ color: "var(--warning)", letterSpacing: "0.2em" }}>
-              GEORGE · PANIERS
-            </div>
-            <h1 className="display text-2xl sm:text-3xl font-bold mt-1">Paniers &amp; décisions</h1>
-            <div className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
-              Univers suivi regroupé par panier — George Index calculé en temps réel depuis la base.
-            </div>
+      <div className="mx-auto flex flex-col gap-3.5 px-5 pt-4 pb-6" style={{ maxWidth: 1440 }}>
+        {/* En-tête + compteurs (même disposition qu'Univers) */}
+        <header className="flex flex-wrap items-start justify-between" style={{ gap: "16px 40px" }}>
+          <div className="flex flex-col gap-1" style={{ minWidth: 260 }}>
+            <h1 className="display m-0 text-[20px] font-semibold">
+              George / <span>Paniers</span>
+            </h1>
+            <div className="gd-label">Paniers &amp; décisions → George Index en temps réel</div>
           </div>
-          <div className="flex gap-3 text-xs">
-            {[
-              ["Paniers", baskets.length, "var(--positive)"],
-              ["Titres suivis", securities.length, "var(--warning)"],
-              ["Décisions", decisions.length, "var(--text)"],
-            ].map(([label, value, color]) => (
-              <div key={label} className="px-3 py-2 rounded-lg border" style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}>
-                <div style={{ color: "var(--text-dim)" }}>{label}</div>
-                <div className="font-bold text-[15px]" style={{ color }}>
-                  {value}
-                </div>
-              </div>
+          <div className="flex flex-wrap justify-end" style={{ gap: "14px 28px", flex: "1 1 600px" }}>
+            <Counter label="Paniers" value={baskets.length} ratio={1} />
+            <Counter label="Titres suivis" value={securities.length} ratio={1} />
+            <Counter label="Décisions" value={decisions.length} ratio={1} />
+            {DECISION_TYPES.map((t) => (
+              <Counter
+                key={t}
+                label={t}
+                value={decisionCounts[t] ?? 0}
+                ratio={(decisionCounts[t] ?? 0) / decisionTotal}
+                color={typeColor[t]}
+              />
             ))}
           </div>
-        </div>
+        </header>
 
-        {apiUnreachable && (
-          <div
-            className="text-[13px] p-4 rounded-lg border mb-6"
-            style={{ borderColor: "var(--negative)", color: "var(--negative)" }}
-          >
-            Impossible de contacter l'API — vérifiez qu'elle tourne (<code>uvicorn api.main:app --reload</code>).
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
-          <div className="flex items-center gap-3">
-            <div className="text-xs tracking-wider" style={{ color: "var(--warning)" }}>
-              DÉCISIONS RÉCENTES
-            </div>
+        {/* Barre d'actions */}
+        <div
+          className="flex flex-wrap items-center gap-2.5 pt-2 text-[11px]"
+          style={{ borderTop: "1px solid var(--hairline)", color: "var(--text-dim)" }}
+        >
+          <span>
+            {visibleDecisions.length} décision{visibleDecisions.length > 1 ? "s" : ""} affichée
+            {visibleDecisions.length > 1 ? "s" : ""} sur {decisions.length}
+          </span>
+          <div className="ml-auto flex flex-wrap gap-1.5">
             {checkedIds.size > 0 && (
-              <button
-                onClick={() => setCreateModalOpen(true)}
-                className="text-[11.5px] px-3 py-1.5 rounded-full font-semibold"
-                style={{ background: "var(--accent)", color: "#fff" }}
-              >
+              <button onClick={() => setCreateModalOpen(true)} className="gd-btn gd-btn--solid">
                 Créer un portefeuille ({checkedIds.size})
               </button>
             )}
           </div>
+        </div>
+
+        {apiUnreachable && (
+          <div className="text-[13px] p-4 rounded-lg border" style={{ borderColor: "var(--negative)", color: "var(--negative)" }}>
+            Impossible de contacter l'API — vérifiez qu'elle tourne (<code>uvicorn api.main:app --reload</code>).
+          </div>
+        )}
+
+        {/* Zone principale : George Index + répartition sectorielle */}
+        <div className="flex flex-wrap gap-4 pb-3.5" style={{ borderBottom: "1px solid var(--hairline)" }}>
+          <section aria-label="George Index par panier" className="gd-panel" style={{ flex: "999 1 520px" }}>
+            <h2 className="gd-label">George Index par panier</h2>
+            {basketsLoading && (
+              <div className="text-xs" style={{ color: "var(--text-dim)" }}>
+                Chargement…
+              </div>
+            )}
+            {!basketsLoading && baskets.length === 0 && (
+              <div className="text-xs" style={{ color: "var(--text-dim)" }}>
+                Aucun panier. Lancez <code>python -m ingestion.seed_demo</code>.
+              </div>
+            )}
+            <div className="grid gap-x-6 gap-y-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 240px), 1fr))" }}>
+              {baskets.map((b) => (
+                <BasketIndexRow key={b.id} basketId={b.id} basketName={b.name} />
+              ))}
+            </div>
+          </section>
+          <section aria-label="Répartition de l'univers par secteur" className="gd-panel" style={{ flex: "1 1 340px" }}>
+            <h2 className="gd-label">Répartition de l'univers par secteur</h2>
+            {sectorAgg.length === 0 ? (
+              <div className="text-xs mt-3" style={{ color: "var(--text-dim)" }}>
+                Aucun titre en base.
+              </div>
+            ) : (
+              <>
+                <div style={{ height: 260 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={sectorAgg} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={1}>
+                        {sectorAgg.map((_, i) => (
+                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="var(--panel)" />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(v, n) => [`${v} titre${v > 1 ? "s" : ""}`, n]}
+                        contentStyle={{ background: "var(--panel-alt)", border: "1px solid var(--hairline)", borderRadius: 6, fontSize: 12, color: "var(--text)" }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                  {sectorAgg.map((s, i) => (
+                    <div key={s.name} className="flex items-center gap-1 text-xs" style={{ color: "var(--text-dim)" }}>
+                      <span className="inline-block w-2 h-2 rounded-sm" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                      {s.name} · {s.value}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+
+        {/* Décisions */}
+        <section aria-label="Décisions récentes" className="gd-panel">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="gd-label">Décisions récentes</h2>
           <div className="flex flex-wrap items-center gap-4 text-xs">
             <div className="flex items-center gap-1.5">
               <span style={{ color: "var(--text-dim)" }}>Décision</span>
@@ -365,17 +427,17 @@ export default function Paniers() {
               ))}
             </div>
           </div>
-        </div>
+          </div>
         {decisions.length === 0 ? (
-          <div className="text-xs mb-6" style={{ color: "var(--text-dim)" }}>
+          <div className="text-xs" style={{ color: "var(--text-dim)" }}>
             Aucune décision enregistrée. Lancez <code>python -m engine.propose_decisions</code> ou <code>python -m ingestion.seed_demo</code>.
           </div>
         ) : visibleDecisions.length === 0 ? (
-          <div className="text-xs mb-6" style={{ color: "var(--text-dim)" }}>
+          <div className="text-xs" style={{ color: "var(--text-dim)" }}>
             Aucune décision avec une confiance ≥ {minConfidence}%.
           </div>
         ) : (
-          <div className="rounded-lg overflow-hidden border mb-6" style={{ borderColor: "var(--hairline)" }}>
+          <div className="rounded-lg overflow-hidden border" style={{ borderColor: "var(--hairline)" }}>
             <div className="overflow-x-auto gd-scrollbar">
               <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 680 }}>
                 <thead>
@@ -419,9 +481,7 @@ export default function Paniers() {
                     >
                       <td className="px-3 py-2 font-bold">{d.symbol}</td>
                       <td className="px-3 py-2">
-                        <span className="font-bold" style={{ color: decisionColor(d.decision_type) }}>
-                          {d.decision_type}
-                        </span>
+                        <span className={decisionTagClass(d.decision_type)}>{d.decision_type}</span>
                       </td>
                       <td className="px-3 py-2" style={{ color: "var(--text-dim)" }}>
                         {STATUS_LABELS[d.status] ?? d.status}
@@ -451,80 +511,9 @@ export default function Paniers() {
           </div>
         )}
 
-        <div className="grid grid-cols-4 gap-3 mb-6">
-          {DECISION_TYPES.map((status) => (
-            <div key={status} className="rounded-lg p-3 border" style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}>
-              <div className="text-xs" style={{ color: "var(--text-dim)" }}>
-                {status}
-              </div>
-              <div className="font-bold" style={{ color: decisionColor(status) }}>
-                {decisionCounts[status] ?? 0}
-              </div>
-            </div>
-          ))}
-        </div>
+        </section>
 
-        <div className="grid lg:grid-cols-5 gap-5 mb-6">
-          <div className="lg:col-span-2 rounded-lg p-4 border" style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}>
-            <div className="text-xs mb-3 tracking-wider" style={{ color: "var(--warning)" }}>
-              GEORGE INDEX PAR PANIER
-            </div>
-            {basketsLoading && (
-              <div className="text-xs" style={{ color: "var(--text-dim)" }}>
-                Chargement…
-              </div>
-            )}
-            {!basketsLoading && baskets.length === 0 && (
-              <div className="text-xs" style={{ color: "var(--text-dim)" }}>
-                Aucun panier. Lancez <code>python -m ingestion.seed_demo</code>.
-              </div>
-            )}
-            <div className="space-y-3">
-              {baskets.map((b) => (
-                <BasketIndexRow key={b.id} basketId={b.id} basketName={b.name} />
-              ))}
-            </div>
-          </div>
-
-          <div className="lg:col-span-3 rounded-lg p-4 border" style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}>
-            <div className="text-xs mb-1 tracking-wider" style={{ color: "var(--warning)" }}>
-              RÉPARTITION DE L'UNIVERS PAR SECTEUR
-            </div>
-            {sectorAgg.length === 0 ? (
-              <div className="text-xs mt-3" style={{ color: "var(--text-dim)" }}>
-                Aucun titre en base.
-              </div>
-            ) : (
-              <>
-                <div style={{ height: 260 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={sectorAgg} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={1}>
-                        {sectorAgg.map((_, i) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="var(--panel)" />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(v, n) => [`${v} titre${v > 1 ? "s" : ""}`, n]}
-                        contentStyle={{ background: "var(--panel-alt)", border: "1px solid var(--hairline)", borderRadius: 6, fontSize: 12, color: "var(--text)" }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-                  {sectorAgg.map((s, i) => (
-                    <div key={s.name} className="flex items-center gap-1 text-xs" style={{ color: "var(--text-dim)" }}>
-                      <span className="inline-block w-2 h-2 rounded-sm" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                      {s.name} · {s.value}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="text-xs mt-5 pb-6" style={{ color: "var(--text-dim)" }}>
+        <div className="text-xs" style={{ color: "var(--text-dim)" }}>
           Données réelles issues de l'API — la plupart des décisions ci-dessus viennent de figures chartistes réellement
           détectées (<code>engine.propose_decisions</code>, Phase 6) ; quelques-unes plus anciennes restent un jeu de
           démonstration illustratif (<code>ingestion/seed_demo.py</code>).

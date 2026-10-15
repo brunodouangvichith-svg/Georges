@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CandlestickChart from "../components/CandlestickChart";
 import GeorgeIndexTile from "../components/GeorgeIndexTile";
+import Counter from "../components/Counter";
 import ResponsePopup from "../components/ResponsePopup";
 import UniversRadar from "../components/UniversRadar";
 import WatchlistRow from "../components/WatchlistRow";
@@ -62,27 +63,6 @@ function Panel({ title, children, className = "", style, label }) {
   );
 }
 
-function Counter({ label, value, ratio, color = "var(--accent)" }) {
-  return (
-    <div className="flex flex-col gap-1.5" style={{ minWidth: 110, flex: "1 1 110px", maxWidth: 190 }}>
-      <div className="gd-label" style={{ color: "var(--text-dim)" }}>
-        {label}
-      </div>
-      <div className="text-[18px] font-bold">{value}</div>
-      <div style={{ height: 3, background: "var(--hairline)", position: "relative" }}>
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`,
-            background: color,
-            borderRadius: 2,
-          }}
-        />
-      </div>
-    </div>
-  );
-}
 
 const time = (iso) => new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 

@@ -142,6 +142,45 @@ class DecisionOut(BaseModel):
     created_at: datetime
 
 
+class PerformanceStatsOut(BaseModel):
+    """Statistiques de performance réalisée (voir `engine/performance.py`) —
+    toutes les moyennes valent `null` quand il n'y a rien à moyenner, jamais
+    un 0 fabriqué. `total_pnl_pct` est une somme de %, pas un rendement
+    composé."""
+
+    count: int
+    wins: int
+    losses: int
+    win_rate_pct: float | None
+    avg_pnl_pct: float | None
+    avg_gain_pct: float | None
+    avg_loss_pct: float | None
+    total_pnl_pct: float | None
+    best_pnl_pct: float | None
+    worst_pnl_pct: float | None
+
+
+class PatternPerformanceOut(PerformanceStatsOut):
+    pattern_type: str
+
+
+class TradeOutcomeOut(BaseModel):
+    decision_id: int
+    symbol: str
+    decision_type: str
+    pattern_type: str | None
+    entry_price: float
+    result: str  # "take_profit_hit" | "stop_loss_hit"
+    pnl_pct: float
+    closed_at: datetime
+
+
+class PerformanceOut(BaseModel):
+    summary: PerformanceStatsOut
+    by_pattern: list[PatternPerformanceOut]
+    trades: list[TradeOutcomeOut]
+
+
 class ConfirmDecisionRequest(BaseModel):
     take_profit: float | None = None
     stop_loss: float | None = None
