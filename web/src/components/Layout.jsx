@@ -8,9 +8,16 @@ const NAV = [
 
 export default function Layout({ view, setView, children }) {
   return (
-    <div className="grid h-screen" style={{ gridTemplateRows: "56px 1fr" }}>
+    // L'écran Univers porte le thème "Paper Lab" (voir index.css) ; les
+    // autres vues gardent le thème sombre d'origine en attendant leur refonte.
+    <div
+      className={`grid h-screen ${view === "univers" ? "theme-paperlab" : ""}`}
+      // minmax(0, 1fr) : la colonne ne s'élargit jamais au-delà de l'écran ;
+      // sur téléphone, c'est la barre du haut qui défile horizontalement.
+      style={{ gridTemplateRows: "56px 1fr", gridTemplateColumns: "minmax(0, 1fr)", background: "var(--bg)", color: "var(--text)" }}
+    >
       <div
-        className="flex items-center gap-7 px-5 border-b"
+        className="flex items-center gap-7 px-5 border-b overflow-x-auto whitespace-nowrap"
         style={{ borderColor: "var(--hairline)", background: "var(--panel)" }}
       >
         <div className="display font-bold text-[19px] tracking-tight">

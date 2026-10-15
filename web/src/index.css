@@ -34,6 +34,111 @@ body {
   font-family: "Space Grotesk", sans-serif;
 }
 
+/* Thème "Paper Lab" — écran Univers : noir et blanc, tout en monospace.
+   Les variables sont redéfinies sur le conteneur (Layout), donc les
+   composants qui lisent var(--text), var(--panel)… basculent d'eux-mêmes.
+   Les décisions ne passent plus par la couleur mais par la forme (plein,
+   contour, hachures) — voir decisionTagClass dans src/data.js. */
+.theme-paperlab {
+  --bg: #ffffff;
+  --panel: #fbfbf9;
+  --panel-alt: #ecece8;
+  --hairline: #cfcfcb;
+  --text: #111111;
+  --text-dim: #4a4a4a;
+  --accent: #111111;
+  --accent-dim: #e2e2de;
+  --positive: #111111;
+  --warning: #111111;
+  --negative: #111111;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+.theme-paperlab .display {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+.pl-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.pl-panel {
+  border: 1px solid var(--hairline);
+  background: var(--panel);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Panneau qui occupe deux colonnes de la grille, sauf sur écran étroit où
+   la grille n'en a qu'une (sinon débordement horizontal). */
+.pl-wide {
+  grid-column: span 2;
+}
+@media (max-width: 720px) {
+  .pl-wide {
+    grid-column: auto;
+  }
+}
+
+.pl-btn {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--text);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.pl-btn--solid,
+.pl-btn[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
+.pl-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.theme-paperlab button:focus-visible,
+.theme-paperlab input:focus-visible,
+.theme-paperlab tr:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.pl-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0 7px;
+  border: 1px solid var(--text);
+  color: var(--text);
+  line-height: 18px;
+}
+.pl-tag-achat {
+  background: var(--text);
+  color: var(--bg);
+}
+.pl-tag-alleger {
+  background-image: repeating-linear-gradient(135deg, var(--bg) 0 3px, var(--hairline) 3px 5px);
+}
+.pl-hatch {
+  background-image: repeating-linear-gradient(135deg, var(--text) 0 2px, var(--accent-dim) 2px 5px);
+}
+
 .gd-scrollbar::-webkit-scrollbar {
   height: 6px;
   width: 6px;
