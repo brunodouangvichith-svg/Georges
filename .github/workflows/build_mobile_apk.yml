@@ -15,6 +15,15 @@ name: Build mobile APK (release)
 # projet Supabase george-auth, conçue par Supabase pour être embarquée
 # côté client -- même clé déjà compilée telle quelle dans chaque APK
 # distribué, donc pas un secret GitHub Actions.
+#
+# Upload vers Firebase App Distribution (projet Firebase worldchecks-c8a93,
+# app Android com.george.george_mobile) en plus de l'artifact GitHub --
+# authentification via le secret FIREBASE_SERVICE_ACCOUNT (clé JSON du
+# compte de service par défaut firebase-adminsdk-fbsvc@worldchecks-c8a93,
+# rôle Editor). `groups` est vide : aucun groupe de testeurs connu au
+# moment d'écrire ce workflow -- ajouter `groups: "nom-du-groupe"` une fois
+# un groupe créé dans la console App Distribution, sinon le build est
+# uploadé mais personne n'est notifié automatiquement.
 on:
   workflow_dispatch: {}
 
@@ -50,3 +59,11 @@ jobs:
           name: george-mobile-apk
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
+
+      - name: Upload to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: 1:364565195267:android:4946b5d273d813c4677c36
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          file: mobile/build/app/outputs/flutter-apk/app-release.apk
+          releaseNotes: "Build automatique depuis GitHub Actions (commit ${{ github.sha }})."
