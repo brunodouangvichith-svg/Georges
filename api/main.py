@@ -16,7 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from agents.mistral_client import MistralUnavailableError
 from api.auth import SupabaseUnavailableError, require_user
-from api.routers import agents, baskets, carry_trade, chat, decisions, energy, jane, news, portfolios, prices, reports, securities, share
+from api.routers import agents, baskets, bonds, carry_trade, chat, decisions, energy, jane, news, portfolios, prices, reports, securities, share
 from notifications.email_client import EmailUnavailableError
 
 # Sans ceci, le niveau racine par défaut de Python (WARNING) rend tout
@@ -120,6 +120,7 @@ app.include_router(carry_trade.router, dependencies=[Depends(require_user)])
 app.include_router(news.router, dependencies=[Depends(require_user)])
 app.include_router(energy.router, dependencies=[Depends(require_user)])
 app.include_router(share.router, dependencies=[Depends(require_user)])
+app.include_router(bonds.router, dependencies=[Depends(require_user)])
 
 
 @app.get("/health", tags=["meta"])

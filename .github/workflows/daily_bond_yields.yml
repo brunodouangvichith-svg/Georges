@@ -1,0 +1,41 @@
+name: Import quotidien Obligataire Watch
+
+# Même pattern que les autres workflows quotidiens de ce projet (aucun
+# scheduler Celery/Redis/Airflow, Phase 7 non câblée) : GitHub Actions lance
+# directement les scripts d'ingestion contre la base réelle (DATABASE_URL en
+# secret du dépôt).
+#
+# 07h UTC, décalé d'1h après daily_energy_import.yml (06h UTC) pour éviter
+# tout empilement au même créneau, et à distance des créneaux 20h/21h/22h déjà
+# utilisés par les autres jobs quotidiens/hebdomadaires de ce dépôt.
+#
+# `seed_bond_alert_thresholds` tourne avant `bond_yields` à chaque exécution
+# (idempotent par contrainte DB, voir son docstring) plutôt qu'une seule fois
+# manuellement au déploiement — plus simple, et auto-réparateur si jamais la
+# table venait à être vidée.
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Amorce les seuils d'alerte par défaut (ingestion.seed_bond_alert_thresholds)
+        run: python -m ingestion.seed_bond_alert_thresholds
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Rendements obligataires (ingestion.bond_yields)
+        run: python -m ingestion.bond_yields
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Évalue les seuils d'alerte (engine.bond_alerts)
+        run: python -c "from ingestion.db import get_session_factory; from engine.bond_alerts import evaluate_all_thresholds; db = get_session_factory()(); created = evaluate_all_thresholds(db); print(f'{len(created)} evenement(s) d_alerte cree(s).')"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

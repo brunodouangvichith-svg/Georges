@@ -343,3 +343,88 @@ class ShareEmailRequest(BaseModel):
 class ShareEmailResponse(BaseModel):
     sent: bool
     chart_attached: bool
+
+
+class BondYieldCardOut(BaseModel):
+    """Une carte de synthèse Obligataire Watch (ad hoc, pas une phase du
+    roadmap) — voir `engine/compute_bond_yields.py`. `value_pct`/
+    `observed_at`/`fetched_at`/`source_*` restent `null` ensemble quand
+    l'instrument n'a encore jamais été collecté avec succès, jamais une
+    valeur fabriquée. `variations_bps["24h"]` est `null` pour un instrument
+    à fréquence mensuelle (OAT/Bund) — pas d'observation à comparer à 24h
+    d'écart, voir `engine/compute_bond_yields.py` pour le détail des
+    tolérances par fenêtre."""
+
+    instrument: str
+    value_pct: float | None
+    observed_at: str | None
+    fetched_at: str | None
+    source_name: str | None
+    source_url: str | None
+    variations_bps: dict[str, float | None]
+
+
+class BondDashboardOut(BaseModel):
+    cards: list[BondYieldCardOut]
+    spread_oat_bund_bps: float | None
+    us_curve_slope_bps: float | None
+
+
+class BondYieldHistoryPointOut(BaseModel):
+    observed_at: date
+    value_pct: float
+
+
+class BondAlertThresholdOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    instrument: str
+    direction: str
+    threshold_pct: float
+    enabled: bool
+    updated_at: datetime
+
+
+class BondAlertThresholdUpdateRequest(BaseModel):
+    """Tous les champs optionnels — seuls ceux fournis sont modifiés (voir
+    `api/routers/bonds.py:update_bond_alert_threshold`)."""
+
+    threshold_pct: float | None = None
+    enabled: bool | None = None
+
+
+class BondAlertEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    instrument: str
+    threshold_pct: float
+    observed_value_pct: float
+    direction: str
+    status: str
+    triggered_at: datetime
+    message: str
+
+
+class BondCollectionRunOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    started_at: datetime
+    finished_at: datetime | None
+    status: str
+    instruments_requested: int
+    instruments_succeeded: int
+    error_summary: str | None
+
+
+class BondBulletinOut(BaseModel):
+    bulletin: str
+    generated_at: datetime
+
+
+class BondRefreshResponse(BaseModel):
+    instruments_updated: list[str]
+    instruments_failed: list[str]
+    alerts_created: int

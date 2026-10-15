@@ -593,3 +593,121 @@ class GeopoliticalKnowledge(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+# Codes stables identifiant chaque instrument obligataire suivi (Obligataire
+# Watch, ad hoc, pas une phase du roadmap) — utilisés comme clé dans
+# BondYieldSnapshot/BondAlertThreshold/BondAlertEvent plutôt que le libellé
+# français affiché (qui peut changer sans casser les requêtes/jointures).
+BOND_INSTRUMENT_OAT_FR_10Y = "OAT_FR_10Y"
+BOND_INSTRUMENT_BUND_DE_10Y = "BUND_DE_10Y"
+BOND_INSTRUMENT_UST_US_10Y = "UST_US_10Y"
+BOND_INSTRUMENT_UST_US_2Y = "UST_US_2Y"
+
+# Pseudo-instrument : jamais une ligne de `BondYieldSnapshot` (ce n'est pas
+# une valeur directement observée chez une source externe, mais calculée à
+# partir de OAT_FR_10Y/BUND_DE_10Y) — reconnu spécifiquement par
+# `engine/bond_alerts.py:latest_value_by_instrument` pour pouvoir configurer
+# un seuil d'alerte dessus comme pour un instrument normal.
+BOND_INSTRUMENT_SPREAD_OAT_BUND_BPS = "SPREAD_OAT_BUND_BPS"
+
+
+class BondYieldSnapshot(Base):
+    """Observation d'un rendement obligataire (Obligataire Watch, ad hoc,
+    pas une phase du roadmap) — `ingestion/bond_yields.py`. `instrument` est
+    un des `BOND_INSTRUMENT_*` ci-dessus, pas de FK vers `securities` : un
+    rendement souverain n'est pas un titre coté qui y aurait une ligne.
+
+    `observed_at`/`fetched_at` sont délibérément distincts (demandé
+    explicitement par le cahier des charges) : la date de la cotation n'est
+    pas celle de la collecte — des séries FRED/OCDE mensuelles peuvent être
+    collectées plusieurs jours après leur publication réelle. Unique sur
+    (instrument, observed_at) pour une ingestion idempotente."""
+
+    __tablename__ = "bond_yield_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    instrument: Mapped[str] = mapped_column(Text, nullable=False)
+    value_pct: Mapped[float] = mapped_column(Numeric, nullable=False)
+    observed_at: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    fetched_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+    source_name: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (UniqueConstraint("instrument", "observed_at", name="uq_bond_yield_snapshot_instrument_date"),)
+
+
+class BondAlertThreshold(Base):
+    """Seuil d'alerte configurable pour un instrument obligataire
+    (Obligataire Watch) — modifiable via l'API sans toucher au code, comme
+    demandé explicitement par le cahier des charges. `direction` : "above"
+    (alerte si value_pct dépasse threshold_pct) ou "below" (alerte si
+    value_pct passe sous threshold_pct) — les deux franchissements prévus
+    par le cahier des charges (hausse et retour sous le seuil) sont deux
+    lignes distinctes, pas un seul seuil bidirectionnel ambigu.
+
+    `threshold_pct` : nom conservé par cohérence avec `BondYieldSnapshot
+    .value_pct`, mais pour `BOND_INSTRUMENT_SPREAD_OAT_BUND_BPS` cette
+    colonne contient une valeur en **points de base**, pas en pourcentage
+    (ex. 150 pour "150 pb") — `engine/bond_alerts.py` compare toujours la
+    même unité des deux côtés pour cet instrument, jamais de confusion
+    pourcentage/points de base dans la comparaison elle-même."""
+
+    __tablename__ = "bond_alert_thresholds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    instrument: Mapped[str] = mapped_column(Text, nullable=False)
+    direction: Mapped[str] = mapped_column(Text, nullable=False)  # "above" | "below"
+    threshold_pct: Mapped[float] = mapped_column(Numeric, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (UniqueConstraint("instrument", "direction", name="uq_bond_alert_threshold_instrument_direction"),)
+
+
+class BondAlertEvent(Base):
+    """Franchissement de seuil effectivement détecté (Obligataire Watch) —
+    `engine/bond_alerts.py`. `status` ("triggered" | "resolved") permet de
+    savoir si le seuil est toujours franchi ou si la valeur est repassée du
+    bon côté, sans dupliquer deux tables alertes actives/historique. Pas de
+    ligne nouvelle à chaque cycle de collecte tant que le statut n'a pas
+    changé — c'est exactement la "prévention des alertes répétitives
+    inutiles" demandée par le cahier des charges : un seuil resté franchi
+    10 jours de suite ne produit qu'un seul événement "triggered", pas 10."""
+
+    __tablename__ = "bond_alert_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    instrument: Mapped[str] = mapped_column(Text, nullable=False)
+    threshold_id: Mapped[int] = mapped_column(ForeignKey("bond_alert_thresholds.id"), nullable=False)
+    threshold_pct: Mapped[float] = mapped_column(Numeric, nullable=False)
+    observed_value_pct: Mapped[float] = mapped_column(Numeric, nullable=False)
+    direction: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)  # "triggered" | "resolved"
+    triggered_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class BondCollectionRun(Base):
+    """Journal d'exécution du collecteur Obligataire Watch
+    (`ingestion/bond_yields.py`) — visibilité explicite des erreurs de
+    collecte demandée par le cahier des charges (critère d'acceptation V1
+    §17.7), même esprit que `CollectionRun` n'existant nulle part ailleurs
+    dans Georges : les autres collecteurs ad hoc (fondamentaux, etc.) n'ont
+    pas ce besoin exprimé explicitement, celui-ci l'a."""
+
+    __tablename__ = "bond_collection_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    started_at: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    finished_at: Mapped[datetime.datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(Text, nullable=False)  # "running" | "success" | "partial" | "failed"
+    instruments_requested: Mapped[int] = mapped_column(Integer, nullable=False)
+    instruments_succeeded: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
