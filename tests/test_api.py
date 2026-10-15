@@ -1620,3 +1620,42 @@ def test_share_email_service_unavailable_returns_503_with_cors_headers(client, m
     )
     assert response.status_code == 503
     assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+
+def test_performance_counts_only_realised_outcomes_of_closed_decisions(client):
+    """`GET /decisions/performance` (onglet web "Trading") : une décision
+    clôturée compte avec son DERNIER résultat réalisé ; les lignes `open`
+    de `engine.reevaluate_decisions` et les décisions encore ouvertes ne
+    comptent jamais, même si elles ont des lignes dans decision_outcomes."""
+    t0 = pd.Timestamp("2026-01-05", tz="UTC")
+    with deps.engine.begin() as conn:
+        closed_id = conn.execute(
+            Decision.__table__.insert()
+            .values(symbol="AAA.PA", decision_type="Achat", status="cloturee", entry_price=100.0,
+                    take_profit=110.0, stop_loss=95.0, confidence=70.0, created_at=t0)
+            .returning(Decision.id)
+        ).scalar_one()
+        open_id = conn.execute(
+            Decision.__table__.insert()
+            .values(symbol="BBB.PA", decision_type="Achat", status="confirmee", entry_price=50.0,
+                    take_profit=60.0, stop_loss=45.0, confidence=65.0, created_at=t0)
+            .returning(Decision.id)
+        ).scalar_one()
+        conn.execute(
+            DecisionOutcome.__table__.insert(),
+            [
+                {"decision_id": closed_id, "evaluated_at": t0 + pd.Timedelta(days=1), "result": "open", "pnl_pct": 3.0},
+                {"decision_id": closed_id, "evaluated_at": t0 + pd.Timedelta(days=4), "result": "take_profit_hit", "pnl_pct": 10.0},
+                {"decision_id": open_id, "evaluated_at": t0 + pd.Timedelta(days=2), "result": "open", "pnl_pct": 7.0},
+            ],
+        )
+
+    resp = client.get("/decisions/performance")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [t["decision_id"] for t in body["trades"]] == [closed_id]
+    assert body["trades"][0]["result"] == "take_profit_hit"
+    assert body["trades"][0]["pnl_pct"] == pytest.approx(10.0)
+    assert body["summary"]["count"] == 1
+    assert body["summary"]["win_rate_pct"] == pytest.approx(100.0)
+    assert body["by_pattern"][0]["pattern_type"] == "Sans figure"

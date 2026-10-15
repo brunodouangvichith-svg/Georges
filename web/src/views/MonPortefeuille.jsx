@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import Counter from "../components/Counter";
 import ResponsePopup from "../components/ResponsePopup";
 import { useVoiceCapture } from "../hooks/useVoiceCapture";
 import {
@@ -85,42 +86,83 @@ export default function MonPortefeuille() {
     setPopup(null);
   }
 
+  const list = portfolios ?? [];
+  const positions = list.reduce((n, p) => n + p.decisions.length, 0);
+  const invested = list.reduce((sum, p) => sum + (p.total_invested ?? 0), 0);
+  const pnlKnown = list.filter((p) => p.total_pnl_amount != null);
+  const pnlTotal = pnlKnown.reduce((sum, p) => sum + p.total_pnl_amount, 0);
+  const allPnlPcts = list.flatMap((p) => p.decisions.map((d) => d.pnl_pct)).filter((v) => v != null);
+  const winners = allPnlPcts.filter((v) => v > 0).length;
+  const losers = allPnlPcts.filter((v) => v < 0).length;
+
   return (
-    <div className="h-full overflow-y-auto gd-scrollbar px-5 py-6">
+    <div className="h-full overflow-y-auto gd-scrollbar">
       <ResponsePopup popup={popup} onClose={closePopup} onStopListening={voice.stop} />
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-6">
-          <div className="text-xs tracking-widest" style={{ color: "var(--warning)", letterSpacing: "0.2em" }}>
-            GEORGE · MON PORTEFEUILLE
+      <div className="mx-auto flex flex-col gap-3.5 px-5 pt-4 pb-6" style={{ maxWidth: 1440 }}>
+        {/* En-tête + compteurs (même disposition qu'Univers) */}
+        <header className="flex flex-wrap items-start justify-between" style={{ gap: "16px 40px" }}>
+          <div className="flex flex-col gap-1" style={{ minWidth: 260 }}>
+            <h1 className="display m-0 text-[20px] font-semibold">
+              George / <span>Mon portefeuille</span>
+            </h1>
+            <div className="gd-label">Portefeuilles créés depuis Paniers → PnL en temps réel</div>
           </div>
-          <h1 className="display text-2xl sm:text-3xl font-bold mt-1">Mon portefeuille</h1>
-          <div className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
+          <div className="flex flex-wrap justify-end" style={{ gap: "14px 28px", flex: "1 1 600px" }}>
+            <Counter label="Portefeuilles" value={list.length} ratio={1} />
+            <Counter label="Positions" value={positions} ratio={1} />
+            <Counter
+              label="En gain"
+              value={winners}
+              ratio={allPnlPcts.length ? winners / allPnlPcts.length : 0}
+              color="var(--positive)"
+            />
+            <Counter
+              label="En perte"
+              value={losers}
+              ratio={allPnlPcts.length ? losers / allPnlPcts.length : 0}
+              color="var(--negative)"
+            />
+            <Counter label="Investi" value={invested ? `${invested.toFixed(0)} €` : "—"} ratio={invested ? 1 : 0} />
+            <Counter
+              label="PnL latent"
+              value={pnlKnown.length ? `${pnlTotal >= 0 ? "+" : ""}${pnlTotal.toFixed(0)} €` : "—"}
+              valueColor={pnlKnown.length ? pnlColor(pnlTotal) : undefined}
+              ratio={pnlKnown.length && invested ? Math.min(1, Math.abs(pnlTotal) / invested) : 0}
+              color={pnlTotal >= 0 ? "var(--positive)" : "var(--negative)"}
+            />
+          </div>
+        </header>
+
+        <div
+          className="flex flex-wrap items-center gap-2.5 pt-2 text-[11px]"
+          style={{ borderTop: "1px solid var(--hairline)", color: "var(--text-dim)" }}
+        >
+          <span>
             Portefeuilles créés depuis l'écran Paniers (cochez des décisions puis « Créer un portefeuille ») —
-            enregistrés en base, partagés par tous les clients de l'API.
-          </div>
+            enregistrés en base, partagés par tous les clients de l'API. PnL latent = positions encore ouvertes.
+          </span>
         </div>
 
         {isError && (
-          <div
-            className="text-[13px] p-4 rounded-lg border mb-6"
-            style={{ borderColor: "var(--negative)", color: "var(--negative)" }}
-          >
+          <div className="text-[13px] p-4 rounded-lg border" style={{ borderColor: "var(--negative)", color: "var(--negative)" }}>
             Impossible de contacter l'API — vérifiez qu'elle tourne (<code>uvicorn api.main:app --reload</code>).
           </div>
         )}
 
-        {!isError && (portfolios ?? []).length === 0 && (
-          <div className="text-xs" style={{ color: "var(--text-dim)" }}>
-            Aucun portefeuille. Allez sur l'écran <strong>Paniers</strong>, cochez des décisions dans la colonne
-            « Portefeuille » puis cliquez « Créer un portefeuille ».
+        {!isError && list.length === 0 && (
+          <div className="gd-panel text-xs" style={{ color: "var(--text-dim)" }}>
+            <span>
+              Aucun portefeuille. Allez sur l'écran <strong>Paniers</strong>, cochez des décisions dans la colonne
+              « Portefeuille » puis cliquez « Créer un portefeuille ».
+            </span>
           </div>
         )}
 
         {(portfolios ?? []).map((portfolio) => (
-          <div key={portfolio.id} className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <h2 className="display text-[15px] font-semibold">{portfolio.name}</h2>
+          <section key={portfolio.id} aria-label={portfolio.name} className="gd-panel">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="display m-0 text-[15px] font-semibold">{portfolio.name}</h2>
                 <button
                   onClick={() => askGeorge(portfolio.id)}
                   className="text-[11px] px-2.5 py-1 rounded-full border"
@@ -164,8 +206,10 @@ export default function MonPortefeuille() {
                     <tbody>
                       {portfolio.decisions.map((d, i) => (
                         <tr key={d.id} style={{ background: i % 2 === 0 ? "var(--bg)" : "var(--panel)" }}>
-                          <td className="px-3 py-2 font-bold" style={{ color: decisionColor(d.decision_type) }}>
-                            {d.symbol}
+                          <td className="px-3 py-2">
+                            <span className="mono font-bold" style={{ color: decisionColor(d.decision_type) }}>
+                              {d.symbol}
+                            </span>
                           </td>
                           <td className="px-3 py-2">{d.entry_price.toFixed(2)} €</td>
                           <td className="px-3 py-2 mono">{d.current_price != null ? `${d.current_price.toFixed(2)} €` : "—"}</td>
@@ -219,7 +263,7 @@ export default function MonPortefeuille() {
                 </div>
               </div>
             )}
-          </div>
+          </section>
         ))}
       </div>
     </div>

@@ -18,7 +18,16 @@ from agents.explainer import explain_decision
 from agents.jane import reformulate_formal, second_opinion
 from api import deps
 from api.deps import get_db
-from api.schemas import ConfirmDecisionRequest, DecisionOut, ExplanationRequest, ExplanationResponse, JaneSecondOpinionOut, Page
+from api.schemas import (
+    ConfirmDecisionRequest,
+    DecisionOut,
+    ExplanationRequest,
+    ExplanationResponse,
+    JaneSecondOpinionOut,
+    Page,
+    PerformanceOut,
+)
+from engine.performance import build_performance
 from engine.reevaluate_decisions import evaluate_decision
 from engine.run_detection import load_prices
 from ingestion.models import Decision, BasketSecurity, DecisionOutcome, JaneSecondOpinion, PatternDetected
@@ -51,6 +60,45 @@ def list_decisions(
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
     rows = db.execute(stmt.order_by(Decision.created_at.desc()).limit(limit).offset(offset)).scalars().all()
     return Page(items=rows, total=total or 0, limit=limit, offset=offset)
+
+
+@router.get("/performance", response_model=PerformanceOut)
+def get_performance(db: Session = Depends(get_db)):
+    """Gains/pertes réalisés des décisions clôturées (onglet web "Trading").
+    Ne lit que les décisions au statut `cloturee` ; le choix de la bonne
+    ligne `decision_outcomes` (la plus récente réellement réalisée, jamais
+    une ligne `open` de `engine.reevaluate_decisions`) et tous les calculs
+    sont dans `engine/performance.py`, pur et testé sans base."""
+    stmt = (
+        select(
+            Decision.id,
+            Decision.symbol,
+            Decision.decision_type,
+            Decision.entry_price,
+            PatternDetected.pattern_type,
+            DecisionOutcome.result,
+            DecisionOutcome.pnl_pct,
+            DecisionOutcome.evaluated_at,
+        )
+        .join(DecisionOutcome, DecisionOutcome.decision_id == Decision.id)
+        .outerjoin(PatternDetected, PatternDetected.id == Decision.pattern_id)
+        .where(Decision.status == "cloturee")
+    )
+    rows = [
+        {
+            "decision_id": r.id,
+            "symbol": r.symbol,
+            "decision_type": r.decision_type,
+            "entry_price": float(r.entry_price),
+            "pattern_type": r.pattern_type,
+            "result": r.result,
+            "pnl_pct": float(r.pnl_pct),
+            "evaluated_at": r.evaluated_at,
+            "closed_at": r.evaluated_at,
+        }
+        for r in db.execute(stmt).all()
+    ]
+    return build_performance(rows)
 
 
 def _get_decision_or_404(decision_id: int, db: Session) -> Decision:

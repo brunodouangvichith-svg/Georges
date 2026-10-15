@@ -7,6 +7,7 @@ import {
   useDecisions,
   useExplainDecision,
   useMonitorDecisions,
+  usePerformance,
   useProposeDecisions,
   useProposeLevels,
 } from "../api/queries";
@@ -15,9 +16,9 @@ import {
 // (api/routers/decisions.py), dans le thème George. Quatre colonnes, une par
 // statut. George ne passe AUCUN ordre : "confirmer" enregistre seulement la
 // décision comme position suivie, "confirmer la sortie" la clôture et écrit
-// son résultat dans decision_outcomes. La performance réalisée n'est pas
-// encore exposée par l'API (pas de route de lecture de decision_outcomes) :
-// la colonne Clôturées le dit plutôt que d'afficher un chiffre inventé.
+// son résultat dans decision_outcomes. La performance réalisée vient de
+// GET /decisions/performance (engine/performance.py) : seules les décisions
+// clôturées comptent, jamais les rendements latents des positions ouvertes.
 
 const COLUMNS = [
   { status: "proposee", title: "Proposées", hint: "À valider ou ajuster" },
@@ -27,6 +28,19 @@ const COLUMNS = [
 ];
 
 const EXIT_LABELS = { sortie_totale: "Sortie totale", sortie_partielle: "Sortie partielle" };
+
+const RESULT_LABELS = { take_profit_hit: "Take-profit touché", stop_loss_hit: "Stop-loss touché" };
+
+// Pourcentage signé, en vert si positif, rouge si négatif.
+function Pct({ value, className = "" }) {
+  if (value == null) return <span className={`mono ${className}`} style={{ color: "var(--text-dim)" }}>—</span>;
+  const color = value > 0 ? "var(--positive)" : value < 0 ? "var(--negative)" : "var(--text-dim)";
+  return (
+    <span className={`mono ${className}`} style={{ color }}>
+      {`${value > 0 ? "+" : ""}${value.toFixed(2)} %`}
+    </span>
+  );
+}
 
 const money = (v) => (v == null ? "—" : `${Number(v).toFixed(2)} €`);
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString("fr-FR") : "—");
@@ -184,7 +198,7 @@ function ExitActions({ decision, exitMutation }) {
   );
 }
 
-function DecisionCard({ decision, onExplain, mutations }) {
+function DecisionCard({ decision, onExplain, mutations, outcome }) {
   return (
     <article
       aria-label={`${decision.symbol} — ${decision.decision_type}`}
@@ -217,9 +231,18 @@ function DecisionCard({ decision, onExplain, mutations }) {
       {decision.status === "sortie_proposee" && <ExitActions decision={decision} exitMutation={mutations.exit} />}
 
       {decision.status === "cloturee" && (
-        <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
-          {EXIT_LABELS[decision.exit_scenario] ?? "Clôturée"}
-          {decision.exit_proposed_at ? ` · sortie proposée le ${day(decision.exit_proposed_at)}` : ""}
+        <div className="flex items-center justify-between gap-2 rounded-md px-2.5 py-2" style={{ background: "var(--panel-alt)" }}>
+          <div className="text-[11.5px] min-w-0" style={{ color: "var(--text-dim)" }}>
+            {outcome ? RESULT_LABELS[outcome.result] ?? outcome.result : EXIT_LABELS[decision.exit_scenario] ?? "Clôturée"}
+            {outcome ? ` · le ${day(outcome.closed_at)}` : ""}
+          </div>
+          {outcome ? (
+            <Pct value={outcome.pnl_pct} className="text-[15px] font-semibold" />
+          ) : (
+            <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
+              Résultat non disponible
+            </span>
+          )}
         </div>
       )}
 
@@ -235,7 +258,7 @@ function DecisionCard({ decision, onExplain, mutations }) {
   );
 }
 
-function Column({ column, query, onExplain, mutations }) {
+function Column({ column, query, onExplain, mutations, outcomes }) {
   const items = query.data?.items ?? [];
   const total = query.data?.total ?? items.length;
   return (
@@ -265,18 +288,129 @@ function Column({ column, query, onExplain, mutations }) {
       )}
       <div className="flex flex-col gap-2.5 overflow-y-auto gd-scrollbar pr-0.5" style={{ maxHeight: "70vh" }}>
         {items.map((d) => (
-          <DecisionCard key={d.id} decision={d} onExplain={onExplain} mutations={mutations} />
+          <DecisionCard key={d.id} decision={d} onExplain={onExplain} mutations={mutations} outcome={outcomes?.[d.id]} />
         ))}
       </div>
-      {column.status === "cloturee" && items.length > 0 && (
-        <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>
-          Gain/perte réalisé : pas encore exposé par l'API.
-        </div>
-      )}
       {total > items.length && (
         <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>
           {items.length} affichées sur {total} (les plus récentes).
         </div>
+      )}
+    </section>
+  );
+}
+
+function Stat({ label, children, hint }) {
+  return (
+    <div className="flex flex-col gap-0.5 min-w-0" style={{ flex: "1 1 130px" }}>
+      <div className="text-[10.5px] uppercase tracking-wider" style={{ color: "var(--text-dim)" }}>
+        {label}
+      </div>
+      <div className="text-[18px] font-semibold">{children}</div>
+      {hint && (
+        <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>
+          {hint}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Bandeau de performance réalisée + détail par type de figure.
+function PerformancePanel({ query }) {
+  const summary = query.data?.summary;
+  const patterns = query.data?.by_pattern ?? [];
+  return (
+    <section aria-label="Performance réalisée" className="gd-panel">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="display m-0 text-[14px] font-semibold">Performance réalisée</h2>
+        <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
+          Positions clôturées uniquement · % bruts, sans frais ni taille de position · total = somme des %
+        </span>
+      </div>
+      {query.isLoading && (
+        <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+          Chargement…
+        </div>
+      )}
+      {query.isError && (
+        <div className="text-[12px]" style={{ color: "var(--negative)" }}>
+          Performance indisponible — l'API n'expose peut-être pas encore cette route (redéploiement Render nécessaire).
+        </div>
+      )}
+      {summary && summary.count === 0 && (
+        <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+          Aucune position clôturée pour l'instant : la performance apparaîtra après la première sortie confirmée.
+        </div>
+      )}
+      {summary && summary.count > 0 && (
+        <>
+          <div className="flex flex-wrap gap-x-6 gap-y-3">
+            <Stat label="Positions clôturées">{summary.count}</Stat>
+            <Stat label="Taux de réussite" hint={`${summary.wins} gagnante(s), ${summary.losses} perdante(s)`}>
+              <span className="mono">{summary.win_rate_pct != null ? `${summary.win_rate_pct.toFixed(0)} %` : "—"}</span>
+            </Stat>
+            <Stat label="Gain moyen">
+              <Pct value={summary.avg_gain_pct} />
+            </Stat>
+            <Stat label="Perte moyenne">
+              <Pct value={summary.avg_loss_pct} />
+            </Stat>
+            <Stat label="Moyenne par trade">
+              <Pct value={summary.avg_pnl_pct} />
+            </Stat>
+            <Stat label="Total" hint="somme des %">
+              <Pct value={summary.total_pnl_pct} />
+            </Stat>
+          </div>
+          {summary.count < 10 && (
+            <div className="text-[11.5px]" style={{ color: "var(--warning)" }}>
+              Encore peu de positions clôturées ({summary.count}) : ces chiffres ne sont pas significatifs.
+            </div>
+          )}
+          {patterns.length > 0 && (
+            <div className="overflow-x-auto gd-scrollbar">
+              <table className="w-full border-collapse text-[12px]" style={{ minWidth: 520 }}>
+                <caption className="sr-only">Performance par type de figure</caption>
+                <thead>
+                  <tr>
+                    {["Figure", "Trades", "Réussite", "Moyenne", "Total"].map((h, i) => (
+                      <th
+                        key={h}
+                        scope="col"
+                        className="text-[10.5px] uppercase tracking-wider font-medium py-1.5 px-2"
+                        style={{ color: "var(--text-dim)", borderBottom: "1px solid var(--hairline)", textAlign: i === 0 ? "left" : "right" }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {patterns.map((p) => (
+                    <tr key={p.pattern_type}>
+                      <td className="py-1.5 px-2" style={{ borderBottom: "1px solid var(--hairline)" }}>
+                        {p.pattern_type}
+                      </td>
+                      <td className="mono py-1.5 px-2 text-right" style={{ borderBottom: "1px solid var(--hairline)" }}>
+                        {p.count}
+                      </td>
+                      <td className="mono py-1.5 px-2 text-right" style={{ borderBottom: "1px solid var(--hairline)" }}>
+                        {p.win_rate_pct != null ? `${p.win_rate_pct.toFixed(0)} %` : "—"}
+                      </td>
+                      <td className="py-1.5 px-2 text-right" style={{ borderBottom: "1px solid var(--hairline)" }}>
+                        <Pct value={p.avg_pnl_pct} />
+                      </td>
+                      <td className="py-1.5 px-2 text-right" style={{ borderBottom: "1px solid var(--hairline)" }}>
+                        <Pct value={p.total_pnl_pct} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </section>
   );
@@ -296,6 +430,8 @@ export default function Trading() {
     exit: useConfirmExit(),
   };
   const explain = useExplainDecision();
+  const performance = usePerformance();
+  const outcomes = Object.fromEntries((performance.data?.trades ?? []).map((t) => [t.decision_id, t]));
   const propose = useProposeDecisions();
   const monitor = useMonitorDecisions();
 
@@ -357,9 +493,18 @@ export default function Trading() {
             </div>
           </div>
 
+          <PerformancePanel query={performance} />
+
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))" }}>
             {COLUMNS.map((c) => (
-              <Column key={c.status} column={c} query={queries[c.status]} onExplain={onExplain} mutations={mutations} />
+              <Column
+                key={c.status}
+                column={c}
+                query={queries[c.status]}
+                onExplain={onExplain}
+                mutations={mutations}
+                outcomes={outcomes}
+              />
             ))}
           </div>
         </div>
