@@ -182,12 +182,17 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
             bottom: 0,
             right: 16,
             child: Center(
-              child: FloatingActionButton.large(
-                heroTag: 'ask_jane_fab',
-                tooltip: 'Analyse Technique - Ask Jane',
-                backgroundColor: Colors.lightGreen.shade100,
-                onPressed: _askJane,
-                child: const Text('🧠', style: TextStyle(fontSize: 48)),
+              // Réduit de 15 % à la demande de l'utilisateur (le radar est
+              // dessous) : même bouton, mis à l'échelle — la zone de tap suit.
+              child: Transform.scale(
+                scale: 0.85,
+                child: FloatingActionButton.large(
+                  heroTag: 'ask_jane_fab',
+                  tooltip: 'Analyse Technique - Ask Jane',
+                  backgroundColor: Colors.lightGreen.shade100,
+                  onPressed: _askJane,
+                  child: const Text('🧠', style: TextStyle(fontSize: 48)),
+                ),
               ),
             ),
           ),
