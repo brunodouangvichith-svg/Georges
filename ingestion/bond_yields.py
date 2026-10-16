@@ -20,7 +20,14 @@ identifiée, volontairement absents de `BOND_YIELD_SERIES` plutôt que
 remplacés par une estimation (voir `docs/DATA_SOURCES.md`).
 
 Usage :
-    python -m ingestion.bond_yields
+    python -m ingestion.bond_yields                 # dernière valeur de chaque série
+    python -m ingestion.bond_yields --backfill [10] # rattrapage de l'historique (années)
+
+`run()` ne collecte que la dernière observation publiée : lancé seul sur une
+base vide, le graphique n'a qu'un point par série et les variations 24h/7j/30j
+restent "n/d". `backfill_history()` charge en une fois tout l'historique FRED
+des N dernières années (même CSV, mêmes séries, même upsert idempotent) —
+à lancer une fois après la création des tables, ou après un trou de collecte.
 """
 
 from __future__ import annotations
@@ -47,6 +54,10 @@ logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT_SECONDS = 10
 MAX_RETRIES = 2
+DEFAULT_BACKFILL_YEARS = 10
+# ~2 600 observations pour 10 ans de série quotidienne : quelques lots
+# plutôt qu'un INSERT géant ou 2 600 allers-retours vers Supabase.
+UPSERT_BATCH_SIZE = 500
 
 FRED_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 
@@ -71,6 +82,22 @@ def _get_with_retry(series_id: str) -> requests.Response | None:
     return None
 
 
+def parse_fred_csv(text: str, series_id: str) -> list[tuple[float, datetime.date]]:
+    """Toutes les observations numériques du CSV FRED, dans l'ordre du
+    fichier (chronologique). Les valeurs manquantes (".") et les lignes
+    illisibles sont ignorées, jamais converties en 0."""
+    observations: list[tuple[float, datetime.date]] = []
+    for row in csv.DictReader(io.StringIO(text)):
+        value = row.get(series_id, ".")
+        if value in (".", "", None):
+            continue
+        try:
+            observations.append((float(value), datetime.date.fromisoformat(row["observation_date"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return observations
+
+
 def fetch_bond_yield(series_id: str) -> tuple[float, datetime.date] | None:
     """Dernière observation numérique de la série FRED `series_id`. `None`
     (jamais d'exception) en cas d'échec réseau ou d'absence d'observation
@@ -78,13 +105,71 @@ def fetch_bond_yield(series_id: str) -> tuple[float, datetime.date] | None:
     response = _get_with_retry(series_id)
     if response is None:
         return None
-    rows = list(csv.DictReader(io.StringIO(response.text)))
-    for row in reversed(rows):
-        value = row.get(series_id, ".")
-        if value not in (".", "", None):
-            return float(value), datetime.date.fromisoformat(row["observation_date"])
-    logger.warning("Aucune observation numérique pour la série FRED %s", series_id)
-    return None
+    observations = parse_fred_csv(response.text, series_id)
+    if not observations:
+        logger.warning("Aucune observation numérique pour la série FRED %s", series_id)
+        return None
+    return observations[-1]
+
+
+def fetch_bond_yield_history(series_id: str, since: datetime.date) -> list[tuple[float, datetime.date]] | None:
+    """Observations de `series_id` datées de `since` ou après. `None` en cas
+    d'échec réseau (à distinguer d'une liste vide : série joignable mais sans
+    observation sur la période)."""
+    response = _get_with_retry(series_id)
+    if response is None:
+        return None
+    return [(value, observed_at) for value, observed_at in parse_fred_csv(response.text, series_id) if observed_at >= since]
+
+
+def _upsert_snapshots(conn, instrument: str, series_id: str, observations: list[tuple[float, datetime.date]]) -> None:
+    """Upsert idempotent sur (instrument, observed_at), par lots — même
+    contrainte unique que la collecte quotidienne, donc relancer le
+    rattrapage ne crée jamais de doublon."""
+    for start in range(0, len(observations), UPSERT_BATCH_SIZE):
+        batch = observations[start : start + UPSERT_BATCH_SIZE]
+        stmt = pg_insert(BondYieldSnapshot).values(
+            [
+                {
+                    "instrument": instrument,
+                    "value_pct": value_pct,
+                    "observed_at": observed_at,
+                    "source_name": "FRED",
+                    "source_url": f"{FRED_URL}?id={series_id}",
+                }
+                for value_pct, observed_at in batch
+            ]
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[BondYieldSnapshot.instrument, BondYieldSnapshot.observed_at],
+            set_={
+                "value_pct": stmt.excluded.value_pct,
+                "source_name": stmt.excluded.source_name,
+                "source_url": stmt.excluded.source_url,
+            },
+        )
+        conn.execute(stmt)
+
+
+def backfill_history(years: int = DEFAULT_BACKFILL_YEARS) -> dict[str, int | None]:
+    """Charge l'historique FRED des `years` dernières années pour les 4
+    séries suivies. Renvoie `{instrument: nb d'observations écrites}`, `None`
+    pour une série injoignable (les autres continuent). Ne journalise pas de
+    ligne dans `bond_collection_runs` : ce n'est pas une collecte quotidienne,
+    et le tableau de bord affiche la date de la dernière collecte réelle."""
+    since = datetime.date.today() - datetime.timedelta(days=round(365.25 * years))
+    engine = get_engine()
+    written: dict[str, int | None] = {}
+    for instrument, series_id in BOND_YIELD_SERIES:
+        observations = fetch_bond_yield_history(series_id, since)
+        if observations is None:
+            logger.warning("Rattrapage impossible pour %s (%s) : série injoignable", instrument, series_id)
+            written[instrument] = None
+            continue
+        with engine.begin() as conn:
+            _upsert_snapshots(conn, instrument, series_id, observations)
+        written[instrument] = len(observations)
+    return written
 
 
 def run() -> dict[str, bool]:
@@ -114,24 +199,8 @@ def run() -> dict[str, bool]:
             results[instrument] = False
             errors.append(f"{instrument} ({series_id}) : aucune donnée récupérée")
             continue
-        value_pct, observed_at = fetched
         with engine.begin() as conn:
-            stmt = pg_insert(BondYieldSnapshot).values(
-                instrument=instrument,
-                value_pct=value_pct,
-                observed_at=observed_at,
-                source_name="FRED",
-                source_url=f"{FRED_URL}?id={series_id}",
-            )
-            stmt = stmt.on_conflict_do_update(
-                index_elements=[BondYieldSnapshot.instrument, BondYieldSnapshot.observed_at],
-                set_={
-                    "value_pct": stmt.excluded.value_pct,
-                    "source_name": stmt.excluded.source_name,
-                    "source_url": stmt.excluded.source_url,
-                },
-            )
-            conn.execute(stmt)
+            _upsert_snapshots(conn, instrument, series_id, [fetched])
         results[instrument] = True
 
     succeeded = sum(1 for ok in results.values() if ok)
@@ -151,7 +220,15 @@ def run() -> dict[str, bool]:
 
 
 if __name__ == "__main__":
+    import sys
+
     logging.basicConfig(level=logging.INFO)
+    if len(sys.argv) > 1 and sys.argv[1] == "--backfill":
+        years = int(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_BACKFILL_YEARS
+        written = backfill_history(years)
+        for instrument, count in written.items():
+            print(f"{instrument} : {'série injoignable' if count is None else f'{count} observation(s)'}")
+        sys.exit(0 if all(count is not None for count in written.values()) else 1)
     summary = run()
     ok = [i for i, v in summary.items() if v]
     failed = [i for i, v in summary.items() if not v]
