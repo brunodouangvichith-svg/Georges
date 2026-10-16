@@ -93,13 +93,17 @@ def holdings_from_trades(trades: list[dict]) -> Holdings:
     return holdings
 
 
+def _finite_prices(prices: dict[str, float]) -> dict[str, float]:
+    return {s: p for s, p in prices.items() if p is not None and math.isfinite(p) and p > 0}
+
+
 def positions_value(positions: dict[str, int], prices: dict[str, float]) -> float | None:
     """`None` si une position détenue n'a pas de prix : une valorisation
     partielle serait fausse sans le dire."""
     total = 0.0
     for symbol, quantity in positions.items():
         price = prices.get(symbol)
-        if price is None:
+        if price is None or not math.isfinite(price):
             return None
         total += quantity * price
     return round(total, 2)
@@ -131,7 +135,10 @@ def plan_trades(
     les achats — il peut contenir une dernière clôture plus ancienne pour une
     valeur dont le flux de prix s'est arrêté, afin qu'une seule cotation
     manquante ne bloque pas tout le portefeuille."""
-    valuation_prices = {**prices, **(valuation_prices or {})}
+    # Un prix non fini (NaN venu de yfinance) équivaut à un prix absent :
+    # jamais d'ordre dessus, et math.floor(NaN) lèverait une exception.
+    prices = _finite_prices(prices)
+    valuation_prices = {**prices, **_finite_prices(valuation_prices or {})}
     planned: list[PlannedTrade] = []
     cash = holdings.cash
     positions = dict(holdings.positions)

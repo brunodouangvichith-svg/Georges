@@ -75,3 +75,13 @@ def test_plan_takes_no_new_risk_when_a_held_position_cannot_be_valued():
     holdings = vp.holdings_from_trades([_trade("A", "achat", 10, 100.0)])
     signals = {"B": vp.Signal("B", "Achat", 80)}
     assert vp.plan_trades(holdings, signals, {"B": 50.0}, "vert") == []
+
+
+def test_nan_price_is_treated_as_missing_and_never_traded():
+    """Régression : une clôture NaN (yfinance) faisait planter math.floor
+    (« cannot convert float NaN to integer ») pendant la génération."""
+    nan = float("nan")
+    signals = {"A": vp.Signal("A", "Achat", 90), "B": vp.Signal("B", "Achat", 80)}
+    planned = vp.plan_trades(vp.Holdings(), signals, {"A": nan, "B": 50.0}, "vert")
+    assert [t.symbol for t in planned] == ["B"]
+    assert vp.positions_value({"A": 1}, {"A": nan}) is None

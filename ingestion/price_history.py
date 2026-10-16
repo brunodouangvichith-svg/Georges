@@ -43,6 +43,12 @@ def upsert_price_history(engine, symbol: str, df: pd.DataFrame) -> int:
     (upsert sur la clé (symbol, ts), sans danger à relancer plusieurs fois)."""
     if df.empty:
         return 0
+    # yfinance renvoie parfois une ligne NaN (séance du jour incomplète,
+    # cotation suspendue) : on ne l'écrit pas, sinon un NaN finit dans
+    # `close` (colonne Numeric) et casse les calculs en aval.
+    df = df.dropna(subset=["open", "high", "low", "close"])
+    if df.empty:
+        return 0
     rows = [
         {
             "symbol": symbol,
@@ -51,7 +57,7 @@ def upsert_price_history(engine, symbol: str, df: pd.DataFrame) -> int:
             "high": float(row["high"]),
             "low": float(row["low"]),
             "close": float(row["close"]),
-            "volume": int(row["volume"]),
+            "volume": int(row["volume"]) if pd.notna(row["volume"]) else 0,
         }
         for ts, row in df.iterrows()
     ]
