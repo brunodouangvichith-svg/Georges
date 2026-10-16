@@ -3,11 +3,17 @@
 
 export const CX = 380;
 export const CY = 340;
-export const R_IN = 250;
-export const R_TICK_IN = 256;
-export const R_TICK_OUT = 264;
-export const R_BAR = 270;
-export const BAR_SCALE = 0.5;
+// Échelle radiale de tout le radar (disque, graduations, barres, étiquettes,
+// tracé de l'historique) : 0.9 = disque réduit de 10 % par rapport au dessin
+// d'origine (rayon 250), à la demande de l'utilisateur. Le viewBox ne change
+// pas, le radar garde donc la même place à l'écran avec plus de marge.
+export const RADAR_SCALE = 0.9;
+export const R_IN = 250 * RADAR_SCALE;
+export const R_TICK_IN = 256 * RADAR_SCALE;
+export const R_TICK_OUT = 264 * RADAR_SCALE;
+export const R_BAR = 270 * RADAR_SCALE;
+export const BAR_SCALE = 0.5 * RADAR_SCALE;
+const R_SECTOR_LABEL = 236 * RADAR_SCALE;
 const SECTOR_GAP = 2;
 const MIN_SECTOR_LABEL = 4;
 
@@ -49,8 +55,8 @@ export function buildRadar(securities, patternsBySymbol, decisionsMap) {
       labels.push({
         sector,
         text: truncate(sector.toUpperCase(), 16),
-        x: CX + c * 236,
-        y: CY + Math.sin(mid) * 236 + 4,
+        x: CX + c * R_SECTOR_LABEL,
+        y: CY + Math.sin(mid) * R_SECTOR_LABEL + 4,
         anchor: c > 0.25 ? "end" : c < -0.25 ? "start" : "middle",
       });
     }

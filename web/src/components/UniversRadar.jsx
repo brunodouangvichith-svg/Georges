@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { decisionColor } from "../data";
-import { buildRadar, CX, CY, R_IN, R_TICK_IN, R_TICK_OUT, R_BAR, BAR_SCALE } from "./universRadarLayout";
+import { buildRadar, CX, CY, R_IN, R_TICK_IN, R_TICK_OUT, R_BAR, BAR_SCALE, RADAR_SCALE as K } from "./universRadarLayout";
 
 // Radar de l'univers (écran Univers).
 //
@@ -72,8 +72,8 @@ function buildTrail(closes) {
   const max = Math.max(...closes);
   const span = max - min || 1;
   const n = closes.length;
-  const x = (i) => CX - 220 + (i / (n - 1)) * 400;
-  const y = (v) => CY + 150 - ((v - min) / span) * 150;
+  const x = (i) => CX - 220 * K + (i / (n - 1)) * 400 * K;
+  const y = (v) => CY + 150 * K - ((v - min) / span) * 150 * K;
   const d = closes.map((v, i) => `${i ? "L" : "M"}${f(x(i))} ${f(y(v))}`).join("");
   const every = Math.max(1, Math.ceil(n / 14));
   const beads = [];
@@ -115,7 +115,7 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
 
   let selLabel = null;
   if (selected) {
-    const [lx, ly] = polar(selected.angle, R_BAR + 52);
+    const [lx, ly] = polar(selected.angle, R_BAR + 52 * K);
     const c = Math.cos(selected.angle);
     selLabel = {
       x: lx,
@@ -161,7 +161,7 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
         <path
           d={
             selected.confidence == null
-              ? segment(selected.angle, R_TICK_IN - 4, R_TICK_OUT + 6)
+              ? segment(selected.angle, R_TICK_IN - 4 * K, R_TICK_OUT + 6 * K)
               : segment(selected.angle, R_BAR, R_BAR + selected.confidence * BAR_SCALE)
           }
           fill="none"
@@ -205,8 +205,8 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
       {/* Zones de clic invisibles, une par valeur (souris uniquement). */}
       <g aria-hidden="true">
         {items.map((it) => {
-          const [x0, y0] = polar(it.angle, R_TICK_IN - 6);
-          const [x1, y1] = polar(it.angle, R_BAR + 54);
+          const [x0, y0] = polar(it.angle, R_TICK_IN - 6 * K);
+          const [x1, y1] = polar(it.angle, R_BAR + 54 * K);
           return (
             <line
               key={it.symbol}
