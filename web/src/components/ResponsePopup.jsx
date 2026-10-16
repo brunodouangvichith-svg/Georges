@@ -3,7 +3,7 @@ import { useSpeechOutput } from "../hooks/useSpeechOutput";
 
 // Popup centré partagé par toutes les réponses de George (chat, explication
 // de décision, commande vocale) — extrait de Univers.jsx pour être réutilisé
-// par Paniers.jsx sans dupliquer le rendu.
+// par les autres écrans (Trading, Obligataire) sans dupliquer le rendu.
 export default function ResponsePopup({ popup, onClose, onStopListening }) {
   const { speaking, speak, stop } = useSpeechOutput();
 

@@ -1,5 +1,5 @@
-// Compteur d'en-tête partagé par les écrans Univers, Paniers et Mon
-// Portefeuille : libellé, valeur, et barre fine proportionnelle à `ratio`
+// Compteur d'en-tête de l'écran Univers : libellé, valeur, et barre fine
+// proportionnelle à `ratio`
 // (0-1) dans la couleur qui porte le sens (vert/orange/rouge/bleu).
 // `value` peut être un nœud React (ex. un montant coloré).
 export default function Counter({ label, value, ratio = 0, color = "var(--accent)", valueColor }) {
