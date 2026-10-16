@@ -530,6 +530,7 @@ export default function Univers() {
                           decision={decisionsMap[security.symbol]}
                           selected={selectedSymbol === security.symbol}
                           onSelect={setSelected}
+                          latestPattern={patternsBySymbol?.[security.symbol] ?? null}
                         />
                       ))}
                     </tbody>

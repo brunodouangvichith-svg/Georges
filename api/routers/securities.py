@@ -43,6 +43,33 @@ def list_securities(
     return Page(items=rows, total=total or 0, limit=limit, offset=offset)
 
 
+@router.get("/patterns/latest", response_model=list[PatternOut])
+def list_latest_patterns(db: Session = Depends(get_db)):
+    """Dernière figure de chaque titre, en une seule requête — pour le radar
+    de l'écran Univers (web et mobile), qui sinon fait un appel
+    `/{symbol}/patterns?limit=1` par titre (~100 requêtes, chacune avec sa
+    connexion, qui saturaient le petit pool de l'API et faisaient échouer
+    les autres requêtes sur « QueuePool limit … reached »). Même règle de
+    départage que `list_security_patterns` : date puis confiance
+    décroissantes. Un titre sans figure n'apparaît pas."""
+    ranked = select(
+        PatternDetected.id,
+        func.row_number()
+        .over(
+            partition_by=PatternDetected.symbol,
+            order_by=(PatternDetected.detected_at.desc(), PatternDetected.confidence.desc()),
+        )
+        .label("rn"),
+    ).subquery()
+    stmt = (
+        select(PatternDetected)
+        .join(ranked, ranked.c.id == PatternDetected.id)
+        .where(ranked.c.rn == 1)
+        .order_by(PatternDetected.symbol)
+    )
+    return db.execute(stmt).scalars().all()
+
+
 @router.get("/{symbol}/patterns", response_model=Page[PatternOut])
 def list_security_patterns(
     symbol: str,

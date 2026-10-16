@@ -343,3 +343,28 @@ def test_non_finite_values_never_reach_calculations_or_jsonb():
     ]
     result = strategic_report._recent_closes(types.SimpleNamespace(execute=lambda stmt: rows), ["A"], datetime.date(2026, 10, 16))
     assert result["A"]["close"] == 10.0 and result["A"]["as_of"] == "2026-10-14"
+
+
+def test_generation_job_uses_a_dedicated_unpooled_engine(monkeypatch):
+    """Régression : en production, la génération échouait sur « QueuePool
+    limit of size 2 overflow 2 reached » quand l'écran Univers occupait tout
+    le pool de l'API. Le job passe désormais par son propre moteur sans pool,
+    construit sur la même URL."""
+    from sqlalchemy.pool import NullPool
+
+    from api import deps
+    from api.routers import strategic_reports
+
+    seen = {}
+
+    def fake_generate(session_factory, now=None):
+        bind = session_factory.kw["bind"]
+        seen["pool"] = type(bind.pool)
+        seen["url"] = bind.url
+        return 7
+
+    monkeypatch.setattr(strategic_reports, "_state", {"status": "running"})
+    monkeypatch.setattr(strategic_report, "generate_report", fake_generate)
+    strategic_reports._run_generation_job()
+    assert seen["pool"] is NullPool and seen["url"] == deps.engine.url
+    assert strategic_reports._state["status"] == "done" and strategic_reports._state["report_id"] == 7
