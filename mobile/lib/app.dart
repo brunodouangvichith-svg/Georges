@@ -12,6 +12,7 @@ import 'features/obligataire/obligataire_screen.dart';
 import 'features/paniers/paniers_screen.dart';
 import 'features/portefeuille/portefeuille_screen.dart';
 import 'features/profile/profile_screen.dart';
+import 'features/rapport/rapport_screen.dart';
 import 'features/trading/trading_screen.dart';
 import 'features/univers/univers_screen.dart';
 
@@ -117,6 +118,14 @@ final _goRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/rapport',
+                builder: (context, state) => const RapportScreen(),
+              ),
+            ],
+          ),
         ],
       ),
     ],
@@ -215,10 +224,10 @@ class _AppShellState extends State<_AppShell> {
           index,
           initialLocation: index == widget.navigationShell.currentIndex,
         ),
-        // 5 onglets sur ~78 px chacun (téléphone de 390 px) : libellés
-        // courts pour tenir à la taille de police du thème (14.52) sans
-        // déborder — « Portef. » et « Oblig. » plutôt que les noms complets,
-        // repris dans le titre de chaque écran.
+        // 6 onglets sur ~65 px chacun (téléphone de 390 px) : libellés
+        // courts pour tenir sans déborder — « Portef. », « Oblig. » et
+        // « Rapport » plutôt que les noms complets, repris dans le titre de
+        // chaque écran et dans les infobulles.
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
@@ -244,6 +253,11 @@ class _AppShellState extends State<_AppShell> {
             icon: Icon(Icons.show_chart),
             label: 'Oblig.',
             tooltip: 'Obligataire',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.article_outlined),
+            label: 'Rapport',
+            tooltip: 'Rapport stratégique',
           ),
         ],
       ),
