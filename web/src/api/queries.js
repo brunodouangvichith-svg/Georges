@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiDelete, apiFetch, apiPatch, apiPost } from "./client";
+import { apiFetch, apiPatch, apiPost } from "./client";
 
 // Chaque hook correspond à un endpoint de l'API George (Phase 3, voir
 // api/routers/). Pas d'endpoint de lot pour "pattern/prix par titre" côté
@@ -115,48 +115,6 @@ export function useExplainDecision() {
   return useMutation({
     mutationFn: ({ decisionId, includeSecondOpinion = false }) =>
       apiPost(`/decisions/${decisionId}/explanation`, { include_second_opinion: includeSecondOpinion }),
-  });
-}
-
-// Portefeuilles nommés (écran Mon Portefeuille) — persistés côté base
-// (api/routers/portfolios.py), pas en localStorage : ils doivent survivre
-// au navigateur qui les a créés.
-export function usePortfolios() {
-  return useQuery({ queryKey: ["portfolios"], queryFn: () => apiFetch("/portfolios") });
-}
-
-export function useCreatePortfolio() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ name, decisionIds }) => apiPost("/portfolios", { name, decision_ids: decisionIds }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
-  });
-}
-
-export function useDeletePortfolio() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (portfolioId) => apiDelete(`/portfolios/${portfolioId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
-  });
-}
-
-export function useRemoveDecisionFromPortfolio() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ portfolioId, decisionId }) => apiDelete(`/portfolios/${portfolioId}/decisions/${decisionId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
-  });
-}
-
-// Répartition d'un budget entre les décisions d'un portefeuille (action
-// vocale "Demander à George") — calcul déterministe côté serveur
-// (engine/portfolio_allocation.py), pas un appel LLM.
-export function useAllocateBudget() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ portfolioId, budget }) => apiPost(`/portfolios/${portfolioId}/allocate`, { budget }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["portfolios"] }),
   });
 }
 

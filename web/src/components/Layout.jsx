@@ -2,8 +2,6 @@ import { supabase } from "../api/supabaseClient";
 
 const NAV = [
   { key: "univers", label: "Univers", icon: "◆" },
-  { key: "paniers", label: "Paniers", icon: "▤" },
-  { key: "portefeuille", label: "Mon Portefeuille", icon: "★" },
   { key: "trading", label: "Trading", icon: "⇅" },
   { key: "obligataire", label: "Obligataire", icon: "≈" },
 ];
