@@ -208,6 +208,63 @@ export function useTriggerCollection() {
   });
 }
 
+// Rapport stratégique hebdomadaire (onglet "Rapport", voir
+// api/routers/strategic_reports.py). Génération asynchrone comme
+// /prices/refresh : POST lance le job, on interroge GET jusqu'à done/failed.
+// Recherche web + rédaction LLM : compter 1 à 3 minutes.
+const REPORT_POLL_INTERVAL_MS = 3000;
+const REPORT_MAX_WAIT_MS = 8 * 60 * 1000;
+const REPORT_MAX_CONSECUTIVE_ERRORS = 3;
+
+async function pollReportGeneration(signal) {
+  const deadline = Date.now() + REPORT_MAX_WAIT_MS;
+  let consecutiveErrors = 0;
+  while (true) {
+    if (signal?.aborted) throw new DOMException("Génération annulée (écran fermé)", "AbortError");
+    if (Date.now() > deadline) {
+      throw new Error(`La génération du rapport prend plus de ${REPORT_MAX_WAIT_MS / 60000} minutes — réessaie plus tard.`);
+    }
+    let status;
+    try {
+      status = await apiFetch("/strategic-reports/generate", undefined, signal);
+      consecutiveErrors = 0;
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      consecutiveErrors += 1;
+      if (consecutiveErrors > REPORT_MAX_CONSECUTIVE_ERRORS) throw err;
+      await new Promise((resolve) => setTimeout(resolve, REPORT_POLL_INTERVAL_MS));
+      continue;
+    }
+    if (status.status === "done" || status.status === "failed") return status;
+    await new Promise((resolve) => setTimeout(resolve, REPORT_POLL_INTERVAL_MS));
+  }
+}
+
+export function useStrategicReports() {
+  return useQuery({ queryKey: ["strategic-reports", "list"], queryFn: () => apiFetch("/strategic-reports", { limit: 30 }) });
+}
+
+// `id` absent = dernier rapport (null tant qu'aucun n'a été généré).
+export function useStrategicReport(id) {
+  return useQuery({
+    queryKey: ["strategic-reports", "detail", id ?? "latest"],
+    queryFn: () => apiFetch(id ? `/strategic-reports/${id}` : "/strategic-reports/latest"),
+  });
+}
+
+export function useGenerateStrategicReport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (signal) => {
+      await apiPost("/strategic-reports/generate");
+      const status = await pollReportGeneration(signal);
+      if (status.status === "failed") throw new Error(status.error ?? "Échec de la génération du rapport.");
+      return status;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["strategic-reports"] }),
+  });
+}
+
 // Obligataire Watch (onglet "Obligataire", voir api/routers/bonds.py). Toutes
 // les clés commencent par "bonds" : une mise à jour (collecte ou seuil)
 // invalide tout l'onglet d'un coup.

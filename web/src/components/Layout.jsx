@@ -4,6 +4,7 @@ const NAV = [
   { key: "univers", label: "Univers", icon: "◆" },
   { key: "trading", label: "Trading", icon: "⇅" },
   { key: "obligataire", label: "Obligataire", icon: "≈" },
+  { key: "rapport", label: "Rapport", icon: "▤" },
 ];
 
 export default function Layout({ view, setView, children }) {

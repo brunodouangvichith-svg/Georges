@@ -429,3 +429,35 @@ class BondRefreshResponse(BaseModel):
     instruments_updated: list[str]
     instruments_failed: list[str]
     alerts_created: int
+
+
+class StrategicReportSummaryOut(BaseModel):
+    """Ligne de l'historique des rapports stratégiques (sans le contenu)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    created_at: datetime
+    risk_level: str
+
+
+class StrategicReportOut(StrategicReportSummaryOut):
+    """Rapport complet : `data` = tout ce qui est chiffré (calculé en Python,
+    voir `agents/strategic_report.py`), `narrative_markdown` = commentaire du
+    LLM, `model_used` = `None` si le commentaire est le texte de repli."""
+
+    narrative_markdown: str
+    data: dict
+    model_used: str | None = None
+
+
+class StrategicReportJobStatus(BaseModel):
+    """État du job de génération (un seul à la fois, voir
+    api/routers/strategic_reports.py) — `report_id` renseigné quand
+    `status == "done"`, `error` quand `status == "failed"`."""
+
+    status: Literal["idle", "running", "done", "failed"]
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    report_id: int | None = None
+    error: str | None = None
