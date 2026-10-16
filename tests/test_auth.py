@@ -50,3 +50,77 @@ def test_verify_supabase_token_raises_when_config_missing(monkeypatch):
 
     with pytest.raises(auth.SupabaseUnavailableError):
         asyncio.run(auth.verify_supabase_token("un-jeton"))
+
+
+# --- Délai et nouvelle tentative vers Supabase Auth (octobre 2026) ---------
+# `httpx.AsyncClient` est remplacé par un client branché sur un
+# `httpx.MockTransport` : aucun appel réseau réel.
+
+
+def _mock_client(monkeypatch, handler):
+    real_client = auth.httpx.AsyncClient
+
+    def factory(**kwargs):
+        return real_client(transport=auth.httpx.MockTransport(handler), **kwargs)
+
+    monkeypatch.setattr(auth.httpx, "AsyncClient", factory)
+
+
+def _set_env(monkeypatch, url="https://projet.supabase.co"):
+    monkeypatch.setenv("SUPABASE_URL", url)
+    monkeypatch.setenv("SUPABASE_ANON_KEY", "cle-anon")
+
+
+def test_verify_supabase_token_retries_once_after_a_timeout(monkeypatch):
+    _set_env(monkeypatch)
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        if len(calls) == 1:
+            raise auth.httpx.ConnectTimeout("délai dépassé", request=request)
+        return auth.httpx.Response(200, json={"id": "user-123"})
+
+    _mock_client(monkeypatch, handler)
+    assert asyncio.run(auth.verify_supabase_token("jeton")) == {"id": "user-123"}
+    assert len(calls) == 2
+
+
+def test_verify_supabase_token_names_the_error_type_after_last_attempt(monkeypatch):
+    _set_env(monkeypatch)
+
+    def handler(request):
+        raise auth.httpx.ReadTimeout("", request=request)
+
+    _mock_client(monkeypatch, handler)
+    with pytest.raises(auth.SupabaseUnavailableError) as exc_info:
+        asyncio.run(auth.verify_supabase_token("jeton"))
+    # Le message n'est plus vide : il nomme le type d'erreur réel.
+    assert "ReadTimeout" in str(exc_info.value)
+
+
+def test_verify_supabase_token_does_not_retry_an_http_answer(monkeypatch):
+    _set_env(monkeypatch)
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return auth.httpx.Response(401, json={"msg": "invalid JWT"})
+
+    _mock_client(monkeypatch, handler)
+    assert asyncio.run(auth.verify_supabase_token("jeton-expire")) is None
+    assert len(calls) == 1
+
+
+def test_verify_supabase_token_strips_pasted_whitespace_from_config(monkeypatch):
+    _set_env(monkeypatch, url="  https://projet.supabase.co/\n")
+    seen = []
+
+    def handler(request):
+        seen.append(str(request.url))
+        assert request.headers["apikey"] == "cle-anon"
+        return auth.httpx.Response(200, json={"id": "user-123"})
+
+    _mock_client(monkeypatch, handler)
+    asyncio.run(auth.verify_supabase_token("jeton"))
+    assert seen == ["https://projet.supabase.co/auth/v1/user"]
