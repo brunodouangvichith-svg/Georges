@@ -9,8 +9,6 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/reset_password_screen.dart';
 import 'features/obligataire/obligataire_screen.dart';
-import 'features/paniers/paniers_screen.dart';
-import 'features/portefeuille/portefeuille_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/rapport/rapport_screen.dart';
 import 'features/trading/trading_screen.dart';
@@ -83,22 +81,6 @@ final _goRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/univers',
                 builder: (context, state) => const UniversScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/paniers',
-                builder: (context, state) => const PaniersScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/portefeuille',
-                builder: (context, state) => const PortefeuilleScreen(),
               ),
             ],
           ),
@@ -224,25 +206,14 @@ class _AppShellState extends State<_AppShell> {
           index,
           initialLocation: index == widget.navigationShell.currentIndex,
         ),
-        // 6 onglets sur ~65 px chacun (téléphone de 390 px) : libellés
-        // courts pour tenir sans déborder — « Portef. », « Oblig. » et
-        // « Rapport » plutôt que les noms complets, repris dans le titre de
-        // chaque écran et dans les infobulles.
+        // 4 onglets (Paniers et Mon Portefeuille retirés de la navigation,
+        // comme sur le web) : ~97 px chacun sur un téléphone de 390 px, assez
+        // pour le libellé complet « Obligataire ».
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
             label: 'Univers',
             tooltip: 'Univers',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.pie_chart_outline),
-            label: 'Paniers',
-            tooltip: 'Paniers',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            label: 'Portef.',
-            tooltip: 'Mon Portefeuille',
           ),
           NavigationDestination(
             icon: Icon(Icons.swap_vert),
@@ -251,7 +222,7 @@ class _AppShellState extends State<_AppShell> {
           ),
           NavigationDestination(
             icon: Icon(Icons.show_chart),
-            label: 'Oblig.',
+            label: 'Obligataire',
             tooltip: 'Obligataire',
           ),
           NavigationDestination(

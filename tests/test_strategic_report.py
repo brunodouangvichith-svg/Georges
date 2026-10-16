@@ -326,3 +326,20 @@ def test_generate_report_end_to_end_is_idempotent_for_the_portfolio(database_url
         engine.dispose()
     finally:
         command.downgrade(cfg, "base")
+
+
+def test_non_finite_values_never_reach_calculations_or_jsonb():
+    import types
+
+    nan = float("nan")
+    assert strategic_report._f(nan) is None and strategic_report._f(float("inf")) is None
+    assert strategic_report._json_safe({"a": [1.0, nan], "b": {"c": float("-inf")}, "d": "x"}) == {
+        "a": [1.0, None],
+        "b": {"c": None},
+        "d": "x",
+    }
+    rows = [("A", datetime.datetime(2026, 10, d), 10.0) for d in range(1, 15)] + [
+        ("A", datetime.datetime(2026, 10, 15), nan)
+    ]
+    result = strategic_report._recent_closes(types.SimpleNamespace(execute=lambda stmt: rows), ["A"], datetime.date(2026, 10, 16))
+    assert result["A"]["close"] == 10.0 and result["A"]["as_of"] == "2026-10-14"

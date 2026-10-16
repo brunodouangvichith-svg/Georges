@@ -29,8 +29,9 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+import math
 
-from sqlalchemy import func, select, text
+from sqlalchemy import Numeric, cast, func, select, text
 from sqlalchemy.orm import Session
 
 from agents import mistral_client, web_search
@@ -90,7 +91,26 @@ PROMPT_NAME = "strategic_report_system.txt"
 
 
 def _f(value) -> float | None:
-    return None if value is None else float(value)
+    """`None` pour une valeur absente **ou non finie** : yfinance écrit
+    parfois des clôtures NaN dans `price_history_long` (colonne `Numeric`,
+    qui accepte NaN), et un NaN ferait planter les calculs (math.floor) puis
+    le stockage JSONB (NaN n'est pas du JSON valide)."""
+    if value is None:
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _json_safe(value):
+    """Remplace récursivement tout float non fini par `None` avant stockage
+    dans `strategic_reports.data` (JSONB refuse NaN/Infinity)."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    return value
 
 
 # ---------------------------------------------------------------- collecte DB
@@ -136,9 +156,10 @@ def _recent_closes(db: Session, symbols: list[str], today: datetime.date) -> dic
     )
     series: dict[str, list[tuple[datetime.datetime, float]]] = {}
     for symbol, ts, close in db.execute(stmt):
+        close = _f(close)
         if close is None:
             continue
-        series.setdefault(symbol, []).append((ts, float(close)))
+        series.setdefault(symbol, []).append((ts, close))
     result: dict[str, dict] = {}
     for symbol, points in series.items():
         last_ts, last_close = points[-1]
@@ -163,7 +184,11 @@ def _last_known_closes(db: Session, symbols: list[str]) -> dict[str, dict]:
         return {}
     latest = (
         select(PriceHistoryLong.symbol, func.max(PriceHistoryLong.ts).label("ts"))
-        .where(PriceHistoryLong.symbol.in_(symbols), PriceHistoryLong.close.is_not(None))
+        .where(
+            PriceHistoryLong.symbol.in_(symbols),
+            PriceHistoryLong.close.is_not(None),
+            PriceHistoryLong.close != cast("NaN", Numeric),
+        )
         .group_by(PriceHistoryLong.symbol)
         .subquery()
     )
@@ -171,8 +196,9 @@ def _last_known_closes(db: Session, symbols: list[str]) -> dict[str, dict]:
         latest, (PriceHistoryLong.symbol == latest.c.symbol) & (PriceHistoryLong.ts == latest.c.ts)
     )
     return {
-        symbol: {"close": float(close), "as_of": ts.date().isoformat(), "week_change_pct": None, "stale": True}
+        symbol: {"close": _f(close), "as_of": ts.date().isoformat(), "week_change_pct": None, "stale": True}
         for symbol, ts, close in db.execute(stmt)
+        if _f(close) is not None
     }
 
 
@@ -540,7 +566,7 @@ def generate_report(session_factory, now: datetime.datetime | None = None) -> in
                 "relance la génération."
             )
         report = StrategicReport(
-            risk_level=risk["level"], narrative_markdown=narrative, data=data, model_used=model_used
+            risk_level=risk["level"], narrative_markdown=narrative, data=_json_safe(data), model_used=model_used
         )
         db.add(report)
         db.flush()
