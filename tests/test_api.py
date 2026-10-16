@@ -340,6 +340,16 @@ def test_list_security_patterns_prefers_higher_confidence_on_tie(client):
     assert body["items"][0]["confidence"] == 77.0
 
 
+def test_latest_patterns_returns_one_pattern_per_symbol_in_one_call(client):
+    """Lot pour le radar Univers (web et mobile) : une figure par titre, même
+    départage que `/{symbol}/patterns` (date puis confiance), et rien pour un
+    titre sans figure (`BBB.PA`)."""
+    resp = client.get("/securities/patterns/latest")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [(p["symbol"], p["pattern_type"], p["confidence"]) for p in body] == [("AAA.PA", "Bull Flag", 77.0)]
+
+
 def test_list_security_prices_chronological_order(client):
     resp = client.get("/securities/AAA.PA/prices", params={"limit": 5})
     body = resp.json()

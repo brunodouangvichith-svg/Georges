@@ -19,6 +19,7 @@ void invalidateAllData(WidgetRef ref) {
   ref.invalidate(decisionsProvider);
   ref.invalidate(performanceProvider);
   ref.invalidate(securityPatternsProvider);
+  ref.invalidate(latestPatternsProvider);
   ref.invalidate(securityPricesProvider);
   ref.invalidate(agentActivityProvider);
   ref.invalidate(basketsProvider);

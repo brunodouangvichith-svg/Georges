@@ -7,8 +7,8 @@ pendant une génération renvoie l'état en cours au lieu d'en lancer une autre
 (chaque génération passe des ordres simulés : deux en parallèle doubleraient
 les achats du portefeuille virtuel).
 
-La génération ouvre ses propres sessions (`deps.SessionLocal`, lu à l'appel
-pour rester remplaçable en test) et ne garde aucune connexion ouverte pendant
+La génération ouvre ses propres sessions sur un moteur dédié sans pool
+(`_job_engine`, construit depuis `deps.engine.url` lu à l'appel) et ne garde aucune connexion ouverte pendant
 les appels Tavily/yfinance/Mistral — voir `agents/strategic_report.py`."""
 
 import logging
@@ -16,13 +16,15 @@ import threading
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from agents import strategic_report
 from api import deps
 from api.deps import get_db
 from api.schemas import StrategicReportJobStatus, StrategicReportOut, StrategicReportSummaryOut
+from ingestion.db import CONNECT_TIMEOUT_SECONDS
 from ingestion.models import StrategicReport
 
 logger = logging.getLogger(__name__)
@@ -33,10 +35,30 @@ _lock = threading.Lock()
 _state: dict = {"status": "idle"}
 
 
+def _job_engine():
+    """Moteur dédié au job, sans pool (`NullPool`) : une connexion ouverte à
+    la demande puis fermée. Le job ne passe donc jamais dans la file d'attente
+    du pool de l'API (2 + 2 connexions) — en production, l'écran Univers
+    pouvait l'occuper entièrement pendant plus de 30 s et la génération
+    échouait sur « QueuePool limit of size 2 overflow 2 reached ». Le job
+    n'ouvre qu'une connexion à la fois (jamais pendant les appels réseau),
+    donc au plus une connexion de plus côté Supabase. Construit depuis
+    `deps.engine.url`, lu à l'appel (remplaçable en test)."""
+    return create_engine(
+        deps.engine.url,
+        poolclass=NullPool,
+        future=True,
+        connect_args={"connect_timeout": CONNECT_TIMEOUT_SECONDS},
+    )
+
+
 def _run_generation_job() -> None:
     global _state
+    job_engine = None
     try:
-        report_id = strategic_report.generate_report(deps.SessionLocal)
+        job_engine = _job_engine()
+        session_factory = sessionmaker(bind=job_engine, autoflush=False, future=True)
+        report_id = strategic_report.generate_report(session_factory)
         with _lock:
             _state = {
                 "status": "done",
@@ -53,6 +75,9 @@ def _run_generation_job() -> None:
                 "finished_at": datetime.now(timezone.utc),
                 "error": str(exc),
             }
+    finally:
+        if job_engine is not None:
+            job_engine.dispose()
 
 
 @router.post("/generate", response_model=StrategicReportJobStatus)

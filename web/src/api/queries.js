@@ -1,5 +1,5 @@
-import { useCallback } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, apiPatch, apiPost } from "./client";
 
 // Chaque hook correspond à un endpoint de l'API George (Phase 3, voir
@@ -24,25 +24,20 @@ export function useSecurityPatterns(symbol, { limit = 1 } = {}) {
   });
 }
 
-// Dernière figure de chaque titre, pour le radar de l'écran Univers. Même
-// clé de cache que useSecurityPatterns(symbol, { limit: 1 }) : les lignes
-// de la watchlist lancent déjà ces requêtes, le radar les réutilise sans
-// appel supplémentaire. Renvoie { [symbol]: pattern | null }.
+// Dernière figure de chaque titre en UNE requête (`GET /securities/patterns/latest`)
+// → `{ [symbol]: pattern | null }`. Remplace l'ancien appel par titre (~100
+// requêtes à chaque affichage d'Univers) qui saturait le pool de connexions
+// de l'API et faisait échouer d'autres requêtes (« QueuePool limit reached »).
 export function useLatestPatterns(symbols) {
-  // combine stable tant que la liste de titres ne change pas : React Query
-  // ne recalcule alors le dictionnaire que quand une requête évolue.
-  const combine = useCallback(
-    (results) => Object.fromEntries(symbols.map((symbol, i) => [symbol, results[i]?.data?.items?.[0] ?? null])),
-    [symbols]
-  );
-  return useQueries({
-    queries: symbols.map((symbol) => ({
-      queryKey: ["security-patterns", symbol, 1],
-      queryFn: () => apiFetch(`/securities/${symbol}/patterns`, { limit: 1 }),
-      enabled: Boolean(symbol),
-    })),
-    combine,
+  const { data } = useQuery({
+    queryKey: ["latest-patterns"],
+    queryFn: () => apiFetch("/securities/patterns/latest"),
+    enabled: symbols.length > 0,
   });
+  return useMemo(() => {
+    const bySymbol = Object.fromEntries((data ?? []).map((p) => [p.symbol, p]));
+    return Object.fromEntries(symbols.map((symbol) => [symbol, bySymbol[symbol] ?? null]));
+  }, [data, symbols]);
 }
 
 export function useSecurityPrices(symbol, { limit = 250 } = {}) {

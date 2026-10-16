@@ -4,15 +4,17 @@ import { decisionColor, decisionTagClass } from "../data";
 
 const cell = { padding: "8px 10px", borderBottom: "1px solid var(--hairline)" };
 
-// Une ligne = ses propres requêtes (pattern le plus récent + un court
-// historique pour le sparkline) — pas d'endpoint de lot côté API pour ça,
-// voir la note dans src/api/queries.js. Le radar de l'écran Univers
-// réutilise la même clé de cache pour la figure (useLatestPatterns).
-export default function WatchlistRow({ security, decision, selected, onSelect }) {
-  const { data: patternsPage } = useSecurityPatterns(security.symbol, { limit: 1 });
+// `latestPattern` : la figure déjà chargée en lot par l'écran Univers
+// (useLatestPatterns, une seule requête pour tout l'univers). Quand elle est
+// fournie (y compris `null` = aucune figure), la ligne ne refait pas sa
+// propre requête ; sinon elle retombe sur l'appel par titre. Le sparkline
+// garde sa propre requête de prix (pas d'endpoint de lot pour ça).
+export default function WatchlistRow({ security, decision, selected, onSelect, latestPattern }) {
+  const batched = latestPattern !== undefined;
+  const { data: patternsPage } = useSecurityPatterns(batched ? null : security.symbol, { limit: 1 });
   const { data: pricesPage } = useSecurityPrices(security.symbol, { limit: 20 });
 
-  const pattern = patternsPage?.items?.[0] ?? null;
+  const pattern = batched ? latestPattern : (patternsPage?.items?.[0] ?? null);
   const closes = (pricesPage?.items ?? []).map((bar) => bar.close);
   const decisionType = decision?.decision_type ?? null;
   const color = decisionType ? decisionColor(decisionType) : "var(--text-dim)";
