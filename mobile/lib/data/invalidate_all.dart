@@ -17,6 +17,7 @@ import 'securities_repository.dart';
 void invalidateAllData(WidgetRef ref) {
   ref.invalidate(securitiesProvider);
   ref.invalidate(decisionsProvider);
+  ref.invalidate(performanceProvider);
   ref.invalidate(securityPatternsProvider);
   ref.invalidate(securityPricesProvider);
   ref.invalidate(agentActivityProvider);

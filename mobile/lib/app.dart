@@ -8,12 +8,15 @@ import 'core/auth/go_router_refresh_stream.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/reset_password_screen.dart';
+import 'features/obligataire/obligataire_screen.dart';
 import 'features/paniers/paniers_screen.dart';
 import 'features/portefeuille/portefeuille_screen.dart';
 import 'features/profile/profile_screen.dart';
+import 'features/trading/trading_screen.dart';
 import 'features/univers/univers_screen.dart';
 
-/// Navigation à 3 onglets (Univers / Paniers / Mon Portefeuille) — même
+/// Navigation à 5 onglets (Univers / Paniers / Portefeuille / Trading /
+/// Obligataire, les deux derniers alignés sur le web en octobre 2026) — même
 /// simplicité que web/src/App.jsx (pas de routeur là-bas, juste un
 /// `useState`) ; go_router n'est là que pour le comportement natif du bouton
 /// retour et pour permettre plus tard une route poussée "détail de décision".
@@ -95,6 +98,22 @@ final _goRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/portefeuille',
                 builder: (context, state) => const PortefeuilleScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/trading',
+                builder: (context, state) => const TradingScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/obligataire',
+                builder: (context, state) => const ObligataireScreen(),
               ),
             ],
           ),
@@ -196,18 +215,35 @@ class _AppShellState extends State<_AppShell> {
           index,
           initialLocation: index == widget.navigationShell.currentIndex,
         ),
+        // 5 onglets sur ~78 px chacun (téléphone de 390 px) : libellés
+        // courts pour tenir à la taille de police du thème (14.52) sans
+        // déborder — « Portef. » et « Oblig. » plutôt que les noms complets,
+        // repris dans le titre de chaque écran.
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
             label: 'Univers',
+            tooltip: 'Univers',
           ),
           NavigationDestination(
             icon: Icon(Icons.pie_chart_outline),
             label: 'Paniers',
+            tooltip: 'Paniers',
           ),
           NavigationDestination(
             icon: Icon(Icons.account_balance_wallet_outlined),
-            label: 'Portefeuille',
+            label: 'Portef.',
+            tooltip: 'Mon Portefeuille',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.swap_vert),
+            label: 'Trading',
+            tooltip: 'Trading',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.show_chart),
+            label: 'Oblig.',
+            tooltip: 'Obligataire',
           ),
         ],
       ),

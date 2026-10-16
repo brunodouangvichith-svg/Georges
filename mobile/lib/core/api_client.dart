@@ -4,7 +4,7 @@ import 'api_exception.dart';
 import 'auth/auth_interceptor.dart';
 import 'env.dart';
 
-/// Wrapper HTTP à 3 verbes — miroir de web/src/api/client.js
+/// Wrapper HTTP (get/post/patch/delete) — miroir de web/src/api/client.js
 /// (`apiFetch`/`apiPost`/`apiDelete`). Le `receiveTimeout` par défaut doit
 /// couvrir le cold start du plan gratuit Render (`george-api`, voir
 /// CLAUDE.md section Hosting) — le service se met en veille après une
@@ -57,6 +57,18 @@ class ApiClient {
     }
   }
 
+  /// Mise à jour partielle — miroir de `apiPatch` (web/src/api/client.js),
+  /// utilisée par l'édition des seuils d'alerte obligataires. Seuls les champs
+  /// présents dans [body] sont modifiés côté serveur.
+  Future<dynamic> patch(String path, {Map<String, dynamic>? body}) async {
+    try {
+      final response = await _dio.patch(path, data: body ?? {});
+      return response.data;
+    } on DioException catch (e) {
+      throw _toApiException(path, e);
+    }
+  }
+
   Future<dynamic> delete(String path) async {
     try {
       final response = await _dio.delete(path);
@@ -78,7 +90,16 @@ class ApiClient {
   ApiException _toApiException(String path, DioException e) {
     final statusCode = e.response?.statusCode;
     if (statusCode != null) {
-      return ApiException(path: path, statusCode: statusCode, message: e.response?.statusMessage ?? e.message ?? '');
+      // FastAPI renvoie le motif lisible dans `detail` (ex. 409 "Décision 12
+      // n'est plus au statut 'proposee'.") — plus utile à afficher que le
+      // simple libellé HTTP.
+      final data = e.response?.data;
+      final detail = data is Map && data['detail'] is String ? data['detail'] as String : null;
+      return ApiException(
+        path: path,
+        statusCode: statusCode,
+        message: detail ?? e.response?.statusMessage ?? e.message ?? '',
+      );
     }
     return ApiException(path: path, message: e.message ?? 'Erreur réseau');
   }
