@@ -108,3 +108,87 @@ def test_run_is_idempotent_and_logs_the_collection_run(database_url, monkeypatch
             assert all(r.instruments_succeeded == 4 for r in runs)
     finally:
         command.downgrade(cfg, "base")
+
+
+# --- Rattrapage de l'historique (`backfill_history`) -- pur, réseau et DB mockés ---
+
+FRED_CSV_HISTORY = (
+    "observation_date,DGS10\n"
+    "2014-01-02,3.00\n"
+    "2025-01-02,4.50\n"
+    "2025-01-03,.\n"
+    "2026-10-13,4.15\n"
+    "pas-une-date,4.20\n"
+)
+
+
+def test_parse_fred_csv_keeps_real_values_in_order_and_skips_missing_or_malformed():
+    from ingestion.bond_yields import parse_fred_csv
+
+    assert parse_fred_csv(FRED_CSV_HISTORY, "DGS10") == [
+        (3.00, datetime.date(2014, 1, 2)),
+        (4.50, datetime.date(2025, 1, 2)),
+        (4.15, datetime.date(2026, 10, 13)),
+    ]
+    # Colonne absente (mauvais ID de série) -> rien, jamais une valeur inventée.
+    assert parse_fred_csv(FRED_CSV_HISTORY, "DGS2") == []
+
+
+def test_fetch_bond_yield_history_filters_by_start_date(monkeypatch):
+    import ingestion.bond_yields as bond_yields
+
+    monkeypatch.setattr(bond_yields.requests, "get", lambda url, params=None, timeout=None: _FakeResponse(FRED_CSV_HISTORY))
+    history = bond_yields.fetch_bond_yield_history("DGS10", since=datetime.date(2025, 1, 1))
+    assert history == [(4.50, datetime.date(2025, 1, 2)), (4.15, datetime.date(2026, 10, 13))]
+
+
+def test_fetch_bond_yield_history_returns_none_on_network_failure(monkeypatch):
+    import ingestion.bond_yields as bond_yields
+
+    def _raise(*_args, **_kwargs):
+        raise bond_yields.requests.ConnectionError("réseau coupé")
+
+    monkeypatch.setattr(bond_yields.requests, "get", _raise)
+    assert bond_yields.fetch_bond_yield_history("DGS10", since=datetime.date(2020, 1, 1)) is None
+
+
+def test_backfill_history_upserts_each_series_and_reports_unreachable_ones(monkeypatch):
+    import contextlib
+
+    import ingestion.bond_yields as bond_yields
+
+    def _fake_history(series_id, since):
+        if series_id == "DGS2":
+            return None  # série injoignable : les autres doivent continuer
+        return [(4.0, since), (4.1, since + datetime.timedelta(days=1))]
+
+    class _FakeEngine:
+        def begin(self):
+            return contextlib.nullcontext("conn")
+
+    written_calls = []
+    monkeypatch.setattr(bond_yields, "fetch_bond_yield_history", _fake_history)
+    monkeypatch.setattr(bond_yields, "get_engine", lambda: _FakeEngine())
+    monkeypatch.setattr(
+        bond_yields, "_upsert_snapshots", lambda conn, instrument, series_id, obs: written_calls.append((instrument, len(obs)))
+    )
+
+    result = bond_yields.backfill_history(years=2)
+
+    assert result == {"OAT_FR_10Y": 2, "BUND_DE_10Y": 2, "UST_US_10Y": 2, "UST_US_2Y": None}
+    assert written_calls == [("OAT_FR_10Y", 2), ("BUND_DE_10Y", 2), ("UST_US_10Y", 2)]
+
+
+def test_upsert_snapshots_splits_large_histories_into_batches(monkeypatch):
+    import ingestion.bond_yields as bond_yields
+
+    executed = []
+
+    class _FakeConn:
+        def execute(self, stmt):
+            executed.append(stmt)
+
+    monkeypatch.setattr(bond_yields, "UPSERT_BATCH_SIZE", 2)
+    observations = [(4.0 + i / 100, datetime.date(2026, 1, 1) + datetime.timedelta(days=i)) for i in range(5)]
+    bond_yields._upsert_snapshots(_FakeConn(), "UST_US_10Y", "DGS10", observations)
+    assert len(executed) == 3  # 2 + 2 + 1
