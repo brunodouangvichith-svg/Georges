@@ -4,8 +4,14 @@ import '../core/providers.dart';
 import '../models/decision.dart';
 import '../models/explanation.dart';
 import '../models/page.dart';
+import '../models/performance.dart';
 
-/// Miroir de web/src/api/queries.js:useDecisions/useExplainDecision.
+/// Miroir de web/src/api/queries.js:useDecisions/useExplainDecision et des
+/// mutations du cycle de vie (useConfirmDecision, useProposeLevels,
+/// useConfirmExit, useProposeDecisions, useMonitorDecisions, usePerformance).
+/// George ne passe jamais d'ordre : « confirmer » enregistre seulement une
+/// position suivie, « confirmer la sortie » la clôture et écrit son résultat
+/// dans decision_outcomes (voir api/routers/decisions.py).
 class DecisionsRepository {
   DecisionsRepository(this._ref);
 
@@ -32,6 +38,51 @@ class DecisionsRepository {
       receiveTimeout: const Duration(seconds: 90),
     );
     return Explanation.fromJson(json as Map<String, dynamic>);
+  }
+
+  /// Valide une décision `proposee`. [takeProfit]/[stopLoss] ne sont envoyés
+  /// que s'ils ont été modifiés (null = garder la valeur proposée).
+  Future<Decision> confirm(int decisionId, {double? takeProfit, double? stopLoss}) async {
+    final client = _ref.read(apiClientProvider);
+    final body = <String, dynamic>{};
+    if (takeProfit != null) body['take_profit'] = takeProfit;
+    if (stopLoss != null) body['stop_loss'] = stopLoss;
+    final json = await client.post('/decisions/$decisionId/confirm', body: body);
+    return Decision.fromJson(json as Map<String, dynamic>);
+  }
+
+  /// Recalcule take-profit/stop-loss d'une décision `proposee` sur le dernier prix.
+  Future<Decision> proposeLevels(int decisionId) async {
+    final client = _ref.read(apiClientProvider);
+    final json = await client.post('/decisions/$decisionId/propose-levels');
+    return Decision.fromJson(json as Map<String, dynamic>);
+  }
+
+  /// Clôture définitive d'une décision `sortie_proposee`.
+  Future<Decision> confirmExit(int decisionId) async {
+    final client = _ref.read(apiClientProvider);
+    final json = await client.post('/decisions/$decisionId/confirm-exit');
+    return Decision.fromJson(json as Map<String, dynamic>);
+  }
+
+  /// Lance la détection de nouvelles propositions. Renvoie le nombre créé.
+  Future<int> proposeNew() async {
+    final client = _ref.read(apiClientProvider);
+    final json = await client.post('/decisions/propose', receiveTimeout: const Duration(seconds: 120));
+    return (json as List).length;
+  }
+
+  /// Lance le job de suivi des positions. Renvoie le nombre de sorties proposées.
+  Future<int> monitor() async {
+    final client = _ref.read(apiClientProvider);
+    final json = await client.post('/decisions/monitor', receiveTimeout: const Duration(seconds: 120));
+    return (json as List).length;
+  }
+
+  Future<Performance> performance() async {
+    final client = _ref.read(apiClientProvider);
+    final json = await client.get('/decisions/performance');
+    return Performance.fromJson(json as Map<String, dynamic>);
   }
 }
 
@@ -61,4 +112,9 @@ final decisionsProvider = FutureProvider.autoDispose.family<Page<Decision>, Deci
         status: filter.status,
         basketId: filter.basketId,
       );
+});
+
+/// Performance réalisée (positions clôturées uniquement).
+final performanceProvider = FutureProvider.autoDispose<Performance>((ref) {
+  return ref.read(decisionsRepositoryProvider).performance();
 });

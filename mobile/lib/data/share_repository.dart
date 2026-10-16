@@ -45,9 +45,9 @@ class ShareRepository {
         'to_email': toEmail,
         'subject': subject,
         'text': text,
-        if (symbol != null) 'symbol': symbol,
-        if (takeProfit != null) 'take_profit': takeProfit,
-        if (stopLoss != null) 'stop_loss': stopLoss,
+        'symbol': ?symbol,
+        'take_profit': ?takeProfit,
+        'stop_loss': ?stopLoss,
       },
       receiveTimeout: const Duration(seconds: 90),
     );
