@@ -16,10 +16,12 @@ import 'univers_radar_layout.dart';
 /// - le champ de lignes intérieur est décoratif (graine fixe) : il ne
 ///   représente aucune donnée.
 ///
-/// Un tap près d'une graduation sélectionne la valeur. Les graduations sont
-/// serrées au doigt : la liste « Watchlist » sous le radar reste le chemin
-/// principal (et celui des lecteurs d'écran).
-class UniversRadar extends StatelessWidget {
+/// Un tap près d'une graduation sélectionne la valeur. Le radar se zoome au
+/// pincement (jusqu'à ×5) pour viser une graduation précise ; un bouton
+/// « Réinitialiser le zoom » apparaît dès qu'on a zoomé. À l'échelle 1, un
+/// glissement vertical d'un doigt fait toujours défiler l'écran. La liste
+/// « Watchlist » sous le radar reste le chemin des lecteurs d'écran.
+class UniversRadar extends StatefulWidget {
   const UniversRadar({
     super.key,
     required this.layout,
@@ -36,35 +38,97 @@ class UniversRadar extends StatelessWidget {
   static const double _viewHeight = 680;
   static const double _cx = 380;
   static const double _cy = 340;
+  static const double maxZoom = 5;
+
+  @override
+  State<UniversRadar> createState() => _UniversRadarState();
+}
+
+class _UniversRadarState extends State<UniversRadar> {
+  final _zoom = TransformationController();
+  bool _zoomed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _zoom.addListener(_onZoomChanged);
+  }
+
+  @override
+  void dispose() {
+    _zoom
+      ..removeListener(_onZoomChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onZoomChanged() {
+    final zoomed = _zoom.value.getMaxScaleOnAxis() > 1.01;
+    if (zoomed != _zoomed) setState(() => _zoomed = zoomed);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final layout = widget.layout;
     final withPattern = layout.items.where((it) => it.confidence != null).length;
     return Semantics(
       image: true,
       label:
           "Radar de l'univers : ${layout.items.length} valeurs réparties en ${layout.labels.length} grands secteurs, "
-          '$withPattern avec une figure détectée. La longueur des barres suit la confiance de la figure.',
+          '$withPattern avec une figure détectée. La longueur des barres suit la confiance de la figure. '
+          'Pincez pour zoomer.',
       child: AspectRatio(
-        aspectRatio: radarViewWidth / _viewHeight,
+        aspectRatio: radarViewWidth / UniversRadar._viewHeight,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final k = constraints.maxWidth / radarViewWidth;
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapUp: (details) {
-                final dx = details.localPosition.dx / k - _cx;
-                final dy = details.localPosition.dy / k - _cy;
-                final r = math.sqrt(dx * dx + dy * dy);
-                // Bande généreuse autour de l'anneau, pensée pour le doigt.
-                if (r < rTickIn - 40 || r > rBar + 70) return;
-                final item = layout.nearest(math.atan2(dy, dx));
-                if (item != null) onSelect(item.symbol);
-              },
-              child: CustomPaint(
-                size: Size(constraints.maxWidth, constraints.maxWidth * _viewHeight / radarViewWidth),
-                painter: _RadarPainter(layout: layout, selectedSymbol: selectedSymbol, closes: closes),
-              ),
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: ClipRect(
+                    child: InteractiveViewer(
+                      transformationController: _zoom,
+                      minScale: 1,
+                      maxScale: UniversRadar.maxZoom,
+                      // À l'échelle 1, pas de déplacement : le glissement
+                      // vertical reste au défilement de l'écran.
+                      panEnabled: _zoomed,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTapUp: (details) {
+                          // Coordonnées locales au radar non zoomé : le zoom
+                          // d'InteractiveViewer est déjà défait ici.
+                          final dx = details.localPosition.dx / k - UniversRadar._cx;
+                          final dy = details.localPosition.dy / k - UniversRadar._cy;
+                          final r = math.sqrt(dx * dx + dy * dy);
+                          // Bande généreuse autour de l'anneau, pensée pour le doigt.
+                          if (r < rTickIn - 40 || r > rBar + 70) return;
+                          final item = layout.nearest(math.atan2(dy, dx));
+                          if (item != null) widget.onSelect(item.symbol);
+                        },
+                        child: CustomPaint(
+                          size: Size(constraints.maxWidth, constraints.maxWidth * UniversRadar._viewHeight / radarViewWidth),
+                          painter: _RadarPainter(
+                            layout: layout,
+                            selectedSymbol: widget.selectedSymbol,
+                            closes: widget.closes,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (_zoomed)
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    child: TextButton.icon(
+                      onPressed: () => _zoom.value = Matrix4.identity(),
+                      icon: const Icon(Icons.zoom_out_map, size: 16),
+                      label: const Text('Réinitialiser le zoom'),
+                    ),
+                  ),
+              ],
             );
           },
         ),
