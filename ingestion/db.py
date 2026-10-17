@@ -60,7 +60,12 @@ def get_engine():
     return create_engine(
         get_database_url(),
         future=True,
-        connect_args={"connect_timeout": CONNECT_TIMEOUT_SECONDS},
+        # `prepare_threshold=None` : psycopg 3 prépare automatiquement une
+        # requête répétée (5e exécution), ce qu'interdit le Transaction pooler
+        # Supabase (port 6543, pgbouncer en mode transaction) — erreur réelle
+        # « prepared statement "_pg3_0" already exists » pendant un
+        # `bond_yields --backfill`. Sans effet notable sur le port 5432.
+        connect_args={"connect_timeout": CONNECT_TIMEOUT_SECONDS, "prepare_threshold": None},
         pool_size=_int_env("DB_POOL_SIZE", DEFAULT_POOL_SIZE, minimum=1),
         max_overflow=_int_env("DB_MAX_OVERFLOW", DEFAULT_MAX_OVERFLOW, minimum=0),
         pool_timeout=POOL_TIMEOUT_SECONDS,
