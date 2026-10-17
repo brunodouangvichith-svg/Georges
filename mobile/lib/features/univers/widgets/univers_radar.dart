@@ -240,11 +240,14 @@ class _RadarPainter extends CustomPainter {
       }
     }
 
+    // Étiquettes de secteur orientées selon le rayon (de l'anneau vers le
+    // centre), comme sur le web : deux secteurs voisins sont séparés d'au
+    // moins ~10°, une étiquette n'en occupe que ~3°, elles ne se chevauchent
+    // donc plus (les étiquettes horizontales se recouvraient en haut et en bas
+    // du cercle). Moitié gauche retournée de 180° pour rester lisible.
     for (final label in layout.labels) {
-      final c = math.cos(label.angle);
-      final anchor = c > 0.25 ? _Anchor.end : (c < -0.25 ? _Anchor.start : _Anchor.middle);
       final p = polar(label.angle, rSectorLabel);
-      _drawText(canvas, size, label.text, Offset(p.dx, p.dy + 4 * k), anchor,
+      _drawRadialText(canvas, label.text, p, label.angle,
           fontSize: 9, weight: FontWeight.w600, color: AppColors.textDim);
     }
 
@@ -343,6 +346,46 @@ class _RadarPainter extends CustomPainter {
     final top = baseline.dy - fill.height * 0.75;
     outline.paint(canvas, Offset(left, top));
     fill.paint(canvas, Offset(left, top));
+  }
+
+  /// Texte tourné selon [angle], son extrémité côté anneau posée sur [anchor]
+  /// et s'étendant vers le centre du radar ; jamais à l'envers.
+  void _drawRadialText(
+    Canvas canvas,
+    String text,
+    Offset anchor,
+    double angle, {
+    required double fontSize,
+    required FontWeight weight,
+    required Color color,
+  }) {
+    final base = monoTextStyle(fontSize: fontSize, fontWeight: weight);
+    final outline = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: base.copyWith(
+          foreground: Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3
+            ..color = AppColors.panel,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final fill = TextPainter(
+      text: TextSpan(text: text, style: base.copyWith(color: color)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final right = math.cos(angle) >= 0;
+    canvas.save();
+    canvas.translate(anchor.dx, anchor.dy);
+    canvas.rotate(right ? angle : angle + math.pi);
+    // Moitié droite : le texte finit sur l'anneau ; moitié gauche (retournée) :
+    // il y commence. Dans les deux cas il part vers le centre.
+    final offset = Offset(right ? -fill.width : 0, -fill.height / 2);
+    outline.paint(canvas, offset);
+    fill.paint(canvas, offset);
+    canvas.restore();
   }
 
   @override

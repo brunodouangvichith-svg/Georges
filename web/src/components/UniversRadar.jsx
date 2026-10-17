@@ -174,9 +174,11 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
           key={l.sector}
           x={l.x}
           y={l.y}
+          transform={`rotate(${l.rotate.toFixed(2)} ${l.x.toFixed(2)} ${l.y.toFixed(2)})`}
           textAnchor={l.anchor}
+          dominantBaseline="middle"
           fontFamily="IBM Plex Mono, monospace"
-          fontSize={11}
+          fontSize={10.5}
           fontWeight={600}
           fill="var(--text-dim)"
           stroke="var(--panel)"
