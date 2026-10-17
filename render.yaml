@@ -44,3 +44,8 @@ services:
       # lui-même (voir CLAUDE.md, section "Share by email").
       - key: RESEND_API_KEY
         sync: false
+      # OAT 10 ans quotidienne (TEC10, Banque de France, API Webstat) pour
+      # POST /bonds/refresh — clé gratuite d'un compte webstat.banque-france.fr.
+      # Absente : repli sur la série FRED mensuelle (voir ingestion/bond_yields.py).
+      - key: WEBSTAT_API_KEY
+        sync: false
