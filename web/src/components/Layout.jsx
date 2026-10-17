@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { supabase } from "../api/supabaseClient";
+import { marketStatus } from "../lib/marketStatus";
 
 const NAV = [
   { key: "univers", label: "Univers", icon: "◆" },
@@ -7,7 +9,18 @@ const NAV = [
   { key: "rapport", label: "Rapport", icon: "▤" },
 ];
 
+// Recalcule le statut de séance toutes les 30 s (heure de Paris).
+function useMarketStatus() {
+  const [status, setStatus] = useState(() => marketStatus());
+  useEffect(() => {
+    const id = setInterval(() => setStatus(marketStatus()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return status;
+}
+
 export default function Layout({ view, setView, children }) {
+  const market = useMarketStatus();
   return (
     <div
       className="grid h-screen"
@@ -38,14 +51,18 @@ export default function Layout({ view, setView, children }) {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-4 text-xs" style={{ color: "var(--text-dim)" }}>
-          <span>
+          <span title={market.reason ? `Euronext Paris : ${market.reason}` : "Séance continue 09:00-17:30"}>
             <span
               className="inline-block w-[7px] h-[7px] rounded-full mr-1.5"
-              style={{ background: "var(--positive)", boxShadow: "0 0 6px var(--positive)" }}
+              style={{
+                background: market.open ? "var(--positive)" : "var(--negative)",
+                boxShadow: market.open ? "0 0 6px var(--positive)" : "none",
+              }}
             />
-            Marché ouvert
+            {market.label}
+            {market.reason && <span> · {market.reason}</span>}
           </span>
-          <span className="mono">08:30 · Euronext Paris</span>
+          <span className="mono">{market.time} · Euronext Paris</span>
           <button
             onClick={() => supabase.auth.signOut()}
             className="text-[11.5px] px-2.5 py-1 rounded-full border"

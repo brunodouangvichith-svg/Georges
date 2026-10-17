@@ -16,6 +16,10 @@ export const BAR_SCALE = 0.5 * RADAR_SCALE;
 const R_SECTOR_LABEL = 236 * RADAR_SCALE;
 const SECTOR_GAP = 2;
 const MIN_SECTOR_LABEL = 4;
+const MAX_LABEL_CHARS = 24;
+
+// Ramène un angle en degrés dans [-180, 180[.
+const normalizeDeg = (d) => ((((d + 180) % 360) + 360) % 360) - 180;
 
 const truncate = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
@@ -50,14 +54,22 @@ export function buildRadar(securities, patternsBySymbol, decisionsMap) {
       slot++;
     }
     if (list.length >= MIN_SECTOR_LABEL) {
+      // Étiquette orientée selon le rayon (de l'anneau vers le centre) et non
+      // horizontale : deux secteurs voisins sont séparés d'au moins ~10° et
+      // une étiquette n'occupe que ~3° (hauteur de police / rayon), elles ne
+      // peuvent donc plus se chevaucher, même en haut et en bas du cercle où
+      // les étiquettes horizontales se recouvraient. Moitié gauche retournée
+      // de 180° pour que le texte reste lisible (jamais à l'envers).
       const mid = -Math.PI / 2 + (start + (list.length - 1) / 2) * step;
-      const c = Math.cos(mid);
+      const right = Math.cos(mid) >= 0;
+      const deg = (mid * 180) / Math.PI;
       labels.push({
         sector,
-        text: truncate(sector.toUpperCase(), 16),
-        x: CX + c * R_SECTOR_LABEL,
-        y: CY + Math.sin(mid) * R_SECTOR_LABEL + 4,
-        anchor: c > 0.25 ? "end" : c < -0.25 ? "start" : "middle",
+        text: truncate(sector.toUpperCase(), MAX_LABEL_CHARS),
+        x: CX + Math.cos(mid) * R_SECTOR_LABEL,
+        y: CY + Math.sin(mid) * R_SECTOR_LABEL,
+        rotate: normalizeDeg(right ? deg : deg + 180),
+        anchor: right ? "end" : "start",
       });
     }
     slot += SECTOR_GAP;

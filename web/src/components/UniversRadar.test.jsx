@@ -34,6 +34,25 @@ describe("buildRadar", () => {
     const lighten = Object.fromEntries(items.map((i) => [i.symbol, i.lighten]));
     expect(lighten).toMatchObject({ "AIR.PA": false, "SU.PA": false, "SAF.PA": true, "HO.PA": false });
   });
+
+  it("orients sector labels along the radius so neighbours never overlap", () => {
+    // ~100 valeurs dans 12 secteurs, dont plusieurs petits voisins (cas réel
+    // où "SANTÉ / BIOTECH" et "SERVICES" se chevauchaient en haut du cercle).
+    const sizes = [18, 14, 12, 10, 9, 8, 7, 6, 5, 5, 4, 4];
+    const many = sizes.flatMap((n, i) =>
+      Array.from({ length: n }, (_, j) => ({ symbol: `S${i}-${j}`, name: "x", sector: `Secteur numéro ${i}` })),
+    );
+    const { labels } = buildRadar(many, {}, {});
+    expect(labels).toHaveLength(sizes.length);
+    const angles = labels.map((l) => Math.atan2(l.y - 340, l.x - 380)).sort((a, b) => a - b);
+    const gaps = angles.map((a, i) => (i === 0 ? a + 2 * Math.PI - angles.at(-1) : a - angles[i - 1]));
+    // Police de 10,5 px au rayon ~212 : ~3° suffisent ; on exige plus de 6°.
+    expect(Math.min(...gaps)).toBeGreaterThan((6 * Math.PI) / 180);
+    for (const l of labels) {
+      expect(l.rotate).toBeGreaterThanOrEqual(-90);
+      expect(l.rotate).toBeLessThanOrEqual(90); // jamais à l'envers
+    }
+  });
 });
 
 describe("UniversRadar", () => {

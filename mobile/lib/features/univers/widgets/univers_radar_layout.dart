@@ -122,7 +122,7 @@ RadarLayout buildRadarLayout(
     if (entry.value.length >= _minSectorLabel) {
       labels.add(RadarSectorLabel(
         sector: entry.key,
-        text: _truncate(entry.key.toUpperCase(), 16),
+        text: _truncate(entry.key.toUpperCase(), 24),
         angle: -math.pi / 2 + (start + (entry.value.length - 1) / 2) * step,
       ));
     }
