@@ -114,7 +114,7 @@ def get_daily_bulletin(db: Session = Depends(get_db)):
 @router.post("/refresh", response_model=BondRefreshResponse)
 def refresh_bonds(db: Session = Depends(get_db)):
     """Déclenchement manuel de la collecte + réévaluation des seuils —
-    route synchrone (4 appels FRED, rapide, contrairement à
+    route synchrone (Banque de France, Bundesbank, FRED : quelques appels rapides, contrairement à
     `POST /prices/refresh` qui tourne en tâche de fond) ; planification
     automatique via
     `.github/workflows/daily_bond_yields.yml`, pas de scheduler Celery/Redis

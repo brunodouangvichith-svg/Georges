@@ -108,9 +108,9 @@ def _values_if_contemporaneous(
     return float(a.value_pct), float(b.value_pct)
 
 
-# OAT/Bund (OCDE, mensuel) : deux publications du même mois calendaire sont
-# considérées comparables, jusqu'à ~45 jours d'écart au pire si l'une des deux
-# séries a du retard. UST10/UST2 (FRED, quotidien) : tolérance resserrée à 5
+# OAT/Bund : quotidiens depuis oct. 2026 (TEC10 Banque de France, Bundesbank),
+# mais la tolérance reste à 45 jours pour le repli FRED/OCDE mensuel (deux
+# publications du même mois restent comparables) — voir ingestion/bond_yields.py. UST10/UST2 (FRED, quotidien) : tolérance resserrée à 5
 # jours, largement suffisant pour deux séries quotidiennes réellement à jour.
 SPREAD_CONTEMPORANEOUS_TOLERANCE_DAYS = 45
 US_CURVE_CONTEMPORANEOUS_TOLERANCE_DAYS = 5

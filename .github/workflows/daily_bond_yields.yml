@@ -35,6 +35,7 @@ jobs:
         run: python -m ingestion.bond_yields
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          WEBSTAT_API_KEY: ${{ secrets.WEBSTAT_API_KEY }}
       - name: Évalue les seuils d'alerte (engine.bond_alerts)
         run: python -c "from ingestion.db import get_session_factory; from engine.bond_alerts import evaluate_all_thresholds; db = get_session_factory()(); created = evaluate_all_thresholds(db); print(f'{len(created)} evenement(s) d_alerte cree(s).')"
         env:
