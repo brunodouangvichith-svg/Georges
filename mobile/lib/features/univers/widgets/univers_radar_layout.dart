@@ -7,7 +7,7 @@ import '../../../models/security.dart';
 /// Géométrie du radar de l'écran Univers — port de
 /// `web/src/components/universRadarLayout.js`, mêmes règles : une graduation
 /// par valeur, regroupées par secteur (le plus gros d'abord) avec un petit
-/// espace entre secteurs, étiquette de secteur à partir de 4 valeurs.
+/// espace entre familles de secteurs, étiquette à partir de 3 valeurs.
 ///
 /// Les rayons sont exprimés dans le repère du web (viewBox de 760 de large)
 /// et mis à l'échelle par le painter : `scale = largeur / 760`.
@@ -20,7 +20,15 @@ const double rBar = 270 * radarScale;
 const double barScale = 0.5 * radarScale;
 const double rSectorLabel = 236 * radarScale;
 const int _sectorGap = 2;
-const int _minSectorLabel = 4;
+const int _minSectorLabel = 3;
+const int _minFamilySize = 3;
+const String otherFamily = 'Autres secteurs';
+
+/// Grande famille d'un secteur : "Santé / Pharmacie" → "Santé".
+String sectorFamily(String sector) {
+  final family = sector.split(' / ').first.trim();
+  return family.isEmpty ? 'Autre' : family;
+}
 
 /// Décisions haussières / neutres, comme `web/src/data.js`.
 bool isBullishDecision(String? type) => type == 'Achat' || type == 'Renforcer';
@@ -87,12 +95,24 @@ RadarLayout buildRadarLayout(
   Map<String, Pattern> patternsBySymbol,
   Map<String, Decision> decisionsBySymbol,
 ) {
-  final groups = <String, List<Security>>{};
+  // Regroupement par grande famille de secteur (partie avant " / "), comme
+  // le web : sinon les ~70 sous-secteurs ne comptent presque tous qu'1 à 3
+  // valeurs et seuls 2 recevaient une étiquette. Familles de moins de
+  // [_minFamilySize] valeurs réunies dans [otherFamily], placé en dernier.
+  final families = <String, List<Security>>{};
   for (final s in securities) {
-    final key = s.sector.isEmpty ? 'Autre' : s.sector;
-    groups.putIfAbsent(key, () => []).add(s);
+    families.putIfAbsent(sectorFamily(s.sector), () => []).add(s);
   }
-  // Tri stable : plus gros secteur d'abord, ordre d'apparition sinon (comme
+  final groups = <String, List<Security>>{};
+  final others = <Security>[];
+  for (final e in families.entries) {
+    if (e.value.length >= _minFamilySize) {
+      groups[e.key] = e.value;
+    } else {
+      others.addAll(e.value);
+    }
+  }
+  // Tri stable : plus grosse famille d'abord, ordre d'apparition sinon (comme
   // le `sort` du web, stable en JS moderne).
   final sectors = groups.entries.toList();
   final order = {for (var i = 0; i < sectors.length; i++) sectors[i].key: i};
@@ -100,6 +120,7 @@ RadarLayout buildRadarLayout(
     final bySize = b.value.length.compareTo(a.value.length);
     return bySize != 0 ? bySize : order[a.key]!.compareTo(order[b.key]!);
   });
+  if (others.isNotEmpty) sectors.add(MapEntry(otherFamily, others));
 
   final slots = securities.length + sectors.length * _sectorGap;
   final step = slots > 0 ? (math.pi * 2) / slots : 0.0;

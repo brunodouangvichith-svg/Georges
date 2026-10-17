@@ -10,7 +10,7 @@ Security _s(String symbol, String sector) =>
     Security(symbol: symbol, name: symbol, country: 'FR', currency: 'EUR', sector: sector);
 
 void main() {
-  test('groups by sector, biggest first, and labels only sectors of 4+ securities', () {
+  test('groups by sector, biggest first, and labels only sectors of 3+ securities', () {
     final securities = [
       _s('A1', 'Petit'),
       for (var i = 0; i < 5; i++) _s('B$i', 'Gros'),
@@ -53,5 +53,19 @@ void main() {
     expect(layout.items[0].confidence, isNull);
     expect(layout.nearest(s1.angle + layout.step * 0.4)?.symbol, 'S1');
     expect(buildRadarLayout(const [], const {}, const {}).nearest(0), isNull);
+  });
+
+  test('groups sub-sectors by family and gathers small families in "Autres secteurs"', () {
+    final securities = [
+      _s('A', 'Santé / Biotechnologie'),
+      _s('B', 'Santé / Pharmacie'),
+      _s('C', 'Santé'),
+      _s('D', 'Énergie / Utilities'),
+      _s('E', 'Médias'),
+      _s('F', 'Assurance'),
+    ];
+    final layout = buildRadarLayout(securities, const {}, const {});
+    expect(layout.labels.map((l) => l.sector), ['Santé', otherFamily]);
+    expect(layout.items.map((i) => i.symbol), ['A', 'B', 'C', 'D', 'E', 'F']);
   });
 }
