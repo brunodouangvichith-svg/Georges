@@ -1,3 +1,10 @@
+import os
+
+# Les tests de l'API envoient `Origin: http://localhost:5173` : cette origine
+# n'est plus autorisée par défaut (voir api/main.py:cors_origins), on l'ajoute
+# pour la session de tests, avant tout import de api.main.
+os.environ.setdefault("CORS_EXTRA_ORIGINS", "http://localhost:5173")
+
 import pytest
 from testcontainers.community.postgres import PostgresContainer
 
