@@ -15,7 +15,7 @@ export const R_BAR = 270 * RADAR_SCALE;
 export const BAR_SCALE = 0.5 * RADAR_SCALE;
 const R_SECTOR_LABEL = 236 * RADAR_SCALE;
 const SECTOR_GAP = 2;
-const MIN_SECTOR_LABEL = 4;
+const MIN_SECTOR_LABEL = 3;
 const MAX_LABEL_CHARS = 24;
 
 // Ramène un angle en degrés dans [-180, 180[.
@@ -23,14 +23,34 @@ const normalizeDeg = (d) => ((((d + 180) % 360) + 360) % 360) - 180;
 
 const truncate = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
+// Le radar regroupe par grande famille de secteur (la partie avant " / " :
+// "Santé / Biotechnologie" et "Santé / Pharmacie" → "Santé"), sinon les ~70
+// sous-secteurs de l'univers ne comptent presque tous qu'1 à 3 valeurs et
+// seuls 2 d'entre eux recevaient une étiquette. Les familles de moins de
+// MIN_FAMILY_SIZE valeurs sont réunies dans "Autres secteurs", placé en
+// dernier. La watchlist garde le secteur complet.
+export const OTHER_FAMILY = "Autres secteurs";
+const MIN_FAMILY_SIZE = 3;
+
+export function sectorFamily(sector) {
+  return (sector || "Autre").split(" / ")[0].trim() || "Autre";
+}
+
 export function buildRadar(securities, patternsBySymbol, decisionsMap) {
-  const groups = new Map();
+  const families = new Map();
   for (const s of securities) {
-    const key = s.sector || "Autre";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(s);
+    const key = sectorFamily(s.sector);
+    if (!families.has(key)) families.set(key, []);
+    families.get(key).push(s);
+  }
+  const groups = new Map();
+  const others = [];
+  for (const [family, list] of families) {
+    if (list.length >= MIN_FAMILY_SIZE) groups.set(family, list);
+    else others.push(...list);
   }
   const sectors = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
+  if (others.length) sectors.push([OTHER_FAMILY, others]);
   const slots = securities.length + sectors.length * SECTOR_GAP;
   const step = slots > 0 ? (Math.PI * 2) / slots : 0;
 

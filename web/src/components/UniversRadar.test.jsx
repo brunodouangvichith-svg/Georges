@@ -18,6 +18,20 @@ describe("buildRadar", () => {
     expect(labels.map((l) => l.sector)).toEqual(["Industrie"]);
   });
 
+  it("groups sub-sectors by family and puts small families in 'Autres secteurs'", () => {
+    const secs = [
+      { symbol: "A", name: "a", sector: "Santé / Biotechnologie" },
+      { symbol: "B", name: "b", sector: "Santé / Pharmacie" },
+      { symbol: "C", name: "c", sector: "Santé" },
+      { symbol: "D", name: "d", sector: "Énergie / Utilities" },
+      { symbol: "E", name: "e", sector: "Médias" },
+      { symbol: "F", name: "f", sector: "Assurance" },
+    ];
+    const { items, labels } = buildRadar(secs, {}, {});
+    expect(labels.map((l) => l.sector)).toEqual(["Santé", "Autres secteurs"]);
+    expect(items.map((i) => i.symbol)).toEqual(["A", "B", "C", "D", "E", "F"]);
+  });
+
   it("uses the real pattern confidence and leaves securities without a pattern bar-less", () => {
     const { items } = buildRadar(securities, { "AIR.PA": { confidence: 82.4 } }, {});
     expect(items.find((i) => i.symbol === "AIR.PA").confidence).toBeCloseTo(82.4);
