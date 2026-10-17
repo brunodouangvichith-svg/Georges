@@ -8,6 +8,7 @@ Documentation générée automatiquement par FastAPI : `/docs` (Swagger UI),
 """
 
 import logging
+import os
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -58,9 +59,26 @@ app = FastAPI(
 # supplémentaire n'est nécessaire pour ça.
 # POST ajouté en Phase 4 pour /chat, /decisions/{id}/explanation, /reports ;
 # DELETE ajouté pour /portfolios (suppression d'un portefeuille/d'une ligne).
+DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+
+def cors_origins() -> list[str]:
+    """Origines autorisées : le serveur de dev Vite, plus celles listées dans
+    `CORS_EXTRA_ORIGINS` (séparées par des virgules, ex. l'URL du site web
+    George sur Render). Lu au démarrage de l'API ; espaces et `/` final
+    ignorés, car l'en-tête `Origin` d'un navigateur n'en a jamais."""
+    extra = os.environ.get("CORS_EXTRA_ORIGINS", "")
+    origins = list(DEV_ORIGINS)
+    for raw in extra.split(","):
+        origin = raw.strip().rstrip("/")
+        if origin and origin not in origins:
+            origins.append(origin)
+    return origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=cors_origins(),
     allow_methods=["GET", "POST", "PATCH", "DELETE"],  # PATCH : seuils Obligataire Watch (web)
     allow_headers=["*"],
 )
