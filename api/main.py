@@ -52,24 +52,23 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Authentification Supabase (Phase 9, portail simple — voir api/auth.py) :
-# CORS limité au serveur de dev Vite en local ; à restreindre/remplacer avant
-# tout déploiement partagé. `allow_headers=["*"]` couvre déjà l'en-tête
-# `Authorization` envoyé par les clients authentifiés, aucun changement CORS
-# supplémentaire n'est nécessaire pour ça.
-# POST ajouté en Phase 4 pour /chat, /decisions/{id}/explanation, /reports ;
-# DELETE ajouté pour /portfolios (suppression d'un portefeuille/d'une ligne).
-DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+# CORS : seules les origines listées dans `CORS_EXTRA_ORIGINS` sont autorisées
+# (en production : le site george-web sur Render). Plus aucune origine
+# localhost par défaut depuis la mise en ligne du web (oct. 2026) — pour
+# relancer le serveur de dev Vite contre une API locale, exporter
+# `CORS_EXTRA_ORIGINS=http://localhost:5173` avant `uvicorn`.
+# `allow_headers=["*"]` couvre l'en-tête `Authorization` des clients
+# authentifiés. POST : /chat, /reports… ; PATCH : seuils Obligataire ;
+# DELETE : /portfolios. Les applis natives (Flutter) ne sont pas concernées
+# par CORS, qui ne s'applique qu'aux navigateurs.
 
 
 def cors_origins() -> list[str]:
-    """Origines autorisées : le serveur de dev Vite, plus celles listées dans
-    `CORS_EXTRA_ORIGINS` (séparées par des virgules, ex. l'URL du site web
-    George sur Render). Lu au démarrage de l'API ; espaces et `/` final
-    ignorés, car l'en-tête `Origin` d'un navigateur n'en a jamais."""
-    extra = os.environ.get("CORS_EXTRA_ORIGINS", "")
-    origins = list(DEV_ORIGINS)
-    for raw in extra.split(","):
+    """Origines autorisées, lues dans `CORS_EXTRA_ORIGINS` (séparées par des
+    virgules) au démarrage de l'API ; espaces et `/` final ignorés, car
+    l'en-tête `Origin` d'un navigateur n'en a jamais."""
+    origins: list[str] = []
+    for raw in os.environ.get("CORS_EXTRA_ORIGINS", "").split(","):
         origin = raw.strip().rstrip("/")
         if origin and origin not in origins:
             origins.append(origin)
