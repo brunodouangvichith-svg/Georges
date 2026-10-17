@@ -31,7 +31,13 @@ export default function LoginScreen() {
 
   async function signInWithGoogle() {
     setErrorMessage(null);
-    const { error } = await supabase.auth.signInWithOAuth({ provider: "google" });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      // Revenir sur l'origine où l'appli est ouverte (localhost en dev, le site
+      // Render en production) — sinon Supabase renvoie vers son "Site URL".
+      // Cette origine doit figurer dans Supabase → Auth → Redirect URLs.
+      options: { redirectTo: window.location.origin },
+    });
     if (error) setErrorMessage(error.message);
   }
 
