@@ -66,3 +66,40 @@ export function parseInline(text) {
   if (last < text.length) segments.push({ type: "text", text: text.slice(last) });
   return segments;
 }
+
+// Texte à prononcer pour une ligne du rapport : sans gras ni renvois [n], et
+// avec les abréviations financières dites en toutes lettres (une voix lit
+// sinon "pb" lettre par lettre ou "Md€" comme "M D euro").
+const SPOKEN_ABBREVIATIONS = [
+  [/(\d)\s*pb\b/g, "$1 points de base"],
+  [/\bMd€/g, "milliards d'euros"],
+  [/\bMds?\b/g, "milliards"],
+  [/(\d)\s*M€/g, "$1 millions d'euros"],
+  [/\bT([1-4])\b/g, "trimestre $1"],
+  [/\bOAT\b/g, "O A T"],
+  [/\bPIB\b/g, "P I B"],
+  [/\bUS\b/g, "américain"],
+  [/\s-\s/g, " moins "],
+];
+
+export function speechText(text) {
+  let out = parseInline(text ?? "")
+    .filter((seg) => seg.type !== "ref")
+    .map((seg) => seg.text)
+    .join("");
+  for (const [re, by] of SPOKEN_ABBREVIATIONS) out = out.replace(re, by);
+  return out.replace(/\s+([.,;:])/g, "$1").replace(/\s+/g, " ").trim();
+}
+
+// Découpe en phrases : Chrome coupe une seule SpeechSynthesisUtterance
+// longue au bout d'une quinzaine de secondes, on enchaîne donc des phrases.
+export function speechChunks(text, maxLength = 220) {
+  const sentences = text.split(/(?<=[.!?;])\s+/).map((s) => s.trim()).filter(Boolean);
+  const chunks = [];
+  for (const sentence of sentences) {
+    const last = chunks.at(-1);
+    if (last && last.length + sentence.length + 1 <= maxLength) chunks[chunks.length - 1] = `${last} ${sentence}`;
+    else chunks.push(sentence);
+  }
+  return chunks;
+}
