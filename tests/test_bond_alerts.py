@@ -16,6 +16,7 @@ from sqlalchemy.orm import sessionmaker
 
 from engine.bond_alerts import _format_message, _is_crossed, _unit, evaluate_all_thresholds, resolve_if_triggered
 from ingestion.models import (
+    BOND_INSTRUMENT_BUND_DE_10Y,
     BOND_INSTRUMENT_OAT_FR_10Y,
     BOND_INSTRUMENT_SPREAD_OAT_BUND_BPS,
     BondAlertEvent,
@@ -134,6 +135,49 @@ def test_evaluate_all_thresholds_ignores_missing_data(database_url):
             db.add(BondAlertThreshold(instrument=BOND_INSTRUMENT_OAT_FR_10Y, direction="above", threshold_pct=4.90, enabled=True))
             db.commit()
             # Aucun BondYieldSnapshot pour OAT_FR_10Y -- ne doit jamais fabriquer une alerte.
+            created = evaluate_all_thresholds(db)
+        assert created == []
+    finally:
+        command.downgrade(cfg, "base")
+
+
+def test_evaluate_all_thresholds_does_not_fire_spread_alert_on_non_contemporaneous_observations(database_url):
+    """Trouvé par /code-review : `latest_value_by_instrument` calculait le
+    spread OAT-Bund à partir des dernières lignes de chaque instrument sans
+    vérifier qu'elles sont contemporaines -- si le collecteur Bund tombe en
+    panne pendant que l'OAT continue d'être collecté, un spread calculé
+    entre un OAT frais et un Bund vieux de plusieurs mois pouvait franchir
+    le seuil et déclencher une fausse alerte. Même discipline que
+    `engine/compute_bond_yields.py:_values_if_contemporaneous` désormais
+    réutilisée ici."""
+    cfg = Config("alembic.ini")
+    cfg.set_main_option("sqlalchemy.url", database_url)
+    command.upgrade(cfg, "head")
+    try:
+        engine = create_engine(database_url, future=True)
+        session_factory = sessionmaker(bind=engine, future=True)
+
+        def _set_snapshot(instrument, value_pct, observed_at):
+            with session_factory() as db:
+                stmt = pg_insert(BondYieldSnapshot).values(
+                    instrument=instrument, value_pct=value_pct, observed_at=observed_at, source_name="FRED"
+                )
+                db.execute(stmt)
+                db.commit()
+
+        # OAT très frais, Bund vieux de 6 mois -- jamais contemporains
+        # (tolérance de 45 jours). Naïvement, 4.00 - 1.00 = 300pb, bien
+        # au-dessus du seuil de 150pb.
+        _set_snapshot(BOND_INSTRUMENT_OAT_FR_10Y, 4.00, datetime.date(2026, 10, 1))
+        _set_snapshot(BOND_INSTRUMENT_BUND_DE_10Y, 1.00, datetime.date(2026, 4, 1))
+
+        with session_factory() as db:
+            db.add(
+                BondAlertThreshold(
+                    instrument=BOND_INSTRUMENT_SPREAD_OAT_BUND_BPS, direction="above", threshold_pct=150.0, enabled=True
+                )
+            )
+            db.commit()
             created = evaluate_all_thresholds(db)
         assert created == []
     finally:

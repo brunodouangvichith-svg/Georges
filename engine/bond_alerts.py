@@ -23,13 +23,18 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from engine.bond_spread import spread_bps
+from engine.compute_bond_yields import (
+    SPREAD_CONTEMPORANEOUS_TOLERANCE_DAYS,
+    TRACKED_INSTRUMENTS,
+    _values_if_contemporaneous,
+    load_latest_snapshot,
+)
 from ingestion.models import (
     BOND_INSTRUMENT_BUND_DE_10Y,
     BOND_INSTRUMENT_OAT_FR_10Y,
     BOND_INSTRUMENT_SPREAD_OAT_BUND_BPS,
     BondAlertEvent,
     BondAlertThreshold,
-    BondYieldSnapshot,
 )
 
 # Unité d'affichage par instrument, pour des messages d'alerte lisibles —
@@ -44,19 +49,34 @@ def _unit(instrument: str) -> str:
 
 
 def latest_value_by_instrument(db: Session) -> dict[str, float]:
-    """Dernière valeur connue par instrument, à partir de la ligne la plus
-    récente de `bond_yield_snapshots` pour chaque instrument réellement
-    collecté, plus `BOND_INSTRUMENT_SPREAD_OAT_BUND_BPS` calculé à la volée
-    (jamais stocké lui-même — ce n'est pas une valeur observée chez une
-    source externe). Un instrument jamais collecté est simplement absent du
-    dict renvoyé ; le spread est absent si OAT ou Bund manque."""
-    stmt = select(BondYieldSnapshot).order_by(BondYieldSnapshot.instrument, BondYieldSnapshot.observed_at.desc())
-    latest: dict[str, float] = {}
-    for row in db.execute(stmt).scalars():
-        if row.instrument not in latest:
-            latest[row.instrument] = float(row.value_pct)
+    """Dernière valeur connue par instrument (une requête indexée par
+    instrument via `compute_bond_yields.load_latest_snapshot`, pas un scan
+    complet de `bond_yield_snapshots`), plus `BOND_INSTRUMENT_SPREAD_OAT_BUND_BPS`
+    calculé à la volée (jamais stocké lui-même — ce n'est pas une valeur
+    observée chez une source externe). Un instrument jamais collecté est
+    simplement absent du dict renvoyé.
 
-    spread = spread_bps(latest.get(BOND_INSTRUMENT_OAT_FR_10Y), latest.get(BOND_INSTRUMENT_BUND_DE_10Y))
+    Le spread n'est calculé que si l'observation OAT et l'observation Bund
+    les plus récentes sont contemporaines (`_values_if_contemporaneous`,
+    même tolérance que `compute_bond_yields.build_dashboard_summary`) —
+    sinon un collecteur en panne sur l'un des deux pourrait déclencher une
+    alerte sur un spread mêlant une valeur fraîche et une valeur de
+    plusieurs mois, ce que le reste du projet évite explicitement pour
+    cette même valeur dérivée."""
+    snapshots = {}
+    latest: dict[str, float] = {}
+    for instrument in TRACKED_INSTRUMENTS:
+        snapshot = load_latest_snapshot(db, instrument)
+        if snapshot is not None:
+            snapshots[instrument] = snapshot
+            latest[instrument] = float(snapshot.value_pct)
+
+    oat_value, bund_value = _values_if_contemporaneous(
+        snapshots.get(BOND_INSTRUMENT_OAT_FR_10Y),
+        snapshots.get(BOND_INSTRUMENT_BUND_DE_10Y),
+        SPREAD_CONTEMPORANEOUS_TOLERANCE_DAYS,
+    )
+    spread = spread_bps(oat_value, bund_value)
     if spread is not None:
         latest[BOND_INSTRUMENT_SPREAD_OAT_BUND_BPS] = spread
     return latest
