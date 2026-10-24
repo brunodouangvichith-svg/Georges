@@ -8,12 +8,14 @@ import 'core/auth/go_router_refresh_stream.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/reset_password_screen.dart';
-import 'features/paniers/paniers_screen.dart';
-import 'features/portefeuille/portefeuille_screen.dart';
+import 'features/obligataire/obligataire_screen.dart';
 import 'features/profile/profile_screen.dart';
+import 'features/rapport/rapport_screen.dart';
+import 'features/trading/trading_screen.dart';
 import 'features/univers/univers_screen.dart';
 
-/// Navigation à 3 onglets (Univers / Paniers / Mon Portefeuille) — même
+/// Navigation à 5 onglets (Univers / Paniers / Portefeuille / Trading /
+/// Obligataire, les deux derniers alignés sur le web en octobre 2026) — même
 /// simplicité que web/src/App.jsx (pas de routeur là-bas, juste un
 /// `useState`) ; go_router n'est là que pour le comportement natif du bouton
 /// retour et pour permettre plus tard une route poussée "détail de décision".
@@ -85,16 +87,24 @@ final _goRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/paniers',
-                builder: (context, state) => const PaniersScreen(),
+                path: '/trading',
+                builder: (context, state) => const TradingScreen(),
               ),
             ],
           ),
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/portefeuille',
-                builder: (context, state) => const PortefeuilleScreen(),
+                path: '/obligataire',
+                builder: (context, state) => const ObligataireScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/rapport',
+                builder: (context, state) => const RapportScreen(),
               ),
             ],
           ),
@@ -196,18 +206,29 @@ class _AppShellState extends State<_AppShell> {
           index,
           initialLocation: index == widget.navigationShell.currentIndex,
         ),
+        // 4 onglets (Paniers et Mon Portefeuille retirés de la navigation,
+        // comme sur le web) : ~97 px chacun sur un téléphone de 390 px, assez
+        // pour le libellé complet « Obligataire ».
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
             label: 'Univers',
+            tooltip: 'Univers',
           ),
           NavigationDestination(
-            icon: Icon(Icons.pie_chart_outline),
-            label: 'Paniers',
+            icon: Icon(Icons.swap_vert),
+            label: 'Trading',
+            tooltip: 'Trading',
           ),
           NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            label: 'Portefeuille',
+            icon: Icon(Icons.show_chart),
+            label: 'Obligataire',
+            tooltip: 'Obligataire',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.article_outlined),
+            label: 'Rapport',
+            tooltip: 'Rapport stratégique',
           ),
         ],
       ),

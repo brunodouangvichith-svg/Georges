@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CandlestickChart from "../components/CandlestickChart";
 import GeorgeIndexTile from "../components/GeorgeIndexTile";
+import Counter from "../components/Counter";
 import ResponsePopup from "../components/ResponsePopup";
+import UniversRadar from "../components/UniversRadar";
 import WatchlistRow from "../components/WatchlistRow";
-import { decisionColor } from "../data";
+import { decisionTagClass } from "../data";
 import { useVoiceCapture } from "../hooks/useVoiceCapture";
 import {
   useAgentActivity,
@@ -11,6 +13,7 @@ import {
   useChat,
   useDecisions,
   useExplainDecision,
+  useLatestPatterns,
   useRefreshPrices,
   useEnergyPrices,
   useSecurities,
@@ -20,6 +23,11 @@ import {
   useSecurityPrices,
   useTriggerCollection,
 } from "../api/queries";
+
+// Écran Univers — radar central + grille de panneaux, dans le thème George
+// d'origine (bleu nuit, blanc, accent bleu ; vert/orange/rouge pour les
+// décisions). Toutes les données affichées viennent de l'API : aucun
+// chiffre de démonstration ici.
 
 const ENERGY_LABELS = {
   BRENT_CRUDE_USD: "Brent",
@@ -33,15 +41,30 @@ const ENERGY_ORDER = Object.keys(ENERGY_LABELS);
 
 const FILTERS = ["Tous", "Achat", "Surveiller", "Alléger"];
 
-const SIDEBAR_NAV = [{ icon: "◆", label: "Univers", active: true }];
+const AGENT_STATUS_LABEL = { validated: "validé", pending: "en attente", quarantine: "quarantaine" };
+const AGENT_STATUS_COLOR = { validated: "var(--positive)", pending: "var(--warning)", quarantine: "var(--negative)" };
+
+const BULLISH = new Set(["Achat", "Renforcer"]);
 
 function EmptyState({ children }) {
   return (
-    <div className="text-[13px] p-4 rounded-lg border" style={{ borderColor: "var(--hairline)", color: "var(--text-dim)" }}>
+    <div className="text-[12px] p-3 border" style={{ borderColor: "var(--hairline)", color: "var(--text-dim)" }}>
       {children}
     </div>
   );
 }
+
+function Panel({ title, children, className = "", style, label }) {
+  return (
+    <section aria-label={label ?? title} className={`gd-panel ${className}`} style={style}>
+      <h2 className="gd-label">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+
+const time = (iso) => new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 export default function Univers() {
   const [filter, setFilter] = useState("Tous");
@@ -132,17 +155,27 @@ export default function Univers() {
     setPopup(null);
   }
 
+  function askGeorge(question) {
+    setPopup({ title: "George répond", status: "loading", text: null });
+    chatMutation.mutate(question, {
+      onSuccess: (data) => setPopup({ title: "George répond", status: "done", text: data.answer }),
+      onError: (err) => setPopup({ title: "George répond", status: "error", text: err.message }),
+    });
+  }
+
   const { data: securitiesPage, isLoading: securitiesLoading, isError: securitiesError } = useSecurities({ limit: 200 });
   const { data: decisionsPage } = useDecisions({ limit: 200 });
   const { data: basketsPage } = useBaskets();
-  const { data: agentPage } = useAgentActivity({ limit: 6 });
+  const { data: agentPage } = useAgentActivity({ limit: 20 });
   const { data: energyPrices } = useEnergyPrices();
 
   const sortedEnergyPrices = ENERGY_ORDER.map((code) => energyPrices?.find((e) => e.commodity_code === code)).filter(
     Boolean
   );
 
-  const securities = securitiesPage?.items ?? [];
+  const securities = useMemo(() => securitiesPage?.items ?? [], [securitiesPage]);
+  const symbols = useMemo(() => securities.map((s) => s.symbol), [securities]);
+  const patternsBySymbol = useLatestPatterns(symbols);
 
   // Décisions triées par date décroissante côté API : la première rencontrée
   // par titre est donc la plus récente.
@@ -171,89 +204,98 @@ export default function Univers() {
   const { data: selectedDividendsPage } = useSecurityDividends(selectedSymbol, { limit: 5 });
 
   const selectedPattern = selectedPatternsPage?.items?.[0] ?? null;
-  const priceItems = selectedPricesPage?.items ?? [];
+  const priceItems = useMemo(() => selectedPricesPage?.items ?? [], [selectedPricesPage]);
+  const closes = useMemo(() => priceItems.map((bar) => bar.close), [priceItems]);
   // `items` ne contient que les `limit` séances les plus récentes : l'écart
   // entre `total` et leur nombre est le décalage à soustraire aux indices
   // absolus du `context` d'un pattern pour les replacer dans ce sous-ensemble.
   const indexOffset = selectedPricesPage ? selectedPricesPage.total - priceItems.length : 0;
 
   const georgeBaskets = (basketsPage ?? []).slice(0, 2);
-  // Toujours exactement 2 emplacements (tuile ou vide) : la grille a des
-  // colonnes fixes (150px/150px/1fr) et un nombre variable d'éléments
-  // décalerait la tuile macro dans la mauvaise colonne.
-  const georgeSlots = Array.from({ length: 2 }, (_, i) => georgeBaskets[i] ?? null);
-  const agentEvents = agentPage?.items ?? [];
+  const agentEvents = useMemo(() => agentPage?.items ?? [], [agentPage]);
+
+  // Sous-agents : dernier état connu par agent (les événements arrivent du
+  // plus récent au plus ancien), avec le nombre d'événements récents.
+  const agentSummary = useMemo(() => {
+    const byName = new Map();
+    for (const e of agentEvents) {
+      const cur = byName.get(e.agent_name);
+      if (cur) cur.count += 1;
+      else byName.set(e.agent_name, { name: e.agent_name, status: e.status, count: 1 });
+    }
+    return [...byName.values()];
+  }, [agentEvents]);
+  const maxAgentCount = Math.max(1, ...agentSummary.map((a) => a.count));
+
+  const decisionCounts = useMemo(() => {
+    const counts = { achat: 0, surveiller: 0, alleger: 0 };
+    for (const s of securities) {
+      const d = decisionsMap[s.symbol]?.decision_type;
+      if (!d) continue;
+      if (BULLISH.has(d)) counts.achat += 1;
+      else if (d === "Surveiller") counts.surveiller += 1;
+      else counts.alleger += 1;
+    }
+    return counts;
+  }, [securities, decisionsMap]);
+  const activePatterns = symbols.filter((s) => patternsBySymbol?.[s]).length;
+  const universeSize = Math.max(1, securities.length);
+
+  const reasoningLines = selectedSecurity
+    ? [
+        `serie    = prices("${selectedSymbol}", ${priceItems.length})`,
+        `figure   = detect(serie) → ${selectedPattern?.pattern_type ?? "aucune"}`,
+        selectedPattern ? `conf     = ${Math.round(selectedPattern.confidence)} %` : null,
+        selectedDecision
+          ? `decision = ${selectedDecision.decision_type}` +
+            (selectedDecision.take_profit != null ? ` · tp ${selectedDecision.take_profit.toFixed(2)}` : "") +
+            (selectedDecision.stop_loss != null ? ` · sl ${selectedDecision.stop_loss.toFixed(2)}` : "")
+          : "decision = —",
+      ].filter(Boolean)
+    : [];
 
   return (
     <>
-    <ResponsePopup popup={popup} onClose={closePopup} onStopListening={voice.stop} />
-    <div className="grid h-full" style={{ gridTemplateRows: "1fr 84px" }}>
-      <div className="grid h-full overflow-hidden" style={{ gridTemplateColumns: "190px 1fr 340px" }}>
-        {/* Sidebar */}
-        <div
-          className="border-r px-2.5 py-4.5 flex flex-col gap-0.5"
-          style={{ borderColor: "var(--hairline)", background: "var(--panel)" }}
-        >
-          <div className="text-[10.5px] uppercase tracking-widest px-2.5 pt-2.5 pb-1.5" style={{ color: "var(--text-dim)" }}>
-            Navigation
-          </div>
-          {SIDEBAR_NAV.map((item) => (
-            <div
-              key={item.label}
-              className="flex items-center gap-2.5 text-[13px] font-medium px-2.5 py-2 rounded-lg"
-              style={{
-                color: item.active ? "var(--text)" : "var(--text-dim)",
-                background: item.active ? "var(--accent-dim)" : "transparent",
-              }}
-            >
-              <span className="w-4 text-center opacity-85">{item.icon}</span>
-              {item.label}
-            </div>
-          ))}
-          <button
-            onClick={refreshPrices}
-            disabled={refreshPricesMutation.isPending}
-            className="flex items-center gap-2.5 text-[13px] font-medium px-2.5 py-2 rounded-lg text-left w-full border-0 bg-transparent"
-            style={{ color: "var(--text-dim)" }}
-          >
-            <span className="w-4 text-center opacity-85">🔄</span>
-            {refreshPricesMutation.isPending ? "Mise à jour…" : "Mise à jour des prix"}
-          </button>
-          <button
-            onClick={triggerMacroCollection}
-            disabled={triggerCollectionMutation.isPending}
-            className="flex items-center gap-2.5 text-[13px] font-medium px-2.5 py-2 rounded-lg text-left w-full border-0 bg-transparent"
-            style={{ color: "var(--text-dim)" }}
-          >
-            <span className="w-4 text-center opacity-85">🌍</span>
-            {triggerCollectionMutation.isPending ? "Collecte…" : "Collecte macro"}
-          </button>
-        </div>
-
-        {/* Watchlist + tiles */}
-        <div className="overflow-y-auto px-4.5 py-4 gd-scrollbar">
-          <div className="flex items-center justify-between mb-3.5">
-            <div>
-              <div className="display text-[16px] font-semibold">Univers suivi — CAC 40 &amp; CAC Mid 60</div>
-              <div className="text-xs mt-0.5" style={{ color: "var(--text-dim)" }}>
-                {securitiesLoading ? "Chargement…" : `${securities.length} valeurs`}
+      <ResponsePopup popup={popup} onClose={closePopup} onStopListening={voice.stop} />
+      <div className="h-full overflow-y-auto gd-scrollbar">
+        <div className="mx-auto flex flex-col gap-3.5 px-5 pt-4" style={{ maxWidth: 1440 }}>
+          {/* En-tête + compteurs */}
+          <header className="flex flex-wrap items-start justify-between" style={{ gap: "16px 40px" }}>
+            <div className="flex flex-col gap-1" style={{ minWidth: 260 }}>
+              <h1 className="display m-0 text-[20px] font-semibold">
+                George / <span>Univers</span>
+              </h1>
+              <div className="gd-label" style={{ color: "var(--text-dim)" }}>
+                CAC 40 &amp; CAC Mid 60 → décisions expliquées
               </div>
             </div>
-            <div className="flex gap-1.5">
-              {FILTERS.map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className="text-[11.5px] px-3 py-1.5 rounded-full border"
-                  style={{
-                    background: filter === f ? "var(--accent)" : "transparent",
-                    borderColor: filter === f ? "var(--accent)" : "var(--hairline)",
-                    color: filter === f ? "#fff" : "var(--text-dim)",
-                  }}
-                >
-                  {f}
-                </button>
-              ))}
+            <div className="flex flex-wrap justify-end" style={{ gap: "14px 28px", flex: "1 1 600px" }}>
+              <Counter label="Valeurs" value={securitiesLoading ? "…" : securities.length} ratio={1} />
+              <Counter label="Figures actives" value={activePatterns} ratio={activePatterns / universeSize} />
+              <Counter label="Achat" value={decisionCounts.achat} ratio={decisionCounts.achat / universeSize} color="var(--positive)" />
+              <Counter
+                label="Surveiller"
+                value={decisionCounts.surveiller}
+                ratio={decisionCounts.surveiller / universeSize}
+                color="var(--warning)"
+              />
+              <Counter label="Alléger" value={decisionCounts.alleger} ratio={decisionCounts.alleger / universeSize} color="var(--negative)" />
+            </div>
+          </header>
+
+          {/* Barre d'actions */}
+          <div
+            className="flex flex-wrap items-center gap-2.5 pt-2 text-[11px]"
+            style={{ borderTop: "1px solid var(--hairline)", color: "var(--text-dim)" }}
+          >
+            <span>{securitiesLoading ? "Chargement…" : `${securities.length} valeurs suivies`}</span>
+            <div className="ml-auto flex flex-wrap gap-1.5">
+              <button className="gd-btn" onClick={refreshPrices} disabled={refreshPricesMutation.isPending}>
+                {refreshPricesMutation.isPending ? "Mise à jour…" : "Mise à jour des prix"}
+              </button>
+              <button className="gd-btn" onClick={triggerMacroCollection} disabled={triggerCollectionMutation.isPending}>
+                {triggerCollectionMutation.isPending ? "Collecte…" : "Collecte macro"}
+              </button>
             </div>
           </div>
 
@@ -262,314 +304,403 @@ export default function Univers() {
               Impossible de contacter l'API — vérifiez qu'elle tourne (<code>uvicorn api.main:app --reload</code>).
             </EmptyState>
           )}
-          {!securitiesError && !securitiesLoading && securities.length === 0 && (
-            <EmptyState>
-              Aucun titre en base. Lancez <code>python -m ingestion.seed</code> puis <code>python -m ingestion.ohlcv</code>.
-            </EmptyState>
-          )}
-          {!securitiesError && securities.length > 0 && (
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  {["Valeur", "Secteur", "Tendance", "Pattern", "Confiance", "Décision"].map((h) => (
-                    <th
-                      key={h}
-                      className="text-left text-[10.5px] uppercase tracking-wider font-medium px-2.5 py-2 border-b"
-                      style={{ color: "var(--text-dim)", borderColor: "var(--hairline)" }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((security) => (
-                  <WatchlistRow
-                    key={security.symbol}
-                    security={security}
-                    decision={decisionsMap[security.symbol]}
-                    selected={selectedSymbol === security.symbol}
-                    onSelect={setSelected}
-                  />
-                ))}
-              </tbody>
-            </table>
-          )}
 
-          <div className="grid gap-3 mt-4" style={{ gridTemplateColumns: "150px 150px 1fr" }}>
-            {georgeBaskets.length === 0 ? (
-              // col-span-2 : sans ça, la grille à colonnes fixes (150px/150px/1fr)
-              // décale la tuile macro dans la 2e colonne (150px) au lieu de la 3e (1fr).
-              <div
-                className="col-span-2 border rounded-[10px] p-3 flex items-center text-[11px]"
-                style={{ borderColor: "var(--hairline)", background: "var(--panel)", color: "var(--text-dim)" }}
-              >
-                Aucun panier. Lancez <code>python -m ingestion.seed_demo</code>.
-              </div>
-            ) : (
-              georgeSlots.map((b, i) =>
-                b ? (
-                  <GeorgeIndexTile key={b.id} basketId={b.id} basketName={b.name} />
-                ) : (
-                  <div key={`empty-slot-${i}`} className="border rounded-[10px]" style={{ borderColor: "var(--hairline)", background: "var(--panel)" }} />
-                )
-              )
-            )}
-            <div className="border rounded-[10px] p-3 flex flex-col gap-2" style={{ borderColor: "var(--hairline)", background: "var(--panel)" }}>
-              <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-dim)" }}>
-                Marché d'énergie
-              </div>
-              {sortedEnergyPrices.length === 0 && (
-                <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>
-                  Aucune donnée pour l'instant (import quotidien pas encore passé).
+          {/* Radar + valeur sélectionnée */}
+          <div className="flex flex-wrap gap-4 pb-3.5" style={{ borderBottom: "1px solid var(--hairline)" }}>
+            <section aria-label="Radar de l'univers" style={{ flex: "999 1 520px", minWidth: 0 }}>
+              {securities.length > 0 ? (
+                <UniversRadar
+                  securities={securities}
+                  patternsBySymbol={patternsBySymbol}
+                  decisionsMap={decisionsMap}
+                  selectedSymbol={selectedSymbol}
+                  onSelect={setSelected}
+                  closes={closes}
+                />
+              ) : (
+                <div className="flex items-center justify-center text-[12px]" style={{ minHeight: 320, color: "var(--text-dim)" }}>
+                  {securitiesLoading ? "Chargement de l'univers…" : "Le radar s'affichera dès que des titres seront en base."}
                 </div>
               )}
-              {sortedEnergyPrices.map((e) => (
-                <div key={e.commodity_code} className="flex justify-between items-center text-xs py-0.5">
-                  <span style={{ color: "var(--text-dim)" }}>{ENERGY_LABELS[e.commodity_code] ?? e.commodity_code}</span>
-                  <span className="mono" style={{ color: (e.change_24h_pct ?? 0) >= 0 ? "var(--positive)" : "var(--negative)" }}>
-                    {(e.change_24h_pct ?? 0) >= 0 ? "▲" : "▼"} {e.price.toFixed(2)} {e.currency}
-                  </span>
-                </div>
-              ))}
+            </section>
+
+            <div className="flex flex-col gap-3" style={{ flex: "1 1 340px", minWidth: 0 }}>
+              <section aria-label="Valeur sélectionnée" className="gd-panel">
+                <h2 className="gd-label">Valeur sélectionnée</h2>
+                {!selectedSecurity ? (
+                  <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+                    Sélectionnez une valeur dans la liste.
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <div className="text-[18px] font-bold">{selectedSecurity.name}</div>
+                      <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
+                        {selectedSecurity.symbol} · {selectedSecurity.sector}
+                      </div>
+                    </div>
+                    <div style={{ background: "var(--panel-alt)", overflow: "hidden" }}>
+                      <CandlestickChart
+                        candles={priceItems}
+                        loading={pricesLoading}
+                        error={pricesError}
+                        context={selectedPattern?.context ?? null}
+                        indexOffset={indexOffset}
+                        takeProfit={selectedDecision?.take_profit ?? null}
+                        stopLoss={selectedDecision?.stop_loss ?? null}
+                        width={320}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-dim)" }}>
+                      {selectedPattern ? (
+                        <>
+                          <span className="inline-block w-3.5" style={{ borderTop: "1.5px dashed var(--accent)" }} />
+                          Figure détectée par George : {selectedPattern.pattern_type}
+                        </>
+                      ) : (
+                        "Aucune figure active détectée pour ce titre."
+                      )}
+                    </div>
+                    <dl className="m-0 grid gap-x-3 gap-y-1 text-[11.5px]" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                      <dt style={{ color: "var(--text-dim)" }}>Pattern détecté</dt>
+                      <dd className="m-0 text-right font-semibold">{selectedPattern?.pattern_type ?? "—"}</dd>
+                      <dt style={{ color: "var(--text-dim)" }}>Confiance</dt>
+                      <dd className="m-0 text-right font-semibold">
+                        {selectedPattern ? `${Math.round(selectedPattern.confidence)}%` : "—"}
+                      </dd>
+                      <dt style={{ color: "var(--text-dim)" }}>Décision</dt>
+                      <dd className="m-0 text-right">
+                        {selectedDecision ? (
+                          <span className={decisionTagClass(selectedDecision.decision_type)}>
+                            {selectedDecision.decision_type}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </dd>
+                    </dl>
+                    {selectedDecision && (
+                      <>
+                        <div className="grid gap-2 text-center" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                          <div className="p-2 rounded-lg border" style={{ borderColor: "var(--hairline)" }}>
+                            <div className="gd-label">Take-profit</div>
+                            <div className="mono text-[15px] font-semibold mt-0.5" style={{ color: "var(--positive)" }}>
+                              {selectedDecision.take_profit != null ? `${selectedDecision.take_profit.toFixed(2)} €` : "—"}
+                            </div>
+                          </div>
+                          <div className="p-2 rounded-lg border" style={{ borderColor: "var(--hairline)" }}>
+                            <div className="gd-label">Stop-loss</div>
+                            <div className="mono text-[15px] font-semibold mt-0.5" style={{ color: "var(--negative)" }}>
+                              {selectedDecision.stop_loss != null ? `${selectedDecision.stop_loss.toFixed(2)} €` : "—"}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            className="gd-btn gd-btn--solid"
+                            style={{ flex: "1 1 140px", minHeight: 40 }}
+                            onClick={() => setDockMsg(`Niveaux validés pour ${selectedSymbol}.`)}
+                          >
+                            Valider les niveaux
+                          </button>
+                          <button
+                            className="gd-btn"
+                            style={{ flex: "1 1 100px", minHeight: 40 }}
+                            onClick={() => setDockMsg(`Ajustement des niveaux pour ${selectedSymbol} en cours de discussion.`)}
+                          >
+                            Ajuster
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+              </section>
+
+              {selectedSecurity && (
+                <Panel title="Raisonnement / George">
+                  <pre className="mono m-0 text-[11.5px] leading-relaxed whitespace-pre-wrap">
+                    {reasoningLines.map((line, i) => `${String(31 + i).padStart(3, "0")}  ${line}`).join("\n")}
+                  </pre>
+                  <p className="m-0 text-[12px] leading-relaxed" style={{ color: "var(--text-dim)" }}>
+                    {selectedDecision?.rationale ??
+                      (selectedDecision
+                        ? "Aucune note courte pour cette décision — demandez l'explication complète à George."
+                        : "Aucune décision enregistrée pour ce titre — posez une question à George dans la barre en bas si vous voulez son avis.")}
+                  </p>
+                  {selectedDecision && (
+                    <button
+                      className="gd-btn self-start"
+                      disabled={explainMutation.isPending}
+                      onClick={() => {
+                        const title = `George explique — ${selectedSymbol}`;
+                        setPopup({ title, status: "loading", text: null });
+                        explainMutation.mutate(
+                          { decisionId: selectedDecision.id },
+                          {
+                            onSuccess: (data) => setPopup({ title, status: "done", text: data.explanation }),
+                            onError: (err) => setPopup({ title, status: "error", text: err.message }),
+                          }
+                        );
+                      }}
+                    >
+                      {explainMutation.isPending ? "George réfléchit…" : "Demander une analyse à George →"}
+                    </button>
+                  )}
+                </Panel>
+              )}
             </div>
           </div>
-        </div>
 
-        {/* Detail panel */}
-        <div className="border-l overflow-y-auto flex flex-col" style={{ borderColor: "var(--hairline)", background: "var(--panel)" }}>
-          {!selectedSecurity ? (
-            <div className="p-5 text-[13px]" style={{ color: "var(--text-dim)" }}>
-              Sélectionnez une valeur dans la liste.
-            </div>
-          ) : (
-            <>
-              <div className="px-5 pt-5">
-                <h2 className="display text-[19px] font-semibold mb-0.5">{selectedSecurity.name}</h2>
-                <div className="text-[12.5px] mb-4" style={{ color: "var(--text-dim)" }}>
-                  {selectedSecurity.symbol} · {selectedSecurity.sector}
+          {/* Grille de panneaux */}
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+            <Panel title="Journal / sous-agents">
+              {agentEvents.length === 0 ? (
+                <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
+                  Aucun événement — les sous-agents de veille alimentent ce journal.
                 </div>
-                <div className="border rounded-[10px] mb-4 overflow-hidden" style={{ borderColor: "var(--hairline)", background: "var(--panel-alt)" }}>
-                  <CandlestickChart
-                    candles={priceItems}
-                    loading={pricesLoading}
-                    error={pricesError}
-                    context={selectedPattern?.context ?? null}
-                    indexOffset={indexOffset}
-                    takeProfit={selectedDecision?.take_profit ?? null}
-                    stopLoss={selectedDecision?.stop_loss ?? null}
-                  />
+              ) : (
+                <div className="grid text-[11.5px] leading-snug" style={{ gridTemplateColumns: "44px 108px minmax(0, 1fr)", gap: "3px 8px" }}>
+                  {agentEvents.slice(0, 9).map((e) => (
+                    <div key={e.id} className="contents">
+                      <span style={{ color: "var(--text-dim)" }}>{time(e.created_at)}</span>
+                      <span className="font-bold overflow-hidden text-ellipsis whitespace-nowrap">{e.agent_name}</span>
+                      <span className="overflow-hidden text-ellipsis whitespace-nowrap" title={e.description}>
+                        {e.description}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center gap-1.5 -mt-2.5 mb-3 text-[11px]" style={{ color: "var(--text-dim)" }}>
-                  {selectedPattern ? (
-                    <>
-                      <span className="inline-block w-3.5" style={{ borderTop: "1.5px dashed var(--accent)" }} />
-                      Figure détectée par George : {selectedPattern.pattern_type}
-                    </>
-                  ) : (
-                    "Aucune figure active détectée pour ce titre."
-                  )}
-                </div>
+              )}
+            </Panel>
 
-                <div className="text-[11px] uppercase tracking-wider mt-4 mb-2" style={{ color: "var(--text-dim)" }}>
-                  Raisonnement de George
+            <Panel title="Watchlist / figures actives" label="Watchlist" className="gd-wide">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
+                  Univers suivi — CAC 40 &amp; CAC Mid 60
+                </span>
+                <div role="group" aria-label="Filtrer par décision" className="flex flex-wrap gap-1">
+                  {FILTERS.map((f) => (
+                    <button
+                      key={f}
+                      className="gd-btn"
+                      style={{ minHeight: 30, padding: "0 10px", fontSize: 10.5 }}
+                      aria-pressed={filter === f}
+                      onClick={() => setFilter(f)}
+                    >
+                      {f}
+                    </button>
+                  ))}
                 </div>
-                <div className="text-[13px] leading-relaxed" style={{ color: "var(--text-dim)" }}>
-                  {selectedDecision?.rationale ??
-                    (selectedDecision
-                      ? "Aucune note courte pour cette décision — demandez l'explication complète à George."
-                      : "Aucune décision enregistrée pour ce titre — posez une question à George dans la barre en bas si vous voulez son avis.")}
+              </div>
+              {!securitiesError && !securitiesLoading && securities.length === 0 && (
+                <EmptyState>
+                  Aucun titre en base. Lancez <code>python -m ingestion.seed</code> puis <code>python -m ingestion.ohlcv</code>.
+                </EmptyState>
+              )}
+              {!securitiesError && securities.length > 0 && (
+                <div className="overflow-x-auto gd-scrollbar" style={{ maxHeight: 420 }}>
+                  <table className="w-full border-collapse" style={{ minWidth: 620 }}>
+                    <thead>
+                      <tr>
+                        {["Valeur", "Secteur", "Tendance", "Pattern", "Confiance", "Décision"].map((h) => (
+                          <th
+                            key={h}
+                            scope="col"
+                            className="gd-label text-left"
+                            style={{
+                              color: "var(--text-dim)",
+                              padding: "4px 6px",
+                              borderBottom: "1px solid var(--hairline)",
+                              position: "sticky",
+                              top: 0,
+                              background: "var(--panel)",
+                            }}
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((security) => (
+                        <WatchlistRow
+                          key={security.symbol}
+                          security={security}
+                          decision={decisionsMap[security.symbol]}
+                          selected={selectedSymbol === security.symbol}
+                          onSelect={setSelected}
+                          latestPattern={patternsBySymbol?.[security.symbol] ?? null}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                {selectedDecision && (
-                  <button
-                    className="mt-2 text-[11.5px] px-3 py-1.5 rounded-full border"
-                    style={{ borderColor: "var(--hairline)", color: "var(--text-dim)" }}
-                    disabled={explainMutation.isPending}
-                    onClick={() => {
-                      const title = `George explique — ${selectedSymbol}`;
-                      setPopup({ title, status: "loading", text: null });
-                      explainMutation.mutate(
-                        { decisionId: selectedDecision.id },
-                        {
-                          onSuccess: (data) => setPopup({ title, status: "done", text: data.explanation }),
-                          onError: (err) => setPopup({ title, status: "error", text: err.message }),
-                        }
-                      );
-                    }}
-                  >
-                    {explainMutation.isPending ? "George réfléchit…" : "Demander une analyse à George"}
-                  </button>
-                )}
+              )}
+            </Panel>
 
-                <div className="text-[11px] uppercase tracking-wider mt-4 mb-2" style={{ color: "var(--text-dim)" }}>
-                  Paramètres
+            <Panel title="George Index / paniers" label="Indices des paniers">
+              {georgeBaskets.length === 0 ? (
+                <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
+                  Aucun panier. Lancez <code>python -m ingestion.seed_demo</code>.
                 </div>
-                {[
-                  ["Pattern détecté", selectedPattern?.pattern_type ?? "—"],
-                  ["Confiance", selectedPattern ? `${Math.round(selectedPattern.confidence)}%` : "—"],
-                  ["Décision", selectedDecision?.decision_type ?? "—"],
-                ].map(([k, v]) => (
-                  <div key={k} className="flex justify-between text-[13px] py-1.5 border-b" style={{ borderColor: "var(--hairline)" }}>
-                    <span style={{ color: "var(--text-dim)" }}>{k}</span>
-                    <span className="mono" style={{ color: k === "Décision" && selectedDecision ? decisionColor(selectedDecision.decision_type) : "var(--text)" }}>
-                      {v}
-                    </span>
-                  </div>
-                ))}
+              ) : (
+                georgeBaskets.map((b) => <GeorgeIndexTile key={b.id} basketId={b.id} basketName={b.name} />)
+              )}
+              <div className="text-[10.5px]" style={{ color: "var(--text-dim)" }}>
+                1 case = 2 points · rempli = score atteint
+              </div>
+            </Panel>
 
-                <div className="text-[11px] uppercase tracking-wider mt-4 mb-2" style={{ color: "var(--text-dim)" }}>
-                  Fondamentaux
-                </div>
-                {[
-                  ["Secteur", selectedFundamentals?.sector ?? "—"],
-                  ["Industrie", selectedFundamentals?.industry ?? "—"],
-                  [
-                    "Capitalisation",
-                    selectedFundamentals?.market_cap != null
-                      ? `${(selectedFundamentals.market_cap / 1e9).toFixed(2)} Md ${selectedFundamentals.currency ?? ""}`
-                      : "—",
-                  ],
-                  ["PER (trailing)", selectedFundamentals?.trailing_pe != null ? selectedFundamentals.trailing_pe.toFixed(1) : "—"],
-                  [
-                    "Rendement dividende",
-                    selectedFundamentals?.dividend_yield != null ? `${selectedFundamentals.dividend_yield.toFixed(2)}%` : "—",
-                  ],
-                ].map(([k, v]) => (
-                  <div key={k} className="flex justify-between text-[13px] py-1.5 border-b" style={{ borderColor: "var(--hairline)" }}>
-                    <span style={{ color: "var(--text-dim)" }}>{k}</span>
-                    <span className="mono" style={{ color: "var(--text)" }}>{v}</span>
-                  </div>
-                ))}
+            {selectedSecurity && (
+              <Panel title={`Fondamentaux / ${selectedSecurity.symbol}`} label="Fondamentaux">
+                <dl className="m-0 grid gap-x-3 gap-y-1 text-[11.5px]" style={{ gridTemplateColumns: "minmax(0, 1fr) auto" }}>
+                  {[
+                    ["Secteur", selectedFundamentals?.sector ?? "—"],
+                    ["Industrie", selectedFundamentals?.industry ?? "—"],
+                    [
+                      "Capitalisation",
+                      selectedFundamentals?.market_cap != null
+                        ? `${(selectedFundamentals.market_cap / 1e9).toFixed(2)} Md ${selectedFundamentals.currency ?? ""}`
+                        : "—",
+                    ],
+                    ["PER (trailing)", selectedFundamentals?.trailing_pe != null ? selectedFundamentals.trailing_pe.toFixed(1) : "—"],
+                    [
+                      "Rendement dividende",
+                      selectedFundamentals?.dividend_yield != null ? `${selectedFundamentals.dividend_yield.toFixed(2)}%` : "—",
+                    ],
+                  ].map(([k, v]) => (
+                    <div key={k} className="contents">
+                      <dt style={{ color: "var(--text-dim)" }}>{k}</dt>
+                      <dd className="m-0 text-right font-semibold">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
                 {(selectedDividendsPage?.items?.length ?? 0) > 0 && (
                   <>
-                    <div className="text-[11px] mt-3 mb-1" style={{ color: "var(--text-dim)" }}>
+                    <div className="gd-label mt-1" style={{ color: "var(--text-dim)" }}>
                       Derniers dividendes
                     </div>
                     {selectedDividendsPage.items.map((d) => (
-                      <div key={d.ex_date} className="flex justify-between text-[12px] py-1" style={{ color: "var(--text-dim)" }}>
-                        <span>{d.ex_date}</span>
-                        <span className="mono">
+                      <div key={d.ex_date} className="flex justify-between text-[11.5px]">
+                        <span style={{ color: "var(--text-dim)" }}>{d.ex_date}</span>
+                        <span className="font-semibold">
                           {d.amount.toFixed(2)} {selectedFundamentals?.currency ?? ""}
                         </span>
                       </div>
                     ))}
                   </>
                 )}
+              </Panel>
+            )}
 
-                {selectedDecision && (
-                  <>
-                    <div className="text-[11px] uppercase tracking-wider mt-4 mb-2" style={{ color: "var(--text-dim)" }}>
-                      Niveaux proposés
-                    </div>
-                    <div className="flex gap-2.5 mt-2.5">
-                      <div className="flex-1 border rounded-lg p-2.5 text-center" style={{ borderColor: "var(--hairline)" }}>
-                        <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>
-                          Take-profit
-                        </div>
-                        <div className="mono font-semibold text-[15px] mt-1" style={{ color: "var(--positive)" }}>
-                          {selectedDecision.take_profit != null ? `${selectedDecision.take_profit.toFixed(2)} €` : "—"}
-                        </div>
+            <Panel title={`${agentSummary.length} sous-agents / dispatch`} label="Sous-agents">
+              {agentSummary.length === 0 ? (
+                <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
+                  Aucun sous-agent actif récemment.
+                </div>
+              ) : (
+                <div className="grid gap-x-3.5 gap-y-1.5" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                  {agentSummary.map((a) => (
+                    <div key={a.name} className="flex flex-col gap-0.5 min-w-0">
+                      <div className="flex justify-between gap-1.5 text-[11px]">
+                        <span className="font-bold overflow-hidden text-ellipsis whitespace-nowrap">{a.name}</span>
+                        <span style={{ color: "var(--text-dim)" }}>{AGENT_STATUS_LABEL[a.status] ?? a.status}</span>
                       </div>
-                      <div className="flex-1 border rounded-lg p-2.5 text-center" style={{ borderColor: "var(--hairline)" }}>
-                        <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>
-                          Stop-loss
-                        </div>
-                        <div className="mono font-semibold text-[15px] mt-1" style={{ color: "var(--negative)" }}>
-                          {selectedDecision.stop_loss != null ? `${selectedDecision.stop_loss.toFixed(2)} €` : "—"}
-                        </div>
+                      <div style={{ height: 6, borderRadius: 3, background: "var(--panel-alt)" }}>
+                        <div
+                          style={{
+                            height: 6,
+                            borderRadius: 3,
+                            width: `${Math.round((a.count / maxAgentCount) * 100)}%`,
+                            background: AGENT_STATUS_COLOR[a.status] ?? "var(--text-dim)",
+                          }}
+                        />
                       </div>
                     </div>
-                    <div className="flex gap-2 mt-3.5">
-                      <button
-                        className="flex-1 py-2.5 rounded-lg font-semibold text-[13px]"
-                        style={{ background: "var(--accent)", color: "#fff" }}
-                        onClick={() => setDockMsg(`Niveaux validés pour ${selectedSymbol}.`)}
-                      >
-                        Valider les niveaux
-                      </button>
-                      <button
-                        className="flex-1 py-2.5 rounded-lg font-semibold text-[13px] border"
-                        style={{ borderColor: "var(--hairline)" }}
-                        onClick={() => setDockMsg(`Ajustement des niveaux pour ${selectedSymbol} en cours de discussion.`)}
-                      >
-                        Ajuster
-                      </button>
-                    </div>
-                  </>
-                )}
+                  ))}
+                </div>
+              )}
+              <div className="text-[10.5px]" style={{ color: "var(--text-dim)" }}>
+                barre = événements récents · vert validé, orange en attente, rouge quarantaine
               </div>
+            </Panel>
 
-              <div className="px-5 pb-5 mt-1.5">
-                <div className="text-[11px] uppercase tracking-wider mb-2">Sous-agents — activité récente</div>
-                {agentEvents.length === 0 && (
-                  <div className="text-[11px]" style={{ color: "var(--text-dim)" }}>
-                    Aucun événement — les sous-agents de veille arrivent en Phase 7.
-                  </div>
-                )}
-                {agentEvents.map((e) => (
-                  <div
-                    key={e.id}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded-md mb-1.5 text-[11.5px]"
-                    style={{
-                      background: "var(--panel-alt)",
-                      borderLeft: `3px solid ${
-                        e.status === "validated" ? "var(--positive)" : e.status === "pending" ? "var(--warning)" : "var(--negative)"
-                      }`,
-                    }}
-                  >
-                    <span className="mono font-semibold w-[92px] flex-shrink-0">{e.agent_name}</span>
-                    <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap" style={{ color: "var(--text-dim)" }}>
-                      {e.description}
-                    </span>
-                    <span className="mono text-[10.5px] flex-shrink-0" style={{ color: "var(--text-dim)" }}>
-                      {new Date(e.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+            <Panel title="Marché d'énergie" label="Marché d'énergie">
+              {sortedEnergyPrices.length === 0 ? (
+                <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
+                  Aucune donnée pour l'instant (import quotidien pas encore passé).
+                </div>
+              ) : (
+                <div className="grid gap-x-3 gap-y-0.5 text-[11.5px]" style={{ gridTemplateColumns: "minmax(0, 1fr) auto auto" }}>
+                  {sortedEnergyPrices.map((e) => {
+                    const up = (e.change_24h_pct ?? 0) >= 0;
+                    return (
+                      <div key={e.commodity_code} className="contents">
+                        <span style={{ color: "var(--text-dim)" }}>{ENERGY_LABELS[e.commodity_code] ?? e.commodity_code}</span>
+                        <span className="mono text-right">
+                          {e.price.toFixed(2)} {e.currency}
+                        </span>
+                        <span className="mono text-right font-semibold" style={{ color: up ? "var(--positive)" : "var(--negative)" }}>
+                          <span aria-hidden="true">{up ? "▲" : "▼"}</span>
+                          <span className="sr-only">{up ? "en hausse" : "en baisse"}</span>
+                          {e.change_24h_pct != null ? ` ${Math.abs(e.change_24h_pct).toFixed(2)} %` : ""}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Panel>
+          </div>
 
-      {/* Dock */}
-      <div className="border-t px-5 py-3 flex flex-col gap-2" style={{ borderColor: "var(--hairline)", background: "var(--panel)" }}>
-        <div className="flex items-center gap-2.5">
-          <div className="display font-semibold text-[13px] whitespace-nowrap" style={{ color: "var(--accent)" }}>
-            George explique ›
-          </div>
-          <div className="text-[13px] flex-1" style={{ color: "var(--text-dim)" }}>
-            {dockMsg ?? "Sélectionnez une valeur pour voir le raisonnement complet, ou posez une question."}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <input
-            className="flex-1 rounded-lg px-3 py-2.5 text-[13px] border"
-            style={{ background: "var(--panel-alt)", borderColor: "var(--hairline)", color: "var(--text)" }}
-            placeholder="Poser une question à George…"
-            disabled={chatMutation.isPending}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                const question = e.currentTarget.value.trim();
-                e.currentTarget.value = "";
-                setPopup({ title: "George répond", status: "loading", text: null });
-                chatMutation.mutate(question, {
-                  onSuccess: (data) => setPopup({ title: "George répond", status: "done", text: data.answer }),
-                  onError: (err) => setPopup({ title: "George répond", status: "error", text: err.message }),
-                });
-              }
-            }}
-          />
-          <button
-            className="text-xs px-3 py-1.5 rounded-full border whitespace-nowrap"
-            style={{ background: "var(--panel-alt)", borderColor: "var(--hairline)", color: "var(--text-dim)" }}
-            onClick={voice.start}
+          {/* Dock */}
+          <section
+            aria-label="Poser une question à George"
+            className="sticky bottom-0 flex flex-col gap-2 px-3 py-2.5 mb-4"
+            style={{ border: "1px solid var(--hairline)", borderRadius: 10, background: "var(--panel)" }}
           >
-            🎙 Commande vocale
-          </button>
+            <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+              {dockMsg ?? "Sélectionnez une valeur pour voir le raisonnement complet, ou posez une question."}
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <label htmlFor="ask-george" className="gd-label whitespace-nowrap">
+                George explique ›
+              </label>
+              <input
+                id="ask-george"
+                className="text-[12px] px-2.5"
+                style={{
+                  flex: "999 1 320px",
+                  minWidth: 0,
+                  minHeight: 40,
+                  fontFamily: "inherit",
+                  border: "1px solid var(--hairline)",
+                  borderRadius: 8,
+                  background: "var(--panel-alt)",
+                  color: "var(--text)",
+                }}
+                placeholder="Poser une question à George…"
+                disabled={chatMutation.isPending}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.currentTarget.value.trim()) {
+                    const question = e.currentTarget.value.trim();
+                    e.currentTarget.value = "";
+                    askGeorge(question);
+                  }
+                }}
+              />
+              <button className="gd-btn gd-btn--solid inline-flex items-center gap-2" style={{ minHeight: 40 }} onClick={voice.start}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <rect x="9" y="3" width="6" height="11" rx="3" />
+                  <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                </svg>
+                Commande vocale
+              </button>
+            </div>
+          </section>
         </div>
       </div>
-    </div>
     </>
   );
 }

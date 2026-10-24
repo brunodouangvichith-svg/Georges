@@ -629,3 +629,71 @@ class BondCollectionRun(Base):
     instruments_requested: Mapped[int] = mapped_column(Integer, nullable=False)
     instruments_succeeded: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     error_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class StrategicReport(Base):
+    """Rapport stratégique hebdomadaire (ad hoc, pas une phase du roadmap) —
+    `agents/strategic_report.py`, généré à la demande depuis l'onglet
+    « Rapport » (web et mobile). Deux parties stockées séparément, par
+    construction anti-hallucination :
+    - `data` : tout ce qui est chiffré et calculé en Python (taux, spread,
+      Brent, indice CAC 40, indicateur de risque, tableau des 40 valeurs,
+      portefeuille virtuel, sources web numérotées) — jamais produit par un LLM ;
+    - `narrative_markdown` : le commentaire rédigé par le LLM à partir de ce
+      seul contexte, qui ne peut citer que les chiffres présents dans `data`
+      ou dans les extraits web numérotés de `data["sources"]`.
+    `risk_level` est dupliqué hors de `data` pour lister l'historique sans
+    charger le JSON complet."""
+
+    __tablename__ = "strategic_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+    risk_level: Mapped[str] = mapped_column(Text, nullable=False)  # "vert" | "orange" | "rouge" | "indetermine"
+    narrative_markdown: Mapped[str] = mapped_column(Text, nullable=False)
+    data: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    model_used: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class VirtualPortfolioTrade(Base):
+    """Ordre simulé du portefeuille virtuel du rapport stratégique (capital
+    initial 100 000 €, `engine/virtual_portfolio.py`). Jamais envoyé à un
+    courtier. L'état du portefeuille (positions, liquidités) est toujours
+    recalculé à partir de la suite complète des ordres, jamais stocké à part,
+    pour qu'il ne puisse pas diverger de son propre historique."""
+
+    __tablename__ = "virtual_portfolio_trades"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    report_id: Mapped[int | None] = mapped_column(
+        ForeignKey("strategic_reports.id", ondelete="SET NULL"), nullable=True
+    )
+    symbol: Mapped[str] = mapped_column(ForeignKey("securities.symbol"), nullable=False)
+    side: Mapped[str] = mapped_column(Text, nullable=False)  # "achat" | "vente"
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    price: Mapped[float] = mapped_column(Numeric, nullable=False)
+    fees: Mapped[float] = mapped_column(Numeric, nullable=False)
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    executed_at: Mapped[datetime.datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class VirtualPortfolioSnapshot(Base):
+    """Valorisation du portefeuille virtuel au moment d'un rapport — sert à
+    calculer la performance d'un rapport à l'autre sans revaloriser le passé
+    avec des prix d'aujourd'hui."""
+
+    __tablename__ = "virtual_portfolio_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    report_id: Mapped[int] = mapped_column(
+        ForeignKey("strategic_reports.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    valued_at: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    cash: Mapped[float] = mapped_column(Numeric, nullable=False)
+    positions_value: Mapped[float] = mapped_column(Numeric, nullable=False)
+    total_value: Mapped[float] = mapped_column(Numeric, nullable=False)
+    fees_total: Mapped[float] = mapped_column(Numeric, nullable=False)

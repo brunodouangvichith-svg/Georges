@@ -19,6 +19,9 @@ EXPECTED_TABLES = {
     "basket_securities",
     "pattern_candidates",
     "agent_events",
+    "strategic_reports",
+    "virtual_portfolio_trades",
+    "virtual_portfolio_snapshots",
 }
 
 

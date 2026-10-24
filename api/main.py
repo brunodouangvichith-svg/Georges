@@ -8,6 +8,7 @@ Documentation générée automatiquement par FastAPI : `/docs` (Swagger UI),
 """
 
 import logging
+import os
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,7 +17,22 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from agents.mistral_client import MistralUnavailableError
 from api.auth import SupabaseUnavailableError, require_user
-from api.routers import agents, baskets, bonds, chat, decisions, energy, jane, news, portfolios, prices, reports, securities, share
+from api.routers import (
+    agents,
+    baskets,
+    bonds,
+    chat,
+    decisions,
+    energy,
+    jane,
+    news,
+    portfolios,
+    prices,
+    reports,
+    securities,
+    share,
+    strategic_reports,
+)
 from notifications.email_client import EmailUnavailableError
 
 # Sans ceci, le niveau racine par défaut de Python (WARNING) rend tout
@@ -36,17 +52,33 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Authentification Supabase (Phase 9, portail simple — voir api/auth.py) :
-# CORS limité au serveur de dev Vite en local ; à restreindre/remplacer avant
-# tout déploiement partagé. `allow_headers=["*"]` couvre déjà l'en-tête
-# `Authorization` envoyé par les clients authentifiés, aucun changement CORS
-# supplémentaire n'est nécessaire pour ça.
-# POST ajouté en Phase 4 pour /chat, /decisions/{id}/explanation, /reports ;
-# DELETE ajouté pour /portfolios (suppression d'un portefeuille/d'une ligne).
+# CORS : seules les origines listées dans `CORS_EXTRA_ORIGINS` sont autorisées
+# (en production : le site george-web sur Render). Plus aucune origine
+# localhost par défaut depuis la mise en ligne du web (oct. 2026) — pour
+# relancer le serveur de dev Vite contre une API locale, exporter
+# `CORS_EXTRA_ORIGINS=http://localhost:5173` avant `uvicorn`.
+# `allow_headers=["*"]` couvre l'en-tête `Authorization` des clients
+# authentifiés. POST : /chat, /reports… ; PATCH : seuils Obligataire ;
+# DELETE : /portfolios. Les applis natives (Flutter) ne sont pas concernées
+# par CORS, qui ne s'applique qu'aux navigateurs.
+
+
+def cors_origins() -> list[str]:
+    """Origines autorisées, lues dans `CORS_EXTRA_ORIGINS` (séparées par des
+    virgules) au démarrage de l'API ; espaces et `/` final ignorés, car
+    l'en-tête `Origin` d'un navigateur n'en a jamais."""
+    origins: list[str] = []
+    for raw in os.environ.get("CORS_EXTRA_ORIGINS", "").split(","):
+        origin = raw.strip().rstrip("/")
+        if origin and origin not in origins:
+            origins.append(origin)
+    return origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_origins=cors_origins(),
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],  # PATCH : seuils Obligataire Watch (web)
     allow_headers=["*"],
 )
 
@@ -120,6 +152,7 @@ app.include_router(news.router, dependencies=[Depends(require_user)])
 app.include_router(energy.router, dependencies=[Depends(require_user)])
 app.include_router(share.router, dependencies=[Depends(require_user)])
 app.include_router(bonds.router, dependencies=[Depends(require_user)])
+app.include_router(strategic_reports.router, dependencies=[Depends(require_user)])
 
 
 @app.get("/health", tags=["meta"])

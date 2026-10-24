@@ -13,6 +13,7 @@ vi.mock("../api/queries", () => ({
   useDecisions: vi.fn(),
   useAgentActivity: vi.fn(),
   useEnergyPrices: vi.fn(),
+  useLatestPatterns: vi.fn(),
   useChat: vi.fn(),
   useExplainDecision: vi.fn(),
   useRefreshPrices: vi.fn(),
@@ -27,6 +28,7 @@ import {
   useEnergyPrices,
   useExplainDecision,
   useGeorgeIndex,
+  useLatestPatterns,
   useRefreshPrices,
   useSecurities,
   useSecurityDividends,
@@ -42,6 +44,7 @@ function mockEmptyApi() {
   useBaskets.mockReturnValue({ data: [] });
   useAgentActivity.mockReturnValue({ data: { items: [] } });
   useEnergyPrices.mockReturnValue({ data: [] });
+  useLatestPatterns.mockReturnValue({});
   useSecurityPatterns.mockReturnValue({ data: { items: [] } });
   useSecurityPrices.mockReturnValue({ data: { items: [], total: 0 } });
   useSecurityFundamentals.mockReturnValue({ data: undefined });

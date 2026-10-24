@@ -1,8 +1,9 @@
 import { useState } from "react";
 import Layout from "./components/Layout";
 import Univers from "./views/Univers";
-import Paniers from "./views/Paniers";
-import MonPortefeuille from "./views/MonPortefeuille";
+import Obligataire from "./views/Obligataire";
+import Trading from "./views/Trading";
+import Rapport from "./views/Rapport";
 
 export default function App() {
   const [view, setView] = useState("univers");
@@ -10,8 +11,9 @@ export default function App() {
   return (
     <Layout view={view} setView={setView}>
       {view === "univers" && <Univers />}
-      {view === "paniers" && <Paniers />}
-      {view === "portefeuille" && <MonPortefeuille />}
+      {view === "trading" && <Trading />}
+      {view === "obligataire" && <Obligataire />}
+      {view === "rapport" && <Rapport />}
     </Layout>
   );
 }

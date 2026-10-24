@@ -43,9 +43,11 @@ def seed_bond_alert_thresholds() -> int:
             )
             stmt = stmt.on_conflict_do_nothing(
                 index_elements=[BondAlertThreshold.instrument, BondAlertThreshold.direction]
-            )
-            result = conn.execute(stmt)
-            created += result.rowcount
+            ).returning(BondAlertThreshold.id)
+            # RETURNING plutôt que `rowcount` : avec ON CONFLICT DO NOTHING,
+            # psycopg peut renvoyer un rowcount de -1 (inconnu), ce qui
+            # affichait "-3 nouveau(x) seuil(s)" au lieu de 3 ou 0.
+            created += len(conn.execute(stmt).all())
     return created
 
 

@@ -10,9 +10,18 @@ name: Maintien en éveil de george-api (anti cold-start Render)
 # 10 min plutôt que les 14 min théoriquement suffisants : GitHub Actions ne
 # garantit pas l'heure exacte d'un déclenchement programmé (retards
 # documentés sous charge), une marge de 5 min absorbe ça.
+#
+# DÉSACTIVÉ EN AUTOMATIQUE (octobre 2026) : ce ping toutes les 10 min, soit
+# ~4 300 exécutions/mois facturées au moins 1 min chacune, dépassait à lui
+# seul les 2 000 min gratuites de GitHub Actions d'un compte Free sur dépôt
+# privé — résultat réel : quota épuisé, TOUS les workflows du dépôt (collectes
+# quotidiennes, veille, tests de PR) bloqués avec "spending limit needs to be
+# increased". Le ping est désormais fait par un service externe gratuit
+# (cron-job.org, même solution que le projet Jaz/MeteoIA) qui appelle
+# https://george-api-mmut.onrender.com/health toutes les 10 min sans consommer
+# de minutes GitHub. Ce workflow reste lançable à la main (onglet Actions →
+# "Run workflow") en dépannage si le service externe tombe.
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch: {}
 
 jobs:

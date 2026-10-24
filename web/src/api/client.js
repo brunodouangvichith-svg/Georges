@@ -55,3 +55,19 @@ export async function apiDelete(path) {
   }
   return response.status === 204 ? null : response.json();
 }
+
+// PATCH JSON (seuils d'alerte Obligataire Watch) — les clés `undefined` du
+// corps sont omises par JSON.stringify, ce qui correspond exactement à la
+// sémantique "seuls les champs fournis sont modifiés" de l'API.
+export async function apiPatch(path, body) {
+  const url = new URL(path, API_BASE_URL);
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify(body ?? {}),
+  });
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText} sur ${path}`);
+  }
+  return response.json();
+}

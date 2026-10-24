@@ -34,6 +34,90 @@ body {
   font-family: "Space Grotesk", sans-serif;
 }
 
+/* Composants partagés de l'écran Univers (radar + grille de panneaux) et
+   des écrans qui reprennent sa disposition — thème George d'origine
+   (bleu nuit, blanc, accent bleu ; vert/orange/rouge pour les décisions). */
+.gd-label {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.gd-panel {
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Panneau qui occupe deux colonnes de la grille, sauf sur écran étroit où
+   la grille n'en a qu'une (sinon débordement horizontal). */
+.gd-wide {
+  grid-column: span 2;
+}
+@media (max-width: 720px) {
+  .gd-wide {
+    grid-column: auto;
+  }
+}
+
+.gd-btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.gd-btn--solid,
+.gd-btn[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.gd-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.gd-btn:focus-visible,
+.gd-focus:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Tag de décision : la couleur porte le sens (vert achat/renfort, orange
+   surveiller, rouge alléger), comme dans le reste de l'application. */
+.gd-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 6px;
+}
+.gd-tag-achat {
+  color: var(--positive);
+  background: color-mix(in srgb, var(--positive) 15%, transparent);
+}
+.gd-tag-surveiller {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+}
+.gd-tag-alleger {
+  color: var(--negative);
+  background: color-mix(in srgb, var(--negative) 15%, transparent);
+}
+
 .gd-scrollbar::-webkit-scrollbar {
   height: 6px;
   width: 6px;

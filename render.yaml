@@ -44,3 +44,41 @@ services:
       # lui-même (voir CLAUDE.md, section "Share by email").
       - key: RESEND_API_KEY
         sync: false
+      # OAT 10 ans quotidienne (TEC10, Banque de France, API Webstat) pour
+      # POST /bonds/refresh — clé gratuite d'un compte webstat.banque-france.fr.
+      # Absente : repli sur la série FRED mensuelle (voir ingestion/bond_yields.py).
+      - key: WEBSTAT_API_KEY
+        sync: false
+      # Origines web autorisées en plus de localhost:5173 (CORS), séparées par
+      # des virgules — ex. l'URL du site george-web ci-dessous.
+      - key: CORS_EXTRA_ORIGINS
+        sync: false
+
+  # Interface web (web/, Vite + React) servie comme site statique, installable
+  # en PWA (vite-plugin-pwa). Les variables VITE_* sont lues AU BUILD : après
+  # les avoir changées, relancer un déploiement. L'URL du site doit ensuite être
+  # ajoutée à CORS_EXTRA_ORIGINS (george-api) et aux Redirect URLs Supabase.
+  - type: web
+    name: george-web
+    runtime: static
+    rootDir: web
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://george-api-mmut.onrender.com
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+    routes:
+      # Appli à page unique : toute URL inconnue renvoie index.html.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      # Le service worker doit toujours être revalidé, sinon une mise à jour
+      # de l'appli peut rester invisible plusieurs heures.
+      - path: /sw.js
+        name: Cache-Control
+        value: no-cache

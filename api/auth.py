@@ -12,6 +12,7 @@ d'environnement sont lues à l'appel, jamais à l'import, pour que ce module
 reste importable/testable sans clé configurée.
 """
 
+import logging
 import os
 
 import httpx
@@ -32,25 +33,58 @@ class SupabaseUnavailableError(RuntimeError):
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
+logger = logging.getLogger(__name__)
+
+# Délai par tentative et nombre de tentatives pour l'appel à Supabase Auth.
+# Octobre 2026 : depuis Render, l'appel dépassait parfois l'ancien délai de
+# 5 s (premières connexions sortantes lentes juste après un réveil), ce qui
+# renvoyait un 503 au navigateur alors que Supabase répondait en 0,1 s depuis
+# ailleurs. Une seconde tentative ne sert que pour une erreur de transport
+# (délai, connexion) — jamais pour une réponse HTTP, qui dit déjà si le jeton
+# est valide.
+SUPABASE_TIMEOUT_SECONDS = 10.0
+SUPABASE_MAX_ATTEMPTS = 2
+
 
 async def verify_supabase_token(token: str) -> dict | None:
     """Vérifie un jeton Supabase par un vrai appel HTTP (jamais de décodage
     JWT local). Renvoie `None` pour un jeton invalide/expiré (cas normal),
     lève `SupabaseUnavailableError` seulement si la configuration manque ou
     si Supabase est injoignable."""
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_anon_key = os.environ.get("SUPABASE_ANON_KEY")
+    # `.strip()` : une valeur collée dans le tableau de bord Render peut
+    # garder un retour à la ligne invisible, qui casserait l'URL construite.
+    supabase_url = (os.environ.get("SUPABASE_URL") or "").strip().rstrip("/")
+    supabase_anon_key = (os.environ.get("SUPABASE_ANON_KEY") or "").strip()
     if not supabase_url or not supabase_anon_key:
         raise SupabaseUnavailableError("Variables d'environnement SUPABASE_URL/SUPABASE_ANON_KEY manquantes.")
 
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(
-                f"{supabase_url}/auth/v1/user",
-                headers={"Authorization": f"Bearer {token}", "apikey": supabase_anon_key},
-            )
-    except httpx.HTTPError as exc:
-        raise SupabaseUnavailableError(f"Service d'authentification Supabase injoignable : {exc}") from exc
+    url = f"{supabase_url}/auth/v1/user"
+    headers = {"Authorization": f"Bearer {token}", "apikey": supabase_anon_key}
+    response = None
+    async with httpx.AsyncClient(timeout=SUPABASE_TIMEOUT_SECONDS) as client:
+        for attempt in range(1, SUPABASE_MAX_ATTEMPTS + 1):
+            try:
+                response = await client.get(url, headers=headers)
+                break
+            except httpx.TransportError as exc:
+                # Le type exact (ConnectTimeout, ReadTimeout, ConnectError…) est
+                # le vrai diagnostic : `str(exc)` est souvent vide pour un délai
+                # dépassé, d'où le message vide observé en production.
+                logger.warning(
+                    "Supabase Auth injoignable (tentative %d/%d) : %s %r",
+                    attempt,
+                    SUPABASE_MAX_ATTEMPTS,
+                    type(exc).__name__,
+                    exc,
+                )
+                if attempt == SUPABASE_MAX_ATTEMPTS:
+                    raise SupabaseUnavailableError(
+                        f"Service d'authentification Supabase injoignable ({type(exc).__name__}: {exc})"
+                    ) from exc
+            except httpx.HTTPError as exc:
+                raise SupabaseUnavailableError(
+                    f"Service d'authentification Supabase injoignable ({type(exc).__name__}: {exc})"
+                ) from exc
 
     if response.status_code != 200:
         return None
