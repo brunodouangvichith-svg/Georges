@@ -17,6 +17,13 @@ fois tous les jobs exécutés sur le même process Render gratuit). Les
 workflows GitHub restent en place, déclenchables à la main
 (`workflow_dispatch`) en secours.
 
+**Un seul Cron Trigger pour les 8 jobs**, pas un par job : Cloudflare
+limite les Cron Triggers à **5 par compte** sur le plan Workers Free (pas
+par Worker — facile à dépasser dès qu'un compte héberge plusieurs
+Workers). `src/index.js` reçoit un tick toutes les 30 min et décide
+lui-même, en code, lequel des 8 jobs (s'il y en a un) appeler à cet
+instant précis — voir `JOBS` dans ce fichier.
+
 ## Prérequis
 
 - Un compte Cloudflare gratuit (`dash.cloudflare.com`, inscription par
@@ -67,10 +74,17 @@ l'accès, puis reviens au terminal.
 npx wrangler deploy
 ```
 
-Ça lit `wrangler.toml` (nom du Worker, les 8 Cron Triggers, l'URL de
-l'API) et publie `src/index.js`. La commande affiche l'URL du Worker à la
-fin (pas vraiment utile ici — les Cron Triggers n'ont pas besoin qu'on
-visite cette URL, ils s'exécutent tout seuls).
+Ça lit `wrangler.toml` (nom du Worker, l'unique Cron Trigger "`0,30 * * * *`",
+l'URL de l'API) et publie `src/index.js`. La commande affiche l'URL du
+Worker à la fin (pas vraiment utile ici — les Cron Triggers n'ont pas
+besoin qu'on visite cette URL, ils s'exécutent tout seuls).
+
+**Si `wrangler deploy` échoue au tout premier essai avec une erreur du
+genre `invalid cron string`** sur l'un des crons : vérifie que tu es bien
+dans `cloudflare-cron/` (`pwd`) et pas à la racine du dépôt — lancée
+depuis la racine, la commande détecte le site web (`web/`) et tente de le
+déployer comme Worker à la place, ce qui échoue sur un tout autre quota
+(nombre de fichiers statiques) sans rapport avec ce Worker.
 
 ### 5. Configurer `CRON_SECRET` côté Worker (même valeur qu'à l'étape 1)
 
@@ -82,21 +96,27 @@ Colle la **même valeur exacte** qu'à l'étape 2 quand c'est demandé. Ce
 secret n'est jamais écrit dans `wrangler.toml` ni commité — stocké
 chiffré côté Cloudflare.
 
-### 6. Vérifier que les Cron Triggers sont bien enregistrés
+### 6. Vérifier que le Cron Trigger est bien enregistré
 
 `dash.cloudflare.com` → **Workers & Pages** → **george-cron** → onglet
-**Triggers** → tu dois voir les 8 expressions cron listées (section
-**Cron Triggers**).
+**Triggers** → tu dois voir **une seule** expression (`0,30 * * * *`,
+section **Cron Triggers**) — normal, c'est le seul trigger Cloudflare pour
+les 8 jobs, voir plus haut.
 
 ### 7. Tester manuellement avant d'attendre le premier déclenchement réel
 
 Deux façons de vérifier que tout est branché correctement :
 
 **a. Depuis le dashboard** : onglet **Logs** du Worker → bouton **Begin log
-stream** → dans un autre onglet, **Triggers** → à côté de n'importe quel
-cron, bouton **Trigger** (ou équivalent "Test cron trigger") pour forcer un
-déclenchement immédiat sans attendre l'heure programmée. Tu dois voir
-`"... déclenché avec succès (HTTP 200)."` apparaître dans le flux de logs.
+stream** → dans un autre onglet, **Triggers** → bouton **Trigger** (ou
+équivalent "Test cron trigger") pour forcer un déclenchement immédiat sans
+attendre l'heure programmée. Attention : comme `src/index.js` décide
+lui-même quel job appeler selon l'heure/minute/jour **réels** au moment du
+test (voir plus haut), ce test n'appellera un vrai job que si l'heure
+UTC courante tombe pile sur l'une des 8 entrées de `JOBS` — la plupart du
+temps, tu ne verras rien dans les logs (comportement normal, pas une
+panne : c'est l'équivalent d'un tick de routine sans job à ce moment-là).
+Pour un vrai test immédiat, utilise plutôt (b) ci-dessous.
 
 **b. Côté API directement**, sans passer par le Worker, pour isoler un
 problème éventuel :

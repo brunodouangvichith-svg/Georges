@@ -7,31 +7,28 @@ name = "george-cron"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 
-# Un cron par job. PAS simplement copiés depuis le `schedule:` d'origine du
-# workflow GitHub Actions remplacé -- /code-review a trouvé que faire ça
-# tel quel recrée, sur george-api (Render gratuit, un seul process à
-# ressources limitées servant aussi le trafic web/mobile en direct), la
-# contention que GitHub Actions évitait en donnant un runner isolé à
-# chaque job : `fundamentals` (quotidien 20h, ~160 appels yfinance) tombait
-# exactement à la même minute que `confidence-model-training` (dimanche) ET
-# `price-history-and-detection` (lundi/mercredi) ET `jane-veille-web`
-# (samedi), tous eux-mêmes gourmands (yfinance en boucle, entraînement
-# xgboost, détection sur 10 ans d'historique) -- deux jobs lourds en
-# concurrence sur le même process auraient pu faire ramer l'API pour un
-# visiteur du site/mobile pendant la fenêtre. Espacés d'au moins 30 min
-# désormais ; voir src/index.js:JOBS pour l'association cron -> route
-# /cron/*.
+# UN SEUL Cron Trigger, pas un par job -- trouvé en déploiement réel (pas
+# en revue statique) : Cloudflare limite les Cron Triggers à 5 **par
+# compte** sur le plan Workers Free (pas par Worker -- confirmé sur
+# developers.cloudflare.com/workers/platform/limits), et ce compte a déjà
+# d'autres Workers. Les 8 crons déclarés ici au départ (un par job) ont
+# échoué au déploiement (`wrangler deploy` : "invalid cron string" sur le
+# 8e, message trompeur -- la vraie cause est le quota de 5/compte dépassé,
+# pas une syntaxe invalide). Un seul trigger, déclenché toutes les 30 min,
+# et c'est le code (`src/index.js:JOBS`, avec heure/minute/jour de semaine)
+# qui décide quel(s) job(s) appeler à ce tick -- scalable à n'importe quel
+# nombre de jobs sans jamais retoucher ce fichier.
+#
+# Espacement d'au moins 30 min entre deux jobs maintenu malgré ce
+# changement (toujours nécessaire, voir src/index.js) : `fundamentals`
+# (quotidien 20h, ~160 appels yfinance) tombait à l'origine exactement à la
+# même minute que `confidence-model-training`/`price-history-and-detection`/
+# `jane-veille-web`, tous gourmands -- deux jobs lourds en concurrence sur
+# le même process Render gratuit (qui sert aussi le trafic web/mobile en
+# direct) auraient pu le faire ramer pendant la fenêtre -- trouvé par
+# /code-review avant même ce problème de quota.
 [triggers]
-crons = [
-  "0 6 * * *",    # energy-prices    (léger, quotidien)
-  "0 7 * * *",    # bonds            (léger, quotidien)
-  "0 20 * * *",   # fundamentals     (lourd, quotidien -- ~160 appels yfinance)
-  "0 21 * * *",   # george-veille    (léger, quotidien -- 60 min après fundamentals)
-  "30 21 * * 6",  # jane-veille-web  (léger, samedi -- 30 min après george-veille)
-  "30 21 * * 1,3",# price-history-and-detection (lourd, lundi/mercredi -- 30 min après george-veille)
-  "30 21 * * 0",  # confidence-model-training (lourd, dimanche -- 30 min après george-veille)
-  "30 22 * * 0",  # geopolitical-veille (léger, dimanche -- 60 min après confidence-model-training)
-]
+crons = ["0,30 * * * *"]
 
 # URL publique de l'API -- pas un secret, peut rester en clair ici.
 # CRON_SECRET, lui, ne va JAMAIS dans ce fichier : voir README.md
