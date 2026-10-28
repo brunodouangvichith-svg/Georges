@@ -24,9 +24,17 @@ name: Modèle de confiance candidat (auto-learn, hebdomadaire)
 # lundi et mercredi). Même limitation qu'ailleurs dans ce projet : GitHub
 # Actions ne gère pas nativement l'heure d'été, décalage d'1h assumé en
 # hiver plutôt qu'une 2e règle cron.
+# `schedule:` désactivé (octobre 2026) : ce job tourne désormais via
+# POST /cron/confidence-model-training, déclenché par un Worker Cloudflare
+# (Cron Triggers, gratuit) sur un calendrier équivalent (espacé différemment entre jobs, voir cloudflare-cron/wrangler.toml) -- voir CLAUDE.md, section
+# "Cron Cloudflare (remplace les workflows GitHub Actions planifiés)". Note :
+# contrairement à ce workflow, la route /cron n'a pas de mécanisme
+# d'artefact téléchargeable pour le candidat entraîné (voir le docstring de
+# `_run_confidence_model_training` dans api/routers/cron.py) -- le rapport
+# est loggé en clair dans les logs Render à la place.
+# `workflow_dispatch` reste pour un déclenchement manuel de secours (et
+# conserve, lui, le téléversement d'artefact).
 on:
-  schedule:
-    - cron: "0 20 * * 0"
   workflow_dispatch: {}
 
 jobs:

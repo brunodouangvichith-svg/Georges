@@ -259,58 +259,59 @@ def collect_geopolitical_news(db, engine, scope: dict | None) -> list[tuple[str,
     return [(label, [item])]
 
 
-if __name__ == "__main__":
-    import sys
-
+def run(country: str | None = None) -> dict:
+    """Point d'entrée réutilisable, même refonte et même raison que
+    `agents/george_veille.py:run` — appelé par la CLI et par
+    `POST /cron/geopolitical-veille` (`api/routers/cron.py`)."""
     from agents.orchestrator.run import run_collection_task
     from ingestion.db import get_engine, get_session_factory
 
-    logging.basicConfig(level=logging.INFO)
-    cli_engine = get_engine()
-    cli_session_factory = get_session_factory()
-    cli_all_countries = _load_countries()
+    engine = get_engine()
+    session_factory = get_session_factory()
+    all_countries = _load_countries()
 
-    with cli_session_factory() as cli_db:
-        # Même garde que `agents/george_veille.py` : le workflow GitHub
-        # Actions passe toujours un argument, même vide sur une exécution
-        # planifiée sans saisie manuelle.
-        if len(sys.argv) > 1 and sys.argv[1]:
-            cli_arg_country = sys.argv[1]
-            cli_match = next((c for c in cli_all_countries if c["country"] == cli_arg_country), None)
-            cli_countries = (
-                [cli_match]
-                if cli_match
-                else [{"country": cli_arg_country, "outlets": [], "region": COUNTRY_TO_REGION.get(cli_arg_country)}]
-            )
+    with session_factory() as db:
+        if country:
+            match = next((c for c in all_countries if c["country"] == country), None)
+            countries = [match] if match else [{"country": country, "outlets": [], "region": COUNTRY_TO_REGION.get(country)}]
         else:
-            cli_countries = _pick_weekly_countries(cli_all_countries)
+            countries = _pick_weekly_countries(all_countries)
 
-        cli_total_added, cli_total_duplicates, cli_total_failed = 0, 0, 0
-        for cli_country in cli_countries:
-            cli_scope = {
-                "country": cli_country["country"],
-                "region": cli_country.get("region"),
-                "outlets": cli_country.get("outlets", []),
+        total_added, total_duplicates, total_failed = 0, 0, 0
+        for item_country in countries:
+            scope = {
+                "country": item_country["country"],
+                "region": item_country.get("region"),
+                "outlets": item_country.get("outlets", []),
             }
             try:
-                cli_result = run_collection_task(cli_db, cli_engine, "actualites_geopolitiques", collect_geopolitical_news, cli_scope)
+                result = run_collection_task(db, engine, "actualites_geopolitiques", collect_geopolitical_news, scope)
             except Exception:  # noqa: BLE001 -- un pays en erreur ne doit jamais interrompre les suivants
-                logging.exception("Échec de la veille pour « %s » -- pays sauté.", cli_country["country"])
-                cli_db.rollback()
-                cli_total_failed += 1
+                logging.exception("Échec de la veille pour « %s » -- pays sauté.", item_country["country"])
+                db.rollback()
+                total_failed += 1
                 continue
-            cli_is_duplicate = bool(cli_result["validated"]) and f"({DUPLICATE_STATUS_NOTE})" in cli_result["validated"][0].description
-            if cli_is_duplicate:
-                cli_total_duplicates += 1
-            elif cli_result["validated"]:
-                cli_total_added += 1
+            is_duplicate = bool(result["validated"]) and f"({DUPLICATE_STATUS_NOTE})" in result["validated"][0].description
+            if is_duplicate:
+                total_duplicates += 1
+            elif result["validated"]:
+                total_added += 1
             logging.info(
                 "%s : %s",
-                cli_country["country"],
-                DUPLICATE_STATUS_NOTE if cli_is_duplicate else (ADDED_STATUS_NOTE if cli_result["validated"] else "aucun résultat web"),
+                item_country["country"],
+                DUPLICATE_STATUS_NOTE if is_duplicate else (ADDED_STATUS_NOTE if result["validated"] else "aucun résultat web"),
             )
 
+    return {"added": total_added, "duplicates": total_duplicates, "failed": total_failed, "total": len(countries)}
+
+
+if __name__ == "__main__":
+    import sys
+
+    logging.basicConfig(level=logging.INFO)
+    cli_country = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else None
+    cli_summary = run(cli_country)
     print(
-        f"{cli_total_added} entrée(s) ajoutée(s), {cli_total_duplicates} quasi-doublon(s) ignoré(s), "
-        f"{cli_total_failed} échec(s) sur {len(cli_countries)} pays."
+        f"{cli_summary['added']} entrée(s) ajoutée(s), {cli_summary['duplicates']} quasi-doublon(s) ignoré(s), "
+        f"{cli_summary['failed']} échec(s) sur {cli_summary['total']} pays."
     )

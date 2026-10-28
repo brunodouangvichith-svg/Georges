@@ -29,9 +29,12 @@ name: Historique long terme + détection + propositions (2x/semaine)
 # vigueur actuellement) -- marchés fermés. Même limitation qu'ailleurs dans
 # ce projet : GitHub Actions ne gère pas nativement l'heure d'été, décalage
 # d'1h assumé en hiver plutôt qu'une 2e règle cron.
+# `schedule:` désactivé (octobre 2026) : ce job tourne désormais via
+# POST /cron/price-history-and-detection, déclenché par un Worker Cloudflare
+# (Cron Triggers, gratuit) sur un calendrier équivalent (espacé différemment entre jobs, voir cloudflare-cron/wrangler.toml) -- voir CLAUDE.md, section
+# "Cron Cloudflare (remplace les workflows GitHub Actions planifiés)".
+# `workflow_dispatch` reste pour un déclenchement manuel de secours.
 on:
-  schedule:
-    - cron: "0 20 * * 1,3"
   workflow_dispatch: {}
 
 jobs:

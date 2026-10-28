@@ -19,9 +19,12 @@ name: Veille d'actualités entreprises de George (quotidienne)
 # (energy 6h UTC, fondamentaux 20h UTC, confidence model dimanche 20h UTC,
 # veille Jane samedi 20h UTC) pour ne pas cumuler plusieurs jobs sur le même
 # créneau.
+# `schedule:` désactivé (octobre 2026) : ce job tourne désormais via
+# POST /cron/george-veille, déclenché par un Worker Cloudflare (Cron
+# Triggers, gratuit) sur un calendrier équivalent (espacé différemment entre jobs, voir cloudflare-cron/wrangler.toml) -- voir CLAUDE.md, section "Cron
+# Cloudflare (remplace les workflows GitHub Actions planifiés)".
+# `workflow_dispatch` reste pour un déclenchement manuel de secours.
 on:
-  schedule:
-    - cron: "0 21 * * *"
   workflow_dispatch:
     inputs:
       company:

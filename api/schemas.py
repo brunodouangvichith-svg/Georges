@@ -461,3 +461,15 @@ class StrategicReportJobStatus(BaseModel):
     finished_at: datetime | None = None
     report_id: int | None = None
     error: str | None = None
+
+
+class CronTriggerResponse(BaseModel):
+    """Réponse commune à tous les endpoints `POST /cron/*`
+    (api/routers/cron.py) — déclenchement en tâche de fond, pas de suivi
+    d'état côté client (personne ne les consulte après coup, contrairement
+    à `PriceRefreshStatus`/`StrategicReportJobStatus` : c'est le Worker
+    Cloudflare qui appelle, pas une interface qui affiche une progression).
+    Le détail de l'exécution reste dans les logs Render."""
+
+    status: Literal["started"]
+    job: str

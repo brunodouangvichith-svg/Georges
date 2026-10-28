@@ -21,9 +21,12 @@ name: Veille géopolitique de George (hebdomadaire, pilier 7)
 # dimanches --, veille Jane samedi 20h UTC) : 22h UTC est le seul créneau
 # du dimanche encore libre parmi ces jobs -- trouvé en /code-review après
 # un premier choix (21h) qui entrait en collision avec daily_george_veille.yml.
+# `schedule:` désactivé (octobre 2026) : ce job tourne désormais via
+# POST /cron/geopolitical-veille, déclenché par un Worker Cloudflare (Cron
+# Triggers, gratuit) sur un calendrier équivalent (espacé différemment entre jobs, voir cloudflare-cron/wrangler.toml) -- voir CLAUDE.md, section "Cron
+# Cloudflare (remplace les workflows GitHub Actions planifiés)".
+# `workflow_dispatch` reste pour un déclenchement manuel de secours.
 on:
-  schedule:
-    - cron: "0 22 * * 0"
   workflow_dispatch:
     inputs:
       country:

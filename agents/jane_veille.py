@@ -255,6 +255,22 @@ def collect_veille_web(db, engine, scope: dict | None) -> list[tuple[str, list[C
     return [(label, [item])]
 
 
+def run_web(topic: str | None = None) -> dict:
+    """Point d'entrée réutilisable pour `collect_veille_web`, extrait de la
+    branche `--web` du `__main__` d'origine (octobre 2026) — appelé par la
+    CLI et par `POST /cron/jane-veille-web` (`api/routers/cron.py`), même
+    raison que `agents/george_veille.py:run`."""
+    from agents.orchestrator.run import run_collection_task
+    from ingestion.db import get_engine, get_session_factory
+
+    scope = {"topic": topic} if topic else None
+    engine = get_engine()
+    session_factory = get_session_factory()
+    with session_factory() as db:
+        result = run_collection_task(db, engine, "veille_web", collect_veille_web, scope)
+    return {"added": len(result["validated"])}
+
+
 def _run_batch(batch_path: str) -> None:
     """`--batch <fichier.json>` : importe plusieurs entrées d'un coup, sous
     la forme d'une liste JSON de `scope` (mêmes clés que
@@ -371,12 +387,9 @@ if __name__ == "__main__":
         # la rotation hebdomadaire) -- sans argument, `collect_veille_web`
         # choisit elle-même via `_pick_weekly_topic`, comportement normal du
         # job planifié (voir `.github/workflows/weekly_jane_veille_web.yml`).
-        web_scope = {"topic": sys.argv[2]} if len(sys.argv) > 2 else None
-        web_engine = get_engine()
-        web_session_factory = get_session_factory()
-        with web_session_factory() as web_db:
-            web_result = run_collection_task(web_db, web_engine, "veille_web", collect_veille_web, web_scope)
-        added = len(web_result["validated"])
+        web_topic = sys.argv[2] if len(sys.argv) > 2 else None
+        web_summary = run_web(web_topic)
+        added = web_summary["added"]
         print(f"{added} entrée(s) ajoutée(s) à jane_knowledge." if added else "Aucune entrée ajoutée (pas de résultat web, ou quasi-doublon).")
         raise SystemExit(0)
 

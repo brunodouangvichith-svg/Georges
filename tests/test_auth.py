@@ -57,6 +57,37 @@ def test_verify_supabase_token_raises_when_config_missing(monkeypatch):
 # `httpx.MockTransport` : aucun appel réseau réel.
 
 
+# --- require_cron_secret (octobre 2026) -----------------------------------
+# Fonction sync ordinaire (pas de route FastAPI, pas de dépendance async) --
+# appelée directement, même esprit que require_user ci-dessus.
+
+
+def test_require_cron_secret_missing_env_var_returns_500(monkeypatch):
+    monkeypatch.delenv("CRON_SECRET", raising=False)
+    with pytest.raises(HTTPException) as exc_info:
+        auth.require_cron_secret(x_cron_secret="peu-importe")
+    assert exc_info.value.status_code == 500
+
+
+def test_require_cron_secret_missing_header_returns_401(monkeypatch):
+    monkeypatch.setenv("CRON_SECRET", "le-bon-secret")
+    with pytest.raises(HTTPException) as exc_info:
+        auth.require_cron_secret(x_cron_secret=None)
+    assert exc_info.value.status_code == 401
+
+
+def test_require_cron_secret_wrong_value_returns_401(monkeypatch):
+    monkeypatch.setenv("CRON_SECRET", "le-bon-secret")
+    with pytest.raises(HTTPException) as exc_info:
+        auth.require_cron_secret(x_cron_secret="un-mauvais-secret")
+    assert exc_info.value.status_code == 401
+
+
+def test_require_cron_secret_correct_value_returns_none(monkeypatch):
+    monkeypatch.setenv("CRON_SECRET", "le-bon-secret")
+    assert auth.require_cron_secret(x_cron_secret="le-bon-secret") is None
+
+
 def _mock_client(monkeypatch, handler):
     real_client = auth.httpx.AsyncClient
 

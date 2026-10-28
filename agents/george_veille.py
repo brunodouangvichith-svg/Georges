@@ -168,56 +168,66 @@ def collect_company_news(db, engine, scope: dict | None) -> list[tuple[str, list
     return [(label, [item])]
 
 
-if __name__ == "__main__":
+def run(company: str | None = None) -> dict:
+    """Point d'entrée réutilisable — extrait du bloc `__main__` d'origine
+    (octobre 2026) pour être appelé à la fois en CLI
+    (`.github/workflows/daily_george_veille.yml`, désormais en secours
+    manuel seulement) et depuis `POST /cron/george-veille`
+    (`api/routers/cron.py`), ajouté quand les minutes GitHub Actions
+    gratuites du dépôt ont été épuisées plusieurs semaines de suite —
+    contredit le choix "jamais via l'endpoint HTTP" documenté plus haut
+    dans ce fichier, gardé comme trace de la raison d'origine (priorité
+    basse) plutôt qu'effacé, mais ce n'est plus la pratique actuelle.
+
+    `company` reproduit l'argument CLI positionnel : une chaîne vide ou
+    `None` déclenche la rotation quotidienne (`_pick_daily_companies`), un
+    nom explicite résout son `symbol` depuis `securities` s'il existe."""
     import logging
-    import sys
 
     from agents.orchestrator.run import run_collection_task
     from ingestion.db import get_engine, get_session_factory
 
-    logging.basicConfig(level=logging.INFO)
-    cli_engine = get_engine()
-    cli_session_factory = get_session_factory()
+    engine = get_engine()
+    session_factory = get_session_factory()
 
-    with cli_session_factory() as cli_db:
-        # `len(sys.argv) > 1 and sys.argv[1]` (pas juste `len(sys.argv) > 1`) :
-        # le workflow GitHub Actions passe toujours un argument, même vide
-        # (`"${{ inputs.company }}"` sur une exécution planifiée sans saisie
-        # manuelle) — un simple test de présence prendrait alors à tort la
-        # branche "entreprise explicite" avec une chaîne vide au lieu de
-        # tomber sur la rotation quotidienne.
-        if len(sys.argv) > 1 and sys.argv[1]:
-            # Entreprise explicite optionnelle (ex. tester une entreprise
-            # précise en dehors de la rotation quotidienne) — le symbole
-            # suivi est résolu depuis `securities` s'il existe, sinon
-            # traitée comme une entreprise hors référentiel (symbol=None).
-            cli_company_arg = sys.argv[1]
-            cli_match = cli_db.execute(select(Security.symbol).where(Security.name == cli_company_arg)).first()
-            cli_companies = [{"company_name": cli_company_arg, "symbol": cli_match.symbol if cli_match else None}]
+    with session_factory() as db:
+        if company:
+            match = db.execute(select(Security.symbol).where(Security.name == company)).first()
+            companies = [{"company_name": company, "symbol": match.symbol if match else None}]
         else:
-            cli_companies = _pick_daily_companies(cli_db)
+            companies = _pick_daily_companies(db)
 
-        cli_total_added, cli_total_duplicates, cli_total_failed = 0, 0, 0
-        for cli_company in cli_companies:
+        total_added, total_duplicates, total_failed = 0, 0, 0
+        for item_company in companies:
             try:
-                cli_result = run_collection_task(cli_db, cli_engine, "actualites_entreprise", collect_company_news, cli_company)
+                result = run_collection_task(db, engine, "actualites_entreprise", collect_company_news, item_company)
             except Exception:  # noqa: BLE001 -- une entreprise en erreur ne doit jamais interrompre les suivantes
-                logging.exception("Échec de la veille pour « %s » -- entreprise sautée.", cli_company["company_name"])
-                cli_db.rollback()
-                cli_total_failed += 1
+                logging.exception("Échec de la veille pour « %s » -- entreprise sautée.", item_company["company_name"])
+                db.rollback()
+                total_failed += 1
                 continue
-            cli_is_duplicate = bool(cli_result["validated"]) and f"({DUPLICATE_STATUS_NOTE})" in cli_result["validated"][0].description
-            if cli_is_duplicate:
-                cli_total_duplicates += 1
-            elif cli_result["validated"]:
-                cli_total_added += 1
+            is_duplicate = bool(result["validated"]) and f"({DUPLICATE_STATUS_NOTE})" in result["validated"][0].description
+            if is_duplicate:
+                total_duplicates += 1
+            elif result["validated"]:
+                total_added += 1
             logging.info(
                 "%s : %s",
-                cli_company["company_name"],
-                DUPLICATE_STATUS_NOTE if cli_is_duplicate else (ADDED_STATUS_NOTE if cli_result["validated"] else "aucun résultat web"),
+                item_company["company_name"],
+                DUPLICATE_STATUS_NOTE if is_duplicate else (ADDED_STATUS_NOTE if result["validated"] else "aucun résultat web"),
             )
 
+    return {"added": total_added, "duplicates": total_duplicates, "failed": total_failed, "total": len(companies)}
+
+
+if __name__ == "__main__":
+    import logging
+    import sys
+
+    logging.basicConfig(level=logging.INFO)
+    cli_company = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else None
+    cli_summary = run(cli_company)
     print(
-        f"{cli_total_added} entrée(s) ajoutée(s), {cli_total_duplicates} quasi-doublon(s) ignoré(s), "
-        f"{cli_total_failed} échec(s) sur {len(cli_companies)} entreprise(s)."
+        f"{cli_summary['added']} entrée(s) ajoutée(s), {cli_summary['duplicates']} quasi-doublon(s) ignoré(s), "
+        f"{cli_summary['failed']} échec(s) sur {cli_summary['total']} entreprise(s)."
     )

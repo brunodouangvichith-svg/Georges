@@ -22,6 +22,7 @@ from api.routers import (
     baskets,
     bonds,
     chat,
+    cron,
     decisions,
     energy,
     jane,
@@ -153,6 +154,10 @@ app.include_router(energy.router, dependencies=[Depends(require_user)])
 app.include_router(share.router, dependencies=[Depends(require_user)])
 app.include_router(bonds.router, dependencies=[Depends(require_user)])
 app.include_router(strategic_reports.router, dependencies=[Depends(require_user)])
+# Pas de `dependencies=[Depends(require_user)]` ici, volontairement — voir
+# le docstring de `api/routers/cron.py` : ce routeur a sa propre dépendance
+# (`require_cron_secret`, secret partagé plutôt qu'une session Supabase).
+app.include_router(cron.router)
 
 
 @app.get("/health", tags=["meta"])

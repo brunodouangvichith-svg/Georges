@@ -23,9 +23,12 @@ name: Import quotidien fondamentaux (yfinance)
 # GitHub Actions ne gère pas nativement les fuseaux horaires/l'heure d'été :
 # en hiver (CET, UTC+1), ceci s'exécutera à 21h française plutôt que 22h — un
 # décalage d'1h assumé plutôt que d'ajouter une 2e règle cron pour l'hiver.
+# `schedule:` désactivé (octobre 2026) : ce job tourne désormais via
+# POST /cron/fundamentals, déclenché par un Worker Cloudflare (Cron
+# Triggers, gratuit) sur un calendrier équivalent (espacé différemment entre jobs, voir cloudflare-cron/wrangler.toml) -- voir CLAUDE.md, section "Cron
+# Cloudflare (remplace les workflows GitHub Actions planifiés)".
+# `workflow_dispatch` reste pour un déclenchement manuel de secours.
 on:
-  schedule:
-    - cron: "0 20 * * *"
   workflow_dispatch: {}
 
 jobs:

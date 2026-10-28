@@ -13,9 +13,15 @@ name: Import quotidien Obligataire Watch
 # (idempotent par contrainte DB, voir son docstring) plutôt qu'une seule fois
 # manuellement au déploiement — plus simple, et auto-réparateur si jamais la
 # table venait à être vidée.
+# `schedule:` désactivé (octobre 2026) : ce job tourne désormais via
+# POST /cron/bonds, déclenché par un Worker Cloudflare (Cron Triggers,
+# gratuit) sur un calendrier équivalent (espacé différemment entre jobs, voir cloudflare-cron/wrangler.toml) -- voir CLAUDE.md, section "Cron
+# Cloudflare (remplace les workflows GitHub Actions planifiés)". Laisser le
+# `schedule:` actif en plus aurait fait tourner la même collecte deux fois
+# (double appel FRED/Webstat, double écriture DB) -- exactement le problème
+# de quota qui a motivé ce changement. `workflow_dispatch` reste pour un
+# déclenchement manuel de secours si le Worker tombe en panne.
 on:
-  schedule:
-    - cron: "0 7 * * *"
   workflow_dispatch: {}
 
 jobs:

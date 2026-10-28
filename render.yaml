@@ -53,6 +53,15 @@ services:
       # des virgules — ex. l'URL du site george-web ci-dessous.
       - key: CORS_EXTRA_ORIGINS
         sync: false
+      # Secret partagé pour api/routers/cron.py (POST /cron/*, en-tête
+      # X-Cron-Secret) — voir CLAUDE.md, section "Cron Cloudflare (remplace
+      # les workflows GitHub Actions planifiés)". Généré une fois (ex.
+      # `openssl rand -hex 32`), collé ici ET comme secret du Worker
+      # Cloudflare (`wrangler secret put CRON_SECRET`) — doit être identique
+      # des deux côtés. Sans lui, require_cron_secret renvoie un 500 sur
+      # chaque appel du Worker.
+      - key: CRON_SECRET
+        sync: false
 
   # Interface web (web/, Vite + React) servie comme site statique, installable
   # en PWA (vite-plugin-pwa). Les variables VITE_* sont lues AU BUILD : après

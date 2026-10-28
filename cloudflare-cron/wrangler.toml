@@ -1,0 +1,40 @@
+# Worker Cloudflare (Cron Triggers, gratuit) qui remplace les `schedule:`
+# désactivés dans ../.github/workflows/*.yml -- voir CLAUDE.md, section
+# "Cron Cloudflare (remplace les workflows GitHub Actions planifiés)" et
+# README.md dans ce dossier pour les étapes de déploiement.
+
+name = "george-cron"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# Un cron par job. PAS simplement copiés depuis le `schedule:` d'origine du
+# workflow GitHub Actions remplacé -- /code-review a trouvé que faire ça
+# tel quel recrée, sur george-api (Render gratuit, un seul process à
+# ressources limitées servant aussi le trafic web/mobile en direct), la
+# contention que GitHub Actions évitait en donnant un runner isolé à
+# chaque job : `fundamentals` (quotidien 20h, ~160 appels yfinance) tombait
+# exactement à la même minute que `confidence-model-training` (dimanche) ET
+# `price-history-and-detection` (lundi/mercredi) ET `jane-veille-web`
+# (samedi), tous eux-mêmes gourmands (yfinance en boucle, entraînement
+# xgboost, détection sur 10 ans d'historique) -- deux jobs lourds en
+# concurrence sur le même process auraient pu faire ramer l'API pour un
+# visiteur du site/mobile pendant la fenêtre. Espacés d'au moins 30 min
+# désormais ; voir src/index.js:JOBS pour l'association cron -> route
+# /cron/*.
+[triggers]
+crons = [
+  "0 6 * * *",    # energy-prices    (léger, quotidien)
+  "0 7 * * *",    # bonds            (léger, quotidien)
+  "0 20 * * *",   # fundamentals     (lourd, quotidien -- ~160 appels yfinance)
+  "0 21 * * *",   # george-veille    (léger, quotidien -- 60 min après fundamentals)
+  "30 21 * * 6",  # jane-veille-web  (léger, samedi -- 30 min après george-veille)
+  "30 21 * * 1,3",# price-history-and-detection (lourd, lundi/mercredi -- 30 min après george-veille)
+  "30 21 * * 0",  # confidence-model-training (lourd, dimanche -- 30 min après george-veille)
+  "30 22 * * 0",  # geopolitical-veille (léger, dimanche -- 60 min après confidence-model-training)
+]
+
+# URL publique de l'API -- pas un secret, peut rester en clair ici.
+# CRON_SECRET, lui, ne va JAMAIS dans ce fichier : voir README.md
+# ("wrangler secret put CRON_SECRET").
+[vars]
+API_BASE_URL = "https://george-api-mmut.onrender.com"

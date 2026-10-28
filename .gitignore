@@ -27,6 +27,14 @@ engine/models/candidates/
 web/node_modules/
 web/dist/
 
+# Cloudflare Worker (cloudflare-cron/, voir CLAUDE.md section "Cron
+# Cloudflare") -- état local de wrangler et dépendances npm si jamais
+# installées autrement que via `npx`, jamais le secret CRON_SECRET lui-même
+# (jamais écrit dans un fichier de ce dossier, voir cloudflare-cron/README.md).
+cloudflare-cron/node_modules/
+cloudflare-cron/.wrangler/
+cloudflare-cron/.dev.vars
+
 # OS
 .DS_Store
 Thumbs.db

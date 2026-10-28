@@ -7,9 +7,12 @@ name: Import quotidien marché de l'énergie (OilPriceAPI)
 # première suivie (6 au total) pour rester très en dessous du palier gratuit
 # OilPriceAPI (200 requêtes/mois) — ne jamais ajouter de déclenchement
 # manuel répété à cette ingestion sans revoir ce budget.
+# `schedule:` désactivé (octobre 2026) : ce job tourne désormais via
+# POST /cron/energy-prices, déclenché par un Worker Cloudflare (Cron
+# Triggers, gratuit) sur un calendrier équivalent (espacé différemment entre jobs, voir cloudflare-cron/wrangler.toml) -- voir CLAUDE.md, section "Cron
+# Cloudflare (remplace les workflows GitHub Actions planifiés)".
+# `workflow_dispatch` reste pour un déclenchement manuel de secours.
 on:
-  schedule:
-    - cron: "0 6 * * *"
   workflow_dispatch: {}
 
 jobs:

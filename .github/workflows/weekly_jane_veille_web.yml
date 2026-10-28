@@ -19,9 +19,12 @@ name: Veille méthodologique web de Jane (hebdomadaire)
 # weekly_confidence_model_training.yml pour ne pas cumuler deux jobs sur le
 # même créneau -- marchés fermés, aucune urgence de fraîcheur pour de la
 # connaissance méthodologique générale.
+# `schedule:` désactivé (octobre 2026) : ce job tourne désormais via
+# POST /cron/jane-veille-web, déclenché par un Worker Cloudflare (Cron
+# Triggers, gratuit) sur un calendrier équivalent (espacé différemment entre jobs, voir cloudflare-cron/wrangler.toml) -- voir CLAUDE.md, section "Cron
+# Cloudflare (remplace les workflows GitHub Actions planifiés)".
+# `workflow_dispatch` reste pour un déclenchement manuel de secours.
 on:
-  schedule:
-    - cron: "0 20 * * 6"
   workflow_dispatch:
     inputs:
       topic:
