@@ -8,7 +8,16 @@ import AuthGate from './components/AuthGate.jsx'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,
+      // Contrôle le délai avant qu'un retour sur l'app (changement d'onglet,
+      // remontage d'écran) redemande les données à l'API plutôt que de
+      // servir le cache — refetchOnWindowFocus (par défaut TanStack Query)
+      // fait le reste. Abaissé de 30s à 10s à la demande de l'utilisateur
+      // (affichage perçu comme pas assez réactif) ; pas de refetchInterval
+      // (polling en continu) ajouté volontairement — le pool DB de l'API
+      // Render gratuit est limité (2+2, voir CLAUDE.md « Second production
+      // failure: QueuePool limit »), un polling global pourrait le saturer
+      // si plusieurs écrans restent ouverts simultanément.
+      staleTime: 10_000,
       // Sans base de données joignable, chaque tentative peut déjà prendre
       // plusieurs secondes côté serveur (voir ingestion/db.py) — une
       // nouvelle tentative React Query par-dessus doublerait l'attente
