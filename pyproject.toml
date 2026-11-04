@@ -23,6 +23,7 @@ dependencies = [
   "requests>=2.31",
   "httpx>=0.27",
   "mplfinance>=0.12.10b0",  # mplfinance n'a jamais publié de release stable >=0.12 sur PyPI (que des alpha/beta) -- ">=0.12" seul échoue la résolution pip sur un environnement vierge (confirmé en direct : échec de build Render), qui exclut les pre-releases par défaut. Une borne basse contenant explicitement un identifiant de pre-release les autorise pour cette dépendance.
+  "six",  # dépendance runtime non déclarée de mplfinance (bug d'empaquetage amont, confirmé en isolant un venv vierge : `pip install mplfinance` n'installe pas six, mais mplfinance/_utils.py fait `from six.moves import zip` à l'import) -- sans cette ligne, le déploiement Render casse dès le premier import de engine/chart_image.py (ModuleNotFoundError: No module named 'six'), observé en prod le 2026-11-04 (george-api est resté sur son dernier build réussi entre-temps, jamais indisponible, mais tout nouveau déploiement backend échouait).
 ]
 
 [project.optional-dependencies]
