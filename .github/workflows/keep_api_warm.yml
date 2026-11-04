@@ -11,17 +11,20 @@ name: Maintien en éveil de george-api (anti cold-start Render)
 # garantit pas l'heure exacte d'un déclenchement programmé (retards
 # documentés sous charge), une marge de 5 min absorbe ça.
 #
-# DÉSACTIVÉ EN AUTOMATIQUE (octobre 2026) : ce ping toutes les 10 min, soit
-# ~4 300 exécutions/mois facturées au moins 1 min chacune, dépassait à lui
-# seul les 2 000 min gratuites de GitHub Actions d'un compte Free sur dépôt
-# privé — résultat réel : quota épuisé, TOUS les workflows du dépôt (collectes
-# quotidiennes, veille, tests de PR) bloqués avec "spending limit needs to be
-# increased". Le ping est désormais fait par un service externe gratuit
-# (cron-job.org, même solution que le projet Jaz/MeteoIA) qui appelle
-# https://george-api-mmut.onrender.com/health toutes les 10 min sans consommer
-# de minutes GitHub. Ce workflow reste lançable à la main (onglet Actions →
-# "Run workflow") en dépannage si le service externe tombe.
+# RÉACTIVÉ EN AUTOMATIQUE (nov. 2026), remplace le ping cron-job.org — à la
+# demande de l'utilisateur, après que le dépôt soit passé en PUBLIC. Ce ping
+# avait été désactivé ici en octobre 2026 (~4 300 exécutions/mois à 1 min
+# facturée chacune, qui à elles seules dépassaient les 2 000 min gratuites de
+# GitHub Actions d'un compte Free sur dépôt PRIVÉ — quota épuisé, tous les
+# workflows du dépôt bloqués). Sur un dépôt PUBLIC, les minutes GitHub Actions
+# sur runner hébergé sont gratuites et illimitées (dans les limites d'usage
+# raisonnable de GitHub) : ce coût ne s'applique plus. Confirmé en pratique le
+# jour du passage en public : les runs CI du dépôt, qui échouaient depuis le
+# 13/10/2026 en ~3s sans logs (signature du blocage budget), se sont remis à
+# tourner normalement (vraie exécution complète de la suite pytest).
 on:
+  schedule:
+    - cron: "*/10 * * * *"
   workflow_dispatch: {}
 
 jobs:
