@@ -12,6 +12,14 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Enregistrement géré à la main dans main.jsx (virtual:pwa-register)
+      // pour ajouter un contrôle périodique — sans ça, le script
+      // auto-injecté par défaut n'enregistre le service worker qu'une fois
+      // au chargement et ne revérifie jamais tant que l'app reste ouverte
+      // (le propre comportement du navigateur pour la vérif native est en
+      // plus throttle à ~1x/24h). C'est ce qui obligeait à fermer/rouvrir
+      // l'app installée deux fois pour voir une mise à jour.
+      injectRegister: false,
       includeAssets: ['apple-touch-icon.png'],
       manifest: {
         name: "George — Terminal d'analyse",
