@@ -6,11 +6,9 @@ import ResponsePopup from "../components/ResponsePopup";
 import UniversRadar from "../components/UniversRadar";
 import WatchlistRow from "../components/WatchlistRow";
 import { decisionTagClass } from "../data";
-import { useVoiceCapture } from "../hooks/useVoiceCapture";
 import {
   useAgentActivity,
   useBaskets,
-  useChat,
   useDecisions,
   useExplainDecision,
   useLatestPatterns,
@@ -69,9 +67,7 @@ const time = (iso) => new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit
 export default function Univers() {
   const [filter, setFilter] = useState("Tous");
   const [selected, setSelected] = useState(null);
-  const [dockMsg, setDockMsg] = useState(null);
   const [popup, setPopup] = useState(null); // { title, status: "listening"|"loading"|"done"|"error", text }
-  const chatMutation = useChat();
   const explainMutation = useExplainDecision();
   const refreshPricesMutation = useRefreshPrices();
   // Annule le polling de useRefreshPrices (voir queries.js) si l'écran est
@@ -130,37 +126,8 @@ export default function Univers() {
     });
   }
 
-  const voice = useVoiceCapture({
-    onListening: () => setPopup({ title: "Commande vocale", status: "listening", text: "" }),
-    onInterim: (text) => setPopup((prev) => (prev?.status === "listening" ? { ...prev, text } : prev)),
-    onError: (message) => setPopup({ title: "Commande vocale", status: "error", text: message }),
-    onFinal: (question) => {
-      if (!question) {
-        setPopup({ title: "Commande vocale", status: "error", text: "Aucune parole détectée — réessayez." });
-        return;
-      }
-      const title = `Commande vocale — « ${question} »`;
-      setPopup({ title, status: "loading", text: null });
-      chatMutation.mutate(question, {
-        onSuccess: (data) => setPopup({ title, status: "done", text: data.answer }),
-        onError: (err) => setPopup({ title, status: "error", text: err.message }),
-      });
-    },
-  });
-
   function closePopup() {
-    // Coupe le micro si une écoute est en cours — sinon le navigateur
-    // continue d'enregistrer alors que le popup est fermé.
-    voice.abort();
     setPopup(null);
-  }
-
-  function askGeorge(question) {
-    setPopup({ title: "George répond", status: "loading", text: null });
-    chatMutation.mutate(question, {
-      onSuccess: (data) => setPopup({ title: "George répond", status: "done", text: data.answer }),
-      onError: (err) => setPopup({ title: "George répond", status: "error", text: err.message }),
-    });
   }
 
   const { data: securitiesPage, isLoading: securitiesLoading, isError: securitiesError } = useSecurities({ limit: 200 });
@@ -256,7 +223,7 @@ export default function Univers() {
 
   return (
     <>
-      <ResponsePopup popup={popup} onClose={closePopup} onStopListening={voice.stop} />
+      <ResponsePopup popup={popup} onClose={closePopup} />
       <div className="h-full overflow-y-auto gd-scrollbar">
         <div className="mx-auto flex flex-col gap-3.5 px-5 pt-4" style={{ maxWidth: 1440 }}>
           {/* En-tête + compteurs */}
@@ -399,14 +366,22 @@ export default function Univers() {
                           <button
                             className="gd-btn gd-btn--solid"
                             style={{ flex: "1 1 140px", minHeight: 40 }}
-                            onClick={() => setDockMsg(`Niveaux validés pour ${selectedSymbol}.`)}
+                            onClick={() =>
+                              setPopup({ title: "Niveaux", status: "done", text: `Niveaux validés pour ${selectedSymbol}.` })
+                            }
                           >
                             Valider les niveaux
                           </button>
                           <button
                             className="gd-btn"
                             style={{ flex: "1 1 100px", minHeight: 40 }}
-                            onClick={() => setDockMsg(`Ajustement des niveaux pour ${selectedSymbol} en cours de discussion.`)}
+                            onClick={() =>
+                              setPopup({
+                                title: "Niveaux",
+                                status: "done",
+                                text: `Ajustement des niveaux pour ${selectedSymbol} en cours de discussion.`,
+                              })
+                            }
                           >
                             Ajuster
                           </button>
@@ -653,52 +628,6 @@ export default function Univers() {
               )}
             </Panel>
           </div>
-
-          {/* Dock */}
-          <section
-            aria-label="Poser une question à George"
-            className="sticky bottom-0 flex flex-col gap-2 px-3 py-2.5 mb-4"
-            style={{ border: "1px solid var(--hairline)", borderRadius: 10, background: "var(--panel)" }}
-          >
-            <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
-              {dockMsg ?? "Sélectionnez une valeur pour voir le raisonnement complet, ou posez une question."}
-            </div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <label htmlFor="ask-george" className="gd-label whitespace-nowrap">
-                George explique ›
-              </label>
-              <input
-                id="ask-george"
-                className="text-[12px] px-2.5"
-                style={{
-                  flex: "999 1 320px",
-                  minWidth: 0,
-                  minHeight: 40,
-                  fontFamily: "inherit",
-                  border: "1px solid var(--hairline)",
-                  borderRadius: 8,
-                  background: "var(--panel-alt)",
-                  color: "var(--text)",
-                }}
-                placeholder="Poser une question à George…"
-                disabled={chatMutation.isPending}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                    const question = e.currentTarget.value.trim();
-                    e.currentTarget.value = "";
-                    askGeorge(question);
-                  }
-                }}
-              />
-              <button className="gd-btn gd-btn--solid inline-flex items-center gap-2" style={{ minHeight: 40 }} onClick={voice.start}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <rect x="9" y="3" width="6" height="11" rx="3" />
-                  <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-                </svg>
-                Commande vocale
-              </button>
-            </div>
-          </section>
         </div>
       </div>
     </>
