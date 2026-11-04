@@ -10,7 +10,7 @@ engine/      moteur de détection de patterns + scoring de confiance — Phase 1
 agents/      explainer, /chat, rapports pgvector, second avis de Jane — Phase 4, déjà en place ; sous-agents de veille (presse, macro, géopolitique...) — Phase 7 (pas encore implémenté)
 api/         API FastAPI — Phase 3, déjà en place
 web/         interface web React (Vite + Tailwind), branchée sur l'API — Phase 3, déjà en place
-mobile/      application mobile — Phase 5, volontairement sautée pour l'instant (voir CLAUDE.md)
+mobile/      application mobile Flutter — un V1 MVP a bien été construit (hors roadmap, après la Phase 4), mais le projet est décommissionné pour le moment (nov. 2026) : code conservé, build/distribution Firebase App Distribution mis en pause (voir CLAUDE.md, section "Mobile app (Flutter)")
 infra/       docker-compose.yml et configuration d'infrastructure
 tests/       tests pytest
 ```
