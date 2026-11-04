@@ -44,7 +44,12 @@ def test_patch_disabling_and_changing_threshold_in_one_call_resolves_with_the_ol
             db.execute(stmt)
             db.commit()
             created = evaluate_all_thresholds(db)
-        assert len(created) == 1 and created[0].status == "triggered"
+            # Lu pendant que la session est encore ouverte : evaluate_all_thresholds
+            # commit en interne, ce qui expire les objets qu'elle renvoie (défaut
+            # SQLAlchemy expire_on_commit) -- y accéder après la fermeture de `db`
+            # (sortie du `with`) lève DetachedInstanceError.
+            created_status = created[0].status if created else None
+        assert len(created) == 1 and created_status == "triggered"
 
         # Un seul PATCH change le seuil ET désactive -- l'événement "resolved"
         # doit référencer 4.90 (le seuil réellement franchi), pas 5.50.

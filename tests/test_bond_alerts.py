@@ -94,8 +94,14 @@ def test_evaluate_all_thresholds_fires_once_then_resolves_then_refires(database_
         _set_oat(5.10, datetime.date(2026, 10, 1))  # dépasse 4.90 -> doit déclencher
         with session_factory() as db:
             created = evaluate_all_thresholds(db)
+            # Lu pendant que la session est encore ouverte : evaluate_all_thresholds
+            # commit en interne, ce qui expire les objets qu'elle renvoie (défaut
+            # SQLAlchemy expire_on_commit) -- y accéder après la fermeture de `db`
+            # (sortie du `with`) lève DetachedInstanceError plutôt que de relire
+            # silencieusement depuis une session fermée.
+            created_status = created[0].status if created else None
         assert len(created) == 1
-        assert created[0].status == "triggered"
+        assert created_status == "triggered"
 
         # Cycle suivant, toujours au-dessus du seuil -- ne doit RIEN recréer (anti-répétition).
         _set_oat(5.15, datetime.date(2026, 10, 2))
@@ -107,15 +113,17 @@ def test_evaluate_all_thresholds_fires_once_then_resolves_then_refires(database_
         _set_oat(4.50, datetime.date(2026, 10, 3))
         with session_factory() as db:
             resolved = evaluate_all_thresholds(db)
+            resolved_status = resolved[0].status if resolved else None
         assert len(resolved) == 1
-        assert resolved[0].status == "resolved"
+        assert resolved_status == "resolved"
 
         # Repasse au-dessus -- doit redéclencher un nouveau "triggered".
         _set_oat(5.20, datetime.date(2026, 10, 4))
         with session_factory() as db:
             retriggered = evaluate_all_thresholds(db)
+            retriggered_status = retriggered[0].status if retriggered else None
         assert len(retriggered) == 1
-        assert retriggered[0].status == "triggered"
+        assert retriggered_status == "triggered"
 
         with session_factory() as db:
             all_events = db.execute(select(BondAlertEvent).order_by(BondAlertEvent.triggered_at)).scalars().all()
@@ -211,7 +219,8 @@ def test_resolve_if_triggered_writes_a_resolved_event_when_disabling_an_active_a
             db.execute(stmt)
             db.commit()
             created = evaluate_all_thresholds(db)
-        assert len(created) == 1 and created[0].status == "triggered"
+            created_status = created[0].status if created else None
+        assert len(created) == 1 and created_status == "triggered"
 
         # Désactivation -- doit écrire un "resolved" explicite tout de suite,
         # pas seulement omettre le seuil du prochain evaluate_all_thresholds.
@@ -219,9 +228,16 @@ def test_resolve_if_triggered_writes_a_resolved_event_when_disabling_an_active_a
             threshold = db.get(BondAlertThreshold, threshold_id)
             event = resolve_if_triggered(db, threshold)
             db.commit()
+            # Lu avant la fermeture de `db` (sortie du `with`) -- `db.commit()`
+            # expire `event` (défaut SQLAlchemy expire_on_commit), et
+            # resolve_if_triggered ne commit pas lui-même (c'est l'appelant qui
+            # gère sa transaction, voir son docstring), donc c'est bien ce
+            # commit-ci qui expire l'objet.
+            event_status = event.status
+            event_message = event.message
         assert event is not None
-        assert event.status == "resolved"
-        assert "désactivée" in event.message
+        assert event_status == "resolved"
+        assert "désactivée" in event_message
 
         with session_factory() as db:
             events = db.execute(select(BondAlertEvent).order_by(BondAlertEvent.triggered_at)).scalars().all()
