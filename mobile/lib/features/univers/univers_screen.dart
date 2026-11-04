@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
-import '../../data/chat_repository.dart';
 import '../../data/decisions_repository.dart';
 import '../../data/invalidate_all.dart';
 import '../../data/jane_repository.dart';
@@ -29,8 +28,7 @@ const _filters = ['Tous', 'Achat', 'Surveiller', 'Alléger'];
 /// directe de l'utilisateur) : en-tête « George / Univers » avec compteurs,
 /// radar de l'univers, valeur sélectionnée (graphique, figure, décision,
 /// niveaux), raisonnement de George, puis la watchlist filtrable, l'énergie
-/// et l'actualité, et la barre de question en pied d'écran. Tout vient de
-/// l'API, aucun chiffre de démonstration.
+/// et l'actualité. Tout vient de l'API, aucun chiffre de démonstration.
 ///
 /// Différences assumées avec le web, faute de place ou parce que l'action
 /// n'existe pas vraiment : pas de boutons « Valider les niveaux » /
@@ -53,12 +51,10 @@ class UniversScreen extends ConsumerStatefulWidget {
 class _UniversScreenState extends ConsumerState<UniversScreen> {
   String _filter = 'Tous';
   String? _selected;
-  final _chatController = TextEditingController();
   final _scrollController = ScrollController();
 
   @override
   void dispose() {
-    _chatController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -97,18 +93,6 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
           },
         ),
       ),
-    );
-  }
-
-  void _askChat() {
-    final question = _chatController.text.trim();
-    if (question.isEmpty) return;
-    _chatController.clear();
-    showResponseDialog(
-      context,
-      title: 'George répond',
-      loadingText: 'George réfléchit…',
-      action: () => ref.read(chatRepositoryProvider).ask(question),
     );
   }
 
@@ -172,7 +156,6 @@ class _UniversScreenState extends ConsumerState<UniversScreen> {
                   ),
                 ),
               ),
-              _AskDock(controller: _chatController, onSubmit: _askChat),
             ],
           ),
           // Bouton flottant "Ask Jane" — centré verticalement sur le bord
@@ -635,50 +618,6 @@ class _WatchlistRow extends StatelessWidget {
               if (decision != null) _DecisionTag(decision!.decisionType) else const Text('—', style: _valueStyle),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Barre de question en pied d'écran (« George explique › » sur le web).
-class _AskDock extends StatelessWidget {
-  const _AskDock({required this.controller, required this.onSubmit});
-
-  final TextEditingController controller;
-  final VoidCallback onSubmit;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
-        decoration: const BoxDecoration(
-          color: AppColors.panel,
-          border: Border(top: BorderSide(color: AppColors.hairline)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: ValueListenableBuilder<TextEditingValue>(
-                valueListenable: controller,
-                builder: (context, value, _) => TextField(
-                  controller: controller,
-                  decoration: InputDecoration(
-                    hintText: 'Poser une question à George…',
-                    isDense: true,
-                    suffixIcon: value.text.isEmpty
-                        ? null
-                        : IconButton(icon: const Icon(Icons.close, size: 18), tooltip: 'Effacer', onPressed: controller.clear),
-                  ),
-                  onSubmitted: (_) => onSubmit(),
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            IconButton.filled(icon: const Icon(Icons.send), tooltip: 'Envoyer', onPressed: onSubmit),
-          ],
         ),
       ),
     );
