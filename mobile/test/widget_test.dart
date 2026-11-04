@@ -107,6 +107,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('George / Univers'), findsOneWidget);
+    // Dock "Poser une question à George" retiré (_AskDock) : c'était un
+    // enfant direct de la Column racine, toujours construit (pas lazy)
+    // dès ce premier pump, donc cette assertion n'a pas besoin de défiler.
+    expect(find.text('Poser une question à George…'), findsNothing);
     // Compteur « Figures actives » = 1 (la figure du lot), valeur
     // sélectionnée par défaut = le premier titre, avec sa figure.
     expect(find.text('FIGURES ACTIVES'), findsOneWidget);
