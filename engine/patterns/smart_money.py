@@ -282,44 +282,59 @@ def _order_block(df, bullish: bool) -> list[PatternMatch]:
     if n < IMPULSE_WINDOW + 2:
         return []
 
+    # Tableaux numpy plutôt que `df.iloc[i]` dans la boucle : ce détecteur
+    # parcourt tout l'historique bougie par bougie, et l'accès ligne à ligne
+    # pandas en faisait ~60 % du temps de `detect_all` (mesuré en préparant
+    # le backtest walk-forward, `engine/backtest_detectors.py`). Mêmes règles,
+    # mêmes résultats : les comparaisons avec NaN restent fausses comme dans
+    # la version pandas, et `np.fmin`/`np.fmax` ignorent les NaN comme
+    # `(serie < x).any()`.
+    opens = df["open"].to_numpy(dtype=float)
+    highs = df["high"].to_numpy(dtype=float)
+    lows = df["low"].to_numpy(dtype=float)
+    closes = df["close"].to_numpy(dtype=float)
+    # suffix_min[k] = plus petite clôture de k à la dernière bougie incluse.
+    suffix_min = np.fmin.accumulate(closes[::-1])[::-1]
+    suffix_max = np.fmax.accumulate(closes[::-1])[::-1]
+    last_low, last_high = float(lows[last_idx]), float(highs[last_idx])
+
     for i in range(last_idx - 1, -1, -1):
-        candle = df.iloc[i]
-        is_opposite_colored = (candle["close"] < candle["open"]) if bullish else (candle["close"] > candle["open"])
+        is_opposite_colored = (closes[i] < opens[i]) if bullish else (closes[i] > opens[i])
         if not is_opposite_colored:
             continue
 
         impulse_end = i + IMPULSE_WINDOW
         if impulse_end >= last_idx:
             continue  # pas assez de bougies après l'impulsion pour un retest distinct de l'impulsion elle-même
-        impulse_window = df.iloc[i + 1 : impulse_end + 1]
+        impulse_closes = closes[i + 1 : impulse_end + 1]
 
-        base_price = float(candle["close"])
-        ob_low, ob_high = float(candle["low"]), float(candle["high"])
+        base_price = float(closes[i])
+        ob_low, ob_high = float(lows[i]), float(highs[i])
+
+        # Test du retest sur la bougie courante en premier : le moins cher,
+        # et toutes les conditions sont cumulatives (l'ordre ne change rien).
+        retested_now = (last_low <= ob_high) if bullish else (last_high >= ob_low)
+        if not retested_now:
+            continue
 
         if bullish:
-            impulse_return = (float(impulse_window["close"].iloc[-1]) - base_price) / abs(base_price)
+            impulse_return = (float(impulse_closes[-1]) - base_price) / abs(base_price)
             if impulse_return <= IMPULSE_MIN_RETURN:
                 continue
-            if (impulse_window["close"] < ob_low).any():
+            if (impulse_closes < ob_low).any():
                 continue  # une clôture est revenue sous le bas de l'OB pendant l'impulsion : zone déjà invalidée
         else:
-            impulse_return = (base_price - float(impulse_window["close"].iloc[-1])) / abs(base_price)
+            impulse_return = (base_price - float(impulse_closes[-1])) / abs(base_price)
             if impulse_return <= IMPULSE_MIN_RETURN:
                 continue
-            if (impulse_window["close"] > ob_high).any():
+            if (impulse_closes > ob_high).any():
                 continue
 
         # Zone valide entre la fin de l'impulsion et la bougie courante :
         # aucune clôture ne doit avoir invalidé la zone depuis.
-        retest_zone = df.iloc[impulse_end + 1 : last_idx + 1]
-        if bullish and (retest_zone["close"] < ob_low).any():
+        if bullish and suffix_min[impulse_end + 1] < ob_low:
             continue
-        if not bullish and (retest_zone["close"] > ob_high).any():
-            continue
-
-        last_row = df.iloc[last_idx]
-        retested_now = (float(last_row["low"]) <= ob_high) if bullish else (float(last_row["high"]) >= ob_low)
-        if not retested_now:
+        if not bullish and suffix_max[impulse_end + 1] > ob_high:
             continue
 
         zone_size = max(ob_high - ob_low, 1e-9)
@@ -329,13 +344,13 @@ def _order_block(df, bullish: bool) -> list[PatternMatch]:
         # au-delà) — un retest franc dans la zone est un signal plus net
         # qu'un simple frôlement.
         if bullish:
-            penetration = ob_high - float(last_row["low"])
+            penetration = ob_high - last_low
         else:
-            penetration = float(last_row["high"]) - ob_low
+            penetration = last_high - ob_low
         retest_quality = float(np.clip(penetration / zone_size, 0.0, 1.0))
         geometry_quality = 0.5 * impulse_quality + 0.5 * retest_quality
 
-        impulse_amplitude = abs(float(impulse_window["close"].iloc[-1]) - base_price)
+        impulse_amplitude = abs(float(impulse_closes[-1]) - base_price)
 
         return _score_and_match(
             df,
