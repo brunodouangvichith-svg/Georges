@@ -2,7 +2,16 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UniversTorus from "./UniversTorus";
 import { mockContainerWidth } from "../test/containerWidth";
-import { buildCards, buildFilaments, buildItems, makeProjector, MAX_RADIUS, nearestFilament, torusPoint } from "./torusLayout";
+import {
+  buildCards,
+  buildFilaments,
+  buildItems,
+  buildPatternCards,
+  makeProjector,
+  MAX_RADIUS,
+  nearestFilament,
+  torusPoint,
+} from "./torusLayout";
 
 const securities = [
   { symbol: "AAA.PA", name: "Alpha", sector: "Santé" },
@@ -74,6 +83,20 @@ describe("torusLayout", () => {
     );
     const at = (step) => buildCards(filaments(), map, 2, step).map((card) => card.symbol[0]).join("");
     expect([0, 1, 2, 3].map(at)).toEqual(["AB", "CA", "BC", "AB"]);
+  });
+
+  it("ranks the securities with a pattern by confidence, then by date", () => {
+    const found = {
+      "AAA.PA": { confidence: 60, detected_at: "2026-11-20T10:00:00" },
+      "BBB.PA": { confidence: 90, detected_at: "2026-11-01T10:00:00" },
+      "CCC.PA": { confidence: 60, detected_at: "2026-11-25T10:00:00" },
+      "ZZZ.PA": { confidence: 99, detected_at: "2026-11-25T10:00:00" },
+    };
+    const items = buildItems(securities, found, {});
+    const at = (count, step) => buildPatternCards(items, found, count, step).map((c) => `${c.rank}${c.symbol[0]}`);
+    expect(at(10, 3)).toEqual(["1B", "2C", "3A"]);
+    expect(at(2, 1)).toEqual(["3A", "1B"]);
+    expect(buildPatternCards(items, { "AAA.PA": null }, 10)).toEqual([]);
   });
 
   it("picks the spike under the pointer, and nothing far from every spike", () => {
@@ -223,10 +246,37 @@ describe("UniversTorus", () => {
     expect(feed()[0]).toBe("V0.PA");
   });
 
+  it("lists the best patterns, on the left or below, and scrolls them", () => {
+    fakeFeedTimer();
+    const found = Object.fromEntries(
+      many.map(({ symbol }, i) => [
+        symbol,
+        { confidence: 90 - i, pattern_type: "double_bottom", detected_at: "2026-11-20T10:00:00" },
+      ])
+    );
+    for (const width of [1200, 360]) {
+      mockContainerWidth(width);
+      const { unmount } = render(<UniversTorus {...feedProps} patternsBySymbol={found} />);
+      const group = document.querySelector('[role="group"][aria-label="Meilleures figures"]');
+      const names = () => [...group.querySelectorAll("button strong")].map((symbol) => symbol.textContent);
+      expect(group.style.position).toBe(width === 1200 ? "absolute" : "");
+      expect(group.style.left).toBe(width === 1200 ? "0px" : "");
+      expect(names()).toEqual(symbolsOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
+      expect(group.querySelector("button").textContent).toBe("V0.PAAchat · 90 %double_bottomn° 1 · détectée le 20/11");
+      wait(3000);
+      expect(names()).toEqual(symbolsOf(11, 0, 1, 2, 3, 4, 5, 6, 7, 8));
+      fireEvent.pointerOver(group);
+      wait(9000);
+      expect(names()[0]).toBe("V11.PA");
+      unmount();
+    }
+  });
+
   it("describes the data and the selected security", () => {
     render(<UniversTorus {...props} onSelect={() => {}} />);
     expect(screen.getByRole("img", { name: /3 valeurs, 1 avec une figure/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /AAA\.PA.*Achat/, pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /AAA\.PA.*Achat.*TP/, pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /AAA\.PA.*80 %/, pressed: true })).toBeInTheDocument();
   });
 
   it("selects a security from its card, beside the torus or below it", () => {
@@ -234,7 +284,7 @@ describe("UniversTorus", () => {
       mockContainerWidth(width);
       const onSelect = vi.fn();
       const { unmount } = render(<UniversTorus {...props} selectedSymbol="BBB.PA" onSelect={onSelect} />);
-      fireEvent.click(screen.getByRole("button", { name: /AAA\.PA/ }));
+      fireEvent.click(screen.getByRole("button", { name: /AAA\.PA.*Achat.*TP/ }));
       expect(onSelect).toHaveBeenCalledWith("AAA.PA");
       unmount();
     }
