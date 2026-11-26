@@ -3,6 +3,7 @@ import CandlestickChart from "../components/CandlestickChart";
 import ResponsePopup from "../components/ResponsePopup";
 import UniversRadar from "../components/UniversRadar";
 import { decisionTagClass } from "../data";
+import { useElementWidth } from "../hooks/useElementWidth";
 import {
   useAgentActivity,
   useDecisions,
@@ -46,6 +47,8 @@ function Panel({ title, children, className = "", style, label }) {
 export default function Univers() {
   const [selected, setSelected] = useState(null);
   const [popup, setPopup] = useState(null); // { title, status: "listening"|"loading"|"done"|"error", text }
+  // Le graphique en chandeliers prend la largeur de son cadre.
+  const [chartRef, chartWidth] = useElementWidth();
   const explainMutation = useExplainDecision();
   const refreshPricesMutation = useRefreshPrices();
   // Annule le polling de useRefreshPrices (voir queries.js) si l'écran est
@@ -274,7 +277,7 @@ export default function Univers() {
                         {selectedSecurity.symbol} · {selectedSecurity.sector}
                       </div>
                     </div>
-                    <div style={{ background: "var(--panel-alt)", overflow: "hidden" }}>
+                    <div ref={chartRef} style={{ background: "var(--panel-alt)", overflow: "hidden" }}>
                       <CandlestickChart
                         candles={priceItems}
                         loading={pricesLoading}
@@ -283,7 +286,7 @@ export default function Univers() {
                         indexOffset={indexOffset}
                         takeProfit={selectedDecision?.take_profit ?? null}
                         stopLoss={selectedDecision?.stop_loss ?? null}
-                        width={320}
+                        width={chartWidth ?? 320}
                       />
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-dim)" }}>

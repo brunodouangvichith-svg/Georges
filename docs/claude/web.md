@@ -87,3 +87,10 @@ Any data still explicitly fictive/illustrative (`seed_demo.py` output) says so i
 - Bug vu sur un vrai téléphone Android (26/11/2026) : la page entière défilait sous la barre d’onglets, à cause des `sr-only` (position absolue) du panneau énergie. Toute zone défilante doit porter `gd-scrollbar` (qui la positionne).
 - « Marché d’énergie » a quitté l’accueil pour son propre écran (`views/Energie.jsx`, `?view=energie`), entre Trading et Obligataire ; libellé « Énergie » dans la barre d’onglets du téléphone.
 - Zoom au pincement sur le radar (`hooks/usePinchZoom.js`, ×5 au plus) : deux doigts agrandissent, un doigt déplace la vue agrandie, bouton « Vue entière » pour revenir. En vue entière, un doigt fait défiler la page. Pas encore essayé sur un vrai téléphone.
+
+### Graphiques sur écran étroit (nov. 2026)
+- `hooks/useElementWidth.js` mesure le cadre d'un graphique (ResizeObserver). Il renvoie `null` tant que la largeur est inconnue (jsdom) : chaque graphique garde alors son rendu large. Dans les tests, `src/test/containerWidth.js` simule une largeur.
+- Chandeliers (`Univers.jsx`) : la largeur passée est celle du cadre (320 px par défaut), la hauteur reste 150 px.
+- Historique obligataire : sous 560 px de cadre (`bondChartLayout.js:layoutFor`), viewBox à la taille réelle (hauteur 240), moins de graduations, légende des dernières valeurs sous le graphique.
+- Radar : sous 500 px de cadre, libellés de secteur à environ 11 px (`compactLabels` masque ceux qui chevaucheraient un secteur plus gros ; le zoom les fait revenir), libellé de la sélection sous le radar, un toucher près de l'anneau choisit la valeur la plus proche (`nearestItem`) à la place des zones de clic par trait. Au-dessus, rien ne change.
+- Vérifié avec des données factices sur des captures Chrome headless (360, 390, 768, 1440 px). Pas essayé sur un vrai téléphone : toucher et pincement non vérifiés à la main.

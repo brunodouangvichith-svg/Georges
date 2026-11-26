@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildChart } from "./bondChartLayout";
+import { buildChart, layoutFor, WIDE } from "./bondChartLayout";
 
 const now = Date.parse("2026-10-15T00:00:00Z");
 
@@ -16,6 +16,31 @@ describe("buildChart", () => {
     );
     expect(chart.lines[0].points).toHaveLength(2);
     expect(chart.lines[0].lastValue).toBe(3.4);
+  });
+
+  it("uses the narrow layout only under 560 px, at the container's real width", () => {
+    expect(layoutFor(null)).toBe(WIDE);
+    expect(layoutFor(560)).toBe(WIDE);
+    expect(layoutFor(290)).toMatchObject({ width: 290, height: 240 });
+  });
+
+  it.each([365, 3 * 365, 5 * 365])("keeps few, spaced, uncut ticks on a narrow chart (%i days)", (days) => {
+    const points = Array.from({ length: 70 }, (_, i) => ({
+      observed_at: new Date(now - (69 - i) * (days / 70) * 864e5).toISOString().slice(0, 10),
+      value_pct: 2 + (i % 20) / 8,
+    }));
+    const series = [{ key: "A", points }];
+    const wide = buildChart(series, days, now);
+    const narrow = buildChart(series, days, now, layoutFor(290));
+
+    expect(narrow.xTicks.length).toBeGreaterThan(1);
+    expect(narrow.xTicks.length).toBeLessThanOrEqual(3);
+    expect(narrow.yTicks.length).toBeLessThanOrEqual(wide.yTicks.length);
+    narrow.xTicks.forEach((t, i) => {
+      expect(t.x + 27).toBeLessThanOrEqual(290);
+      if (i) expect(t.x - narrow.xTicks[i - 1].x).toBeGreaterThanOrEqual(54);
+    });
+    expect(narrow.lines[0].lastX).toBeCloseTo(290 - 12);
   });
 
   it("never lets two end labels overlap", () => {

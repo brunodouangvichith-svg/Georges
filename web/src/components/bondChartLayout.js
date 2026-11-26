@@ -1,24 +1,38 @@
 // Géométrie du graphique d'historique Obligataire Watch (voir
 // BondHistoryChart.jsx) — séparée pour être testée seule et garder le fast refresh.
 
-export const W = 760;
-export const H = 340;
-export const PAD_L = 44;
-export const PAD_R = 132;
 const PAD_T = 16;
 const PAD_B = 28;
 const LABEL_GAP = 14;
 
+// Gabarit large : viewBox fixe mise à l'échelle, étiquettes en bout de courbe.
+export const WIDE = { width: 760, height: 340, padL: 44, padR: 132, yDivisions: 5, xSpacing: null };
+
+// Sous ce seuil, le gabarit large rendrait le texte illisible.
+export const NARROW_BELOW = 560;
+
+// Gabarit étroit : un viewBox à la taille réelle (le texte garde sa taille),
+// plus haut en proportion, moins de graduations, et la légende des dernières
+// valeurs sous le graphique au lieu de la marge droite.
+export function layoutFor(containerWidth) {
+  if (containerWidth == null || containerWidth >= NARROW_BELOW) return WIDE;
+  return { width: containerWidth, height: 240, padL: 46, padR: 12, yDivisions: 3, xSpacing: 64 };
+}
+
+// Demi-largeur d'un repère de date (« janv. 26 » en 11 px à chasse fixe).
+const X_LABEL_HALF = 27;
+
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
-function niceStep(span) {
-  const raw = span / 5;
+function niceStep(span, divisions) {
+  const raw = span / divisions;
   const pow = 10 ** Math.floor(Math.log10(raw || 1));
   const n = raw / pow;
   return (n >= 5 ? 5 : n >= 2 ? 2 : n >= 1 ? 1 : 0.5) * pow;
 }
 
-export function buildChart(series, rangeDays, now = Date.now()) {
+export function buildChart(series, rangeDays, now = Date.now(), layout = WIDE) {
+  const { width, height, padL, padR, yDivisions, xSpacing } = layout;
   const from = now - rangeDays * 864e5;
   const lines = series
     .map((s) => ({
@@ -40,19 +54,19 @@ export function buildChart(series, rangeDays, now = Date.now()) {
     vMin -= 0.1;
     vMax += 0.1;
   }
-  const step = niceStep(vMax - vMin);
+  const step = niceStep(vMax - vMin, yDivisions);
   vMin = Math.floor(vMin / step) * step;
   vMax = Math.ceil(vMax / step) * step;
 
-  const x = (t) => PAD_L + ((t - tMin) / (tMax - tMin || 1)) * (W - PAD_L - PAD_R);
-  const y = (v) => PAD_T + (1 - (v - vMin) / (vMax - vMin || 1)) * (H - PAD_T - PAD_B);
+  const x = (t) => padL + ((t - tMin) / (tMax - tMin || 1)) * (width - padL - padR);
+  const y = (v) => PAD_T + (1 - (v - vMin) / (vMax - vMin || 1)) * (height - PAD_T - PAD_B);
 
   const yTicks = [];
   for (let v = vMin; v <= vMax + step / 2; v += step) yTicks.push({ v, y: y(v), label: `${v.toFixed(step < 1 ? 1 : 0)} %` });
 
   // Repères de date : premier jour de chaque mois (ou de chaque année si la
   // plage est longue), au plus ~7 repères.
-  const xTicks = [];
+  let xTicks = [];
   const monthsSpan = (tMax - tMin) / (30 * 864e5);
   const monthStep = monthsSpan > 36 ? 12 : monthsSpan > 14 ? 3 : monthsSpan > 6 ? 2 : 1;
   const start = new Date(tMin);
@@ -63,6 +77,15 @@ export function buildChart(series, rangeDays, now = Date.now()) {
       xTicks.push({ x: x(d.getTime()), label });
     }
     d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+  }
+
+  // Gabarit étroit : aucun repère coupé par le bord droit, puis un repère
+  // sur N pour qu'ils ne se touchent pas.
+  if (xSpacing) {
+    const inside = xTicks.filter((t) => t.x + X_LABEL_HALF <= width);
+    const max = Math.max(1, Math.floor((width - padL - padR) / xSpacing));
+    const every = Math.max(1, Math.ceil(inside.length / max));
+    xTicks = inside.filter((_, i) => i % every === 0);
   }
 
   const drawn = lines.map((s) => {
