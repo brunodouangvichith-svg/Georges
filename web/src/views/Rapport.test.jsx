@@ -6,9 +6,10 @@ vi.mock("../api/queries", () => ({
   useStrategicReports: vi.fn(),
   useStrategicReport: vi.fn(),
   useGenerateStrategicReport: vi.fn(),
+  useBondDashboard: vi.fn(),
 }));
 
-import { useGenerateStrategicReport, useStrategicReport, useStrategicReports } from "../api/queries";
+import { useBondDashboard, useGenerateStrategicReport, useStrategicReport, useStrategicReports } from "../api/queries";
 
 const report = {
   id: 3,
@@ -37,7 +38,8 @@ const report = {
   },
 };
 
-function setup({ reportData = report, list = [{ id: 3, created_at: report.created_at, risk_level: "orange" }], mutate = vi.fn(), pending = false } = {}) {
+function setup({ reportData = report, list = [{ id: 3, created_at: report.created_at, risk_level: "orange" }], mutate = vi.fn(), pending = false, bonds } = {}) {
+  useBondDashboard.mockReturnValue({ data: bonds });
   useStrategicReports.mockReturnValue({ data: list });
   useStrategicReport.mockReturnValue({ data: reportData, isLoading: false, isError: false });
   useGenerateStrategicReport.mockReturnValue({ mutate, isPending: pending, isError: false });
@@ -56,6 +58,20 @@ describe("Rapport", () => {
     expect(screen.getByRole("link", { name: "[1]", hidden: true })).toHaveAttribute("href", "#source-1");
     expect(screen.getByRole("link", { name: "Inflation en septembre", hidden: true })).toHaveAttribute("href", "https://www.insee.fr/x");
     expect(screen.queryByText("LVMH")).not.toBeInTheDocument();
+  });
+
+  it("recalls the current Obligataire values only when they differ from the report", () => {
+    const bonds = (value_pct, spread) => ({
+      cards: [{ instrument: "OAT_FR_10Y", value_pct, observed_at: "2026-10-23" }],
+      spread_oat_bund_bps: spread,
+    });
+    const { unmount } = setup({ bonds: bonds(4.9, 140.2) });
+    expect(screen.queryByText(/Onglet Obligataire/)).not.toBeInTheDocument();
+    unmount();
+    setup({ bonds: bonds(4.62, 118) });
+    expect(screen.getByText("4,90 %")).toBeInTheDocument();
+    expect(screen.getByText(/Onglet Obligataire : 4,62 % au 23 octobre 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Onglet Obligataire : \+118 pb/)).toBeInTheDocument();
   });
 
   it("shows an empty state and starts a generation", () => {
