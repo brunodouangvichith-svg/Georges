@@ -13,6 +13,7 @@ vi.mock("../api/queries", () => ({
   useProposeDecisions: vi.fn(),
   useMonitorDecisions: vi.fn(),
   usePerformance: vi.fn(),
+  useStrategicReport: vi.fn(),
 }));
 
 import {
@@ -24,6 +25,7 @@ import {
   usePerformance,
   useProposeDecisions,
   useProposeLevels,
+  useStrategicReport,
 } from "../api/queries";
 
 const base = { pattern_id: 3, confidence: 72.4, rationale: null, exit_scenario: null, exit_volume_confirmed: null, exit_justification: null, exit_proposed_at: null, created_at: "2026-10-10T08:00:00Z" };
@@ -46,6 +48,7 @@ describe("Trading", () => {
     useProposeDecisions.mockReturnValue(mutation());
     useMonitorDecisions.mockReturnValue(mutation());
     usePerformance.mockReturnValue({ data: undefined, isLoading: false, isError: false });
+    useStrategicReport.mockReturnValue({ data: null, isLoading: false, isError: false });
   });
 
   it("shows one column per lifecycle status with its decisions", () => {
@@ -110,6 +113,32 @@ describe("Trading", () => {
     expect(screen.getByText(/Take-profit touché/)).toBeInTheDocument();
     expect(screen.getAllByText("+8.62 %").length).toBeGreaterThan(0);
     byStatus.cloturee = [];
+  });
+
+  it("shows the CAC 40 stocks from the latest strategic report", () => {
+    useStrategicReport.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        created_at: "2026-10-16T09:00:00Z",
+        data: {
+          cac40: [
+            { symbol: "AIR.PA", name: "Airbus", sector: "Industrie", close: 198.75, week_change_pct: 2.1, decision_type: "Achat", confidence: 80, pattern_type: "Double Bottom" },
+            { symbol: "MC.PA", name: "LVMH", sector: "Luxe", close: 396, week_change_pct: -3, decision_type: null, confidence: null, pattern_type: null },
+          ],
+        },
+      },
+    });
+    render(<Trading />);
+    expect(useStrategicReport).toHaveBeenCalledWith(null);
+    expect(screen.getByRole("heading", { name: "Valeurs du CAC 40 (2)", hidden: true })).toBeInTheDocument();
+    expect(screen.getByText("LVMH")).toBeInTheDocument();
+    expect(screen.getByText(/16 octobre 2026/)).toBeInTheDocument();
+  });
+
+  it("says when no strategic report exists for the CAC 40 table", () => {
+    render(<Trading />);
+    expect(screen.getByText(/génère un rapport dans l'onglet « Rapport »/)).toBeInTheDocument();
   });
 
   it("says when no position has been closed yet", () => {
