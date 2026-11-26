@@ -92,6 +92,37 @@ describe("UniversRadar", () => {
     expect(onSelect).toHaveBeenCalledWith("BNP.PA");
   });
 
+  it("zooms with two fingers, pans with one, and returns to the full view", () => {
+    const { container, queryByRole, getByRole } = render(
+      <UniversRadar securities={securities} patternsBySymbol={{}} decisionsMap={{}} selectedSymbol={null} onSelect={() => {}} closes={[]} />
+    );
+    const svg = container.querySelector("svg");
+    svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: 380, height: 340 });
+    const at = (...points) => ({ touches: points.map(([clientX, clientY]) => ({ clientX, clientY })) });
+
+    // En vue entière, un doigt laisse la page défiler (événement non annulé).
+    fireEvent.touchStart(svg, at([100, 100]));
+    expect(fireEvent.touchMove(svg, at([100, 40]))).toBe(true);
+    expect(svg.getAttribute("viewBox")).toBe("0 0 760 680");
+
+    // Écartement doublé autour du centre : zoom ×2, centre inchangé.
+    fireEvent.touchStart(svg, at([140, 170], [240, 170]));
+    expect(fireEvent.touchMove(svg, at([90, 170], [290, 170]))).toBe(false);
+    expect(svg.getAttribute("viewBox")).toBe("190 170 380 340");
+    expect(svg.style.touchAction).toBe("none");
+
+    // Un doigt déplace la vue agrandie, sans dépasser les bords.
+    fireEvent.touchEnd(svg, at([90, 170]));
+    fireEvent.touchMove(svg, at([140, 170]));
+    expect(svg.getAttribute("viewBox")).toBe("140 170 380 340");
+    fireEvent.touchMove(svg, at([900, 900]));
+    expect(svg.getAttribute("viewBox")).toBe("0 0 380 340");
+
+    fireEvent.click(getByRole("button", { name: "Vue entière" }));
+    expect(svg.getAttribute("viewBox")).toBe("0 0 760 680");
+    expect(queryByRole("button", { name: "Vue entière" })).toBeNull();
+  });
+
   it("does not crash without price history", () => {
     const { container } = render(
       <UniversRadar securities={securities} patternsBySymbol={{}} decisionsMap={{}} selectedSymbol={null} onSelect={() => {}} closes={[]} />

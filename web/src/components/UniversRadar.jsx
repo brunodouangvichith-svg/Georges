@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { decisionColor } from "../data";
+import { usePinchZoom } from "../hooks/usePinchZoom";
 import { buildRadar, CX, CY, R_IN, R_TICK_IN, R_TICK_OUT, R_BAR, BAR_SCALE, RADAR_SCALE as K } from "./universRadarLayout";
 
 // Radar de l'univers (écran Univers).
@@ -17,7 +18,10 @@ import { buildRadar, CX, CY, R_IN, R_TICK_IN, R_TICK_OUT, R_BAR, BAR_SCALE, RADA
 //   aria-hidden) : il ne représente aucune donnée.
 //
 // Un clic sur un trait sélectionne la valeur. Ce n'est qu'un raccourci
-// souris : la watchlist reste le chemin clavier/lecteur d'écran.
+// souris : le menu « Choisir une valeur » reste le chemin clavier/lecteur
+// d'écran.
+//
+// Sur écran tactile, un pincement agrandit le radar (voir usePinchZoom).
 
 const W = 760;
 const H = 680;
@@ -88,6 +92,7 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
     [securities, patternsBySymbol, decisionsMap]
   );
   const trail = useMemo(() => buildTrail(closes), [closes]);
+  const zoom = usePinchZoom(W, H);
 
   // Barres regroupées par couleur de décision (vert achat/renfort, orange
   // surveiller, rouge alléger, bleu sans décision) et par épaisseur
@@ -126,7 +131,19 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
   }
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={ariaLabel} style={{ width: "100%", height: "auto", display: "block" }}>
+    <div className="relative">
+    {zoom.zoomed && (
+      <button type="button" className="gd-btn absolute right-0 top-0" style={{ background: "var(--panel)", color: "var(--text)" }} onClick={zoom.reset}>
+        Vue entière
+      </button>
+    )}
+    <svg
+      ref={zoom.ref}
+      viewBox={zoom.viewBox}
+      role="img"
+      aria-label={ariaLabel}
+      style={{ width: "100%", height: "auto", display: "block", touchAction: zoom.touchAction }}
+    >
       <circle cx={CX} cy={CY} r={R_IN} fill="var(--panel)" />
       <path d={FLOW_D} fill="none" stroke="var(--accent)" strokeWidth={0.55} strokeOpacity={0.28} aria-hidden="true" />
       {trail.d && (
@@ -227,5 +244,6 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
         })}
       </g>
     </svg>
+    </div>
   );
 }

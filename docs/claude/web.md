@@ -86,3 +86,4 @@ Any data still explicitly fictive/illustrative (`seed_demo.py` output) says so i
 - Les cinq compteurs d’en-tête (Valeurs, Figures actives, Achat, Surveiller, Alléger) ont été retirés, avec `Counter`.
 - Bug vu sur un vrai téléphone Android (26/11/2026) : la page entière défilait sous la barre d’onglets, à cause des `sr-only` (position absolue) du panneau énergie. Toute zone défilante doit porter `gd-scrollbar` (qui la positionne).
 - « Marché d’énergie » a quitté l’accueil pour son propre écran (`views/Energie.jsx`, `?view=energie`), entre Trading et Obligataire ; libellé « Énergie » dans la barre d’onglets du téléphone.
+- Zoom au pincement sur le radar (`hooks/usePinchZoom.js`, ×5 au plus) : deux doigts agrandissent, un doigt déplace la vue agrandie, bouton « Vue entière » pour revenir. En vue entière, un doigt fait défiler la page. Pas encore essayé sur un vrai téléphone.
