@@ -9,7 +9,6 @@ import {
   useExplainDecision,
   useLatestPatterns,
   useRefreshPrices,
-  useEnergyPrices,
   useSecurities,
   useSecurityDividends,
   useSecurityFundamentals,
@@ -22,17 +21,6 @@ import {
 // d'origine (bleu nuit, blanc, accent bleu ; vert/orange/rouge pour les
 // décisions). Toutes les données affichées viennent de l'API : aucun
 // chiffre de démonstration ici.
-
-const ENERGY_LABELS = {
-  BRENT_CRUDE_USD: "Brent",
-  WTI_USD: "WTI",
-  NATURAL_GAS_USD: "Gaz naturel",
-  DIESEL_USD: "Diesel",
-  HEATING_OIL_USD: "Fioul domestique",
-  GASOLINE_USD: "Essence",
-};
-const ENERGY_ORDER = Object.keys(ENERGY_LABELS);
-
 
 const AGENT_STATUS_LABEL = { validated: "validé", pending: "en attente", quarantine: "quarantaine" };
 const AGENT_STATUS_COLOR = { validated: "var(--positive)", pending: "var(--warning)", quarantine: "var(--negative)" };
@@ -123,11 +111,6 @@ export default function Univers() {
   const { data: securitiesPage, isLoading: securitiesLoading, isError: securitiesError } = useSecurities({ limit: 200 });
   const { data: decisionsPage } = useDecisions({ limit: 200 });
   const { data: agentPage } = useAgentActivity({ limit: 20 });
-  const { data: energyPrices } = useEnergyPrices();
-
-  const sortedEnergyPrices = ENERGY_ORDER.map((code) => energyPrices?.find((e) => e.commodity_code === code)).filter(
-    Boolean
-  );
 
   const securities = useMemo(() => securitiesPage?.items ?? [], [securitiesPage]);
   const symbols = useMemo(() => securities.map((s) => s.symbol), [securities]);
@@ -486,33 +469,6 @@ export default function Univers() {
               <div className="text-[10.5px]" style={{ color: "var(--text-dim)" }}>
                 barre = événements récents · vert validé, orange en attente, rouge quarantaine
               </div>
-            </Panel>
-
-            <Panel title="Marché d'énergie" label="Marché d'énergie">
-              {sortedEnergyPrices.length === 0 ? (
-                <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
-                  Aucune donnée pour l'instant (import quotidien pas encore passé).
-                </div>
-              ) : (
-                <div className="grid gap-x-3 gap-y-0.5 text-[11.5px]" style={{ gridTemplateColumns: "minmax(0, 1fr) auto auto" }}>
-                  {sortedEnergyPrices.map((e) => {
-                    const up = (e.change_24h_pct ?? 0) >= 0;
-                    return (
-                      <div key={e.commodity_code} className="contents">
-                        <span style={{ color: "var(--text-dim)" }}>{ENERGY_LABELS[e.commodity_code] ?? e.commodity_code}</span>
-                        <span className="mono text-right">
-                          {e.price.toFixed(2)} {e.currency}
-                        </span>
-                        <span className="mono text-right font-semibold" style={{ color: up ? "var(--positive)" : "var(--negative)" }}>
-                          <span aria-hidden="true">{up ? "▲" : "▼"}</span>
-                          <span className="sr-only">{up ? "en hausse" : "en baisse"}</span>
-                          {e.change_24h_pct != null ? ` ${Math.abs(e.change_24h_pct).toFixed(2)} %` : ""}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </Panel>
           </div>
         </div>

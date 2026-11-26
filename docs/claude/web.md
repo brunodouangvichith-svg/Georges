@@ -84,3 +84,5 @@ Any data still explicitly fictive/illustrative (`seed_demo.py` output) says so i
 - Les panneaux « Journal / sous-agents » et « George Index / paniers » ne sont plus sur l'écran Univers ; `GeorgeIndexTile`, `useBaskets` et `useGeorgeIndex` ont été supprimés du web. L'API des paniers est inchangée.
 - Le panneau « Watchlist / figures actives » a aussi été retiré, avec `WatchlistRow` et `Sparkline`. Une valeur se choisit sur le radar ou dans le menu « Choisir une valeur » de la fiche (seul moyen au clavier).
 - Les cinq compteurs d’en-tête (Valeurs, Figures actives, Achat, Surveiller, Alléger) ont été retirés, avec `Counter`.
+- Bug vu sur un vrai téléphone Android (26/11/2026) : la page entière défilait sous la barre d’onglets, à cause des `sr-only` (position absolue) du panneau énergie. Toute zone défilante doit porter `gd-scrollbar` (qui la positionne).
+- « Marché d’énergie » a quitté l’accueil pour son propre écran (`views/Energie.jsx`, `?view=energie`), entre Trading et Obligataire ; libellé « Énergie » dans la barre d’onglets du téléphone.

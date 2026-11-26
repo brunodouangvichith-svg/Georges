@@ -107,6 +107,12 @@ body {
   background: color-mix(in srgb, var(--negative) 15%, transparent);
 }
 
+/* Sans position, les éléments absolus (les textes `sr-only` des panneaux)
+   échappent à la zone défilante et allongent la page : sur téléphone, tout
+   l’écran glissait, barre d’onglets comprise. */
+.gd-scrollbar {
+  position: relative;
+}
 .gd-scrollbar::-webkit-scrollbar {
   height: 6px;
   width: 6px;
@@ -179,6 +185,17 @@ body {
 .gd-tabbar,
 .gd-install {
   display: none;
+}
+
+/* Fenêtre étroite : l’heure laisse la place aux onglets, sinon « Se
+   déconnecter » sort de l’écran. */
+@media (max-width: 1099px) {
+  .gd-header {
+    gap: 14px;
+  }
+  .gd-desktop-only {
+    display: none;
+  }
 }
 
 /* Téléphone, en portrait comme en paysage. */
