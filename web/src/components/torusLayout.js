@@ -100,7 +100,8 @@ export function buildFilaments(items, steps = 36) {
 // la verticale, `tilt` autour de l'horizontale), puis mise en perspective. À
 // vue fixe, l'axe ne bouge donc pas à l'écran. `depth` croît vers
 // l'observateur.
-export function makeProjector({ spin = 0, yaw, tilt, width, height }) {
+// `left` : abscisse de la zone du tore quand une liste occupe sa gauche.
+export function makeProjector({ spin = 0, yaw, tilt, width, height, left = 0 }) {
   const cs = Math.cos(spin);
   const ss = Math.sin(spin);
   const cy = Math.cos(yaw);
@@ -117,26 +118,46 @@ export function makeProjector({ spin = 0, yaw, tilt, width, height }) {
     const y2 = y * cx - z1 * sx;
     const depth = y * sx + z1 * cx;
     const k = (CAMERA / (CAMERA - depth)) * scale;
-    return { x: width / 2 + x1 * k, y: height / 2 + y2 * k, depth };
+    return { x: left + width / 2 + x1 * k, y: height / 2 + y2 * k, depth };
   };
+}
+
+// Fenêtre de `count` éléments sur une liste parcourue en boucle : à chaque pas,
+// l'élément précédent de la liste entre par le haut et celui du bas sort (au
+// premier pas, le dernier de la liste). Sans défilement si tout tient.
+function loopWindow(all, count, step) {
+  const total = all.length;
+  const start = total > count ? (total - (step % total)) % total : 0;
+  return Array.from({ length: Math.min(count, total) }, (_, i) => all[(start + i) % total]);
 }
 
 // Cartes du fil affiché à côté du tore : les décisions enregistrées des valeurs
 // suivies (la dernière de chaque valeur), la plus récente en premier. Au-delà de
-// `count`, le fil défile en boucle : à chaque pas, la carte précédente de la
-// liste entre par le haut et celle du bas sort (au premier pas, la plus
-// ancienne). Aucune décision n'est inventée ni redatée.
+// `count`, le fil défile en boucle (loopWindow ; au premier pas, la plus
+// ancienne entre). Aucune décision n'est inventée ni redatée.
 export function buildCards(items, decisionsMap, count = 10, step = 0) {
   const bySymbol = new Map(items.map((item) => [item.symbol, item]));
   const all = Object.values(decisionsMap ?? {})
     .filter((decision) => bySymbol.has(decision.symbol))
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-  const total = all.length;
-  const start = total > count ? (total - (step % total)) % total : 0;
-  return Array.from({ length: Math.min(count, total) }, (_, i) => {
-    const decision = all[(start + i) % total];
-    return { ...bySymbol.get(decision.symbol), detail: decision };
-  });
+  return loopWindow(all, count, step).map((decision) => ({ ...bySymbol.get(decision.symbol), detail: decision }));
+}
+
+// Cartes de la liste des meilleures figures : la dernière figure de chaque
+// valeur suivie, classées par confiance (à égalité, la plus récente d'abord),
+// avec leur rang. Même défilement en boucle que les décisions.
+export function buildPatternCards(items, patternsBySymbol, count = 10, step = 0) {
+  const all = items
+    .filter((item) => patternsBySymbol?.[item.symbol])
+    .map((item) => ({ ...item, detail: patternsBySymbol[item.symbol] }))
+    .sort(
+      (a, b) =>
+        b.confidence - a.confidence ||
+        String(b.detail.detected_at).localeCompare(String(a.detail.detected_at)) ||
+        a.symbol.localeCompare(b.symbol)
+    )
+    .map((card, i) => ({ ...card, rank: i + 1 }));
+  return loopWindow(all, count, step);
 }
 
 // Valeur dont l'antenne (son extrémité) est la plus proche du point cliqué,
