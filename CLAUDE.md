@@ -41,7 +41,7 @@ Production: API `https://george-api-mmut.onrender.com`, web `https://george-web-
 - **New pattern detector:** register it in `engine/patterns/__init__.py:DETECTORS`, add its direction and level function in `engine/exit_levels.py`, add its case in `tests/test_exit_levels.py`.
 - **Contracts kept in sync:** `engine/george_index.py` with `engine/george_index.md`; model features in `engine/features.py:FEATURE_COLUMNS` (also the synthetic dataset in `engine/train_confidence_model.py`).
 - **Fictive data** (`seed_demo.py`) stays labelled as such.
-- **Scheduling** runs through `cloudflare-cron/` calling `/cron/*`; GitHub workflows keep `workflow_dispatch` only, except tests and the keep-warm ping (observed on 2026-11-26 to fire far less often than its 10-minute cron).
+- **Scheduling** runs through the `schedule:` triggers in `.github/workflows/` (restored 2026-11; `cloudflare-cron/` is disabled with `crons = []`, never enable both). GitHub may fire them hours late (the 10-minute keep-warm ping was observed on 2026-11-26 to fire far less often).
 - **Quotas:** check the Tavily budget before raising any veille volume.
 - The repository is **public**: never commit secrets or machine-specific settings.
 

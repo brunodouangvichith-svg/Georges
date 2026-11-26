@@ -1,5 +1,7 @@
 # Cron Cloudflare — remplace les workflows GitHub Actions planifiés
 
+> **Désactivé (nov. 2026).** Les collectes sont de nouveau planifiées par GitHub Actions. Si le Worker `george-cron` a été déployé, retire son déclencheur (`wrangler deploy` depuis ce dossier, ou tableau de bord Cloudflare → Workers → `george-cron` → Settings → Triggers) pour éviter les doubles collectes. La suite de ce document décrit l'ancienne mise en place.
+
 Contexte : la limite de dépenses GitHub Actions du dépôt est bloquée
 depuis le 13 octobre 2026 (voir CLAUDE.md), ce qui a arrêté tous les jobs
 planifiés (`daily_bond_yields.yml`, `daily_energy_import.yml`,
