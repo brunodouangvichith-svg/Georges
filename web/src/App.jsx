@@ -1,12 +1,14 @@
-import { useState } from "react";
 import Layout from "./components/Layout";
 import Univers from "./views/Univers";
 import Obligataire from "./views/Obligataire";
 import Trading from "./views/Trading";
 import Rapport from "./views/Rapport";
+import { useViewHistory } from "./hooks/useViewHistory";
+
+const VIEWS = ["univers", "trading", "obligataire", "rapport"];
 
 export default function App() {
-  const [view, setView] = useState("univers");
+  const [view, setView] = useViewHistory(VIEWS);
 
   return (
     <Layout view={view} setView={setView}>

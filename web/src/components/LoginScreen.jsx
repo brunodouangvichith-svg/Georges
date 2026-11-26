@@ -42,7 +42,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <div className="h-screen flex items-center justify-center" style={{ background: "var(--bg)" }}>
+    <div className="gd-screen flex items-center justify-center px-4" style={{ background: "var(--bg)" }}>
       <form
         onSubmit={submitEmailPassword}
         className="w-full max-w-[360px] p-8 rounded-2xl border"
