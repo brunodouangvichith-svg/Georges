@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { decisionColor } from "../data";
 import { useElementWidth } from "../hooks/useElementWidth";
-import { buildFilaments, buildStrands, makeProjector, nearestFilament } from "./torusLayout";
+import { eur } from "../lib/format";
+import { buildCards, buildFilaments, buildStrands, makeProjector, nearestFilament } from "./torusLayout";
 import { buildRadar } from "./universRadarLayout";
 
 // Tore 3D de l'univers (écran Univers, bascule « Radar / Tore 3D »).
@@ -12,22 +13,35 @@ import { buildRadar } from "./universRadarLayout";
 //   = décision en cours (bleu sans décision). La valeur sélectionnée est
 //   surlignée en blanc.
 // - Les autres fils sont décoratifs et ne représentent aucune donnée.
+// - Les dernières décisions sont des cartes, à droite quand la place le permet,
+//   chacune reliée à son antenne par une courbe ; sur écran étroit elles passent
+//   sous le tore, sans courbe. Un clic sur une carte sélectionne la valeur.
 //
-// Glisser fait tourner le tore, un clic près d'une antenne sélectionne la
-// valeur (raccourci : le menu « Choisir une valeur » reste le chemin
-// clavier/lecteur d'écran). La rotation automatique se met en pause avec le
-// bouton, et ne démarre pas si le système demande moins d'animations.
+// Le tore tourne sur son axe (celui du trou). Glisser horizontalement le fait
+// tourner, verticalement incline la vue ; un clic près d'une antenne
+// sélectionne la valeur. Au clavier : les cartes ou le menu « Choisir une
+// valeur ». La rotation automatique se met en pause avec le bouton, et ne
+// démarre pas si le système demande moins d'animations.
 //
 // Dessiné sur un <canvas> 2D (perspective calculée à la main) : quelques
 // milliers de segments par image, sans bibliothèque 3D.
 
 const STRANDS = buildStrands();
-const SPIN = 0.12; // radians par seconde
+const SPIN = 0.18; // radians par seconde
 const DRAG = 0.008; // radians par pixel glissé
 const CLICK_SLOP = 5; // au-delà, le geste est un glisser, pas un clic
 const MAX_TILT = 1.35;
-const CARD_WIDTH = 150; // carte de la valeur sélectionnée, en haut à droite
-const CARD_HEIGHT = 44;
+const CARDS_FROM = 600; // largeur à partir de laquelle les cartes sont à droite
+const CARD_COUNT = 6;
+const CARD_HEIGHT = 58;
+const CARD_STEP = CARD_HEIGHT + 8;
+const LINK_GAP = 24; // espace réservé aux courbes devant les cartes
+
+const decisionTint = (decision) => (decision ? decisionColor(decision) : "var(--accent)");
+
+// Jour et mois seulement : la date longue ne tient pas dans une carte.
+const shortDate = (iso) =>
+  iso ? new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) : "—";
 
 function reducedMotion() {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -48,8 +62,9 @@ function stroke(ctx, project, points) {
   });
 }
 
-function draw(canvas, ctx, { filaments, selectedSymbol, yaw, tilt, width, height }) {
-  const project = makeProjector({ yaw, tilt, width, height });
+function draw(canvas, ctx, { filaments, selectedSymbol, links, view, width, height, torusWidth }) {
+  // Le tore occupe la partie gauche du canvas ; les courbes vont vers la droite.
+  const project = makeProjector({ ...view, width: torusWidth, height });
   // Une seule lecture de style par couleur et par image.
   const cache = new Map();
   const color = (value) => {
@@ -75,7 +90,7 @@ function draw(canvas, ctx, { filaments, selectedSymbol, yaw, tilt, width, height
       selected = filament;
       continue;
     }
-    const tint = color(filament.decision ? decisionColor(filament.decision) : "var(--accent)");
+    const tint = color(decisionTint(filament.decision));
     const strength = (filament.confidence ?? 0) / 100;
     const base = project(filament.base);
     const tip = project(filament.tip);
@@ -101,12 +116,39 @@ function draw(canvas, ctx, { filaments, selectedSymbol, yaw, tilt, width, height
 
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 1;
-  if (!selected) return;
-  const text = color("var(--text)");
+  if (selected) drawSelected(ctx, project, selected, color("var(--text)"));
+
+  // Les liens : une courbe par carte, de son antenne à son bord gauche.
+  for (const link of links) {
+    const tip = project(link.tip);
+    const chosen = link.symbol === selectedSymbol;
+    const tint = color(decisionTint(link.decision));
+    ctx.strokeStyle = tint;
+    ctx.fillStyle = tint;
+    // Antenne passée derrière le tore : courbe atténuée.
+    ctx.globalAlpha = (chosen ? 1 : 0.7) * (tip.depth > 0 ? 1 : 0.5);
+    ctx.lineWidth = chosen ? 2.4 : 1.2;
+    ctx.beginPath();
+    ctx.moveTo(tip.x, tip.y);
+    ctx.bezierCurveTo(tip.x + (link.x - tip.x) * 0.6, tip.y, link.x - 60, link.y, link.x, link.y);
+    ctx.stroke();
+    for (const [x, y] of [
+      [tip.x, tip.y],
+      [link.x, link.y],
+    ]) {
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawSelected(ctx, project, selected, color) {
   const base = project(selected.base);
   const tip = project(selected.tip);
-  ctx.strokeStyle = text;
-  ctx.fillStyle = text;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
   ctx.lineWidth = 1.6;
   ctx.beginPath();
   stroke(ctx, project, selected.loop);
@@ -119,16 +161,46 @@ function draw(canvas, ctx, { filaments, selectedSymbol, yaw, tilt, width, height
   ctx.beginPath();
   ctx.arc(tip.x, tip.y, 4.5, 0, Math.PI * 2);
   ctx.fill();
+}
 
-  // Le lien : une courbe de l'antenne à la carte, qui suit la rotation.
-  const endX = width - CARD_WIDTH;
-  const endY = CARD_HEIGHT / 2;
-  ctx.strokeStyle = color(selected.decision ? decisionColor(selected.decision) : "var(--accent)");
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  ctx.moveTo(tip.x, tip.y);
-  ctx.bezierCurveTo(tip.x, (tip.y + endY) / 2, endX - 80, endY, endX, endY);
-  ctx.stroke();
+function Card({ card, selected, onSelect, style }) {
+  const { detail } = card;
+  const tint = decisionTint(card.decision);
+  return (
+    <button
+      type="button"
+      className="gd-focus mono flex flex-col justify-center rounded-lg px-2 text-left text-[11px] cursor-pointer"
+      aria-pressed={selected}
+      onClick={() => onSelect(card.symbol)}
+      style={{
+        height: CARD_HEIGHT,
+        background: selected ? "var(--panel-alt)" : "var(--panel)",
+        border: `1px solid ${selected ? "var(--text)" : tint}`,
+        borderLeft: `3px solid ${tint}`,
+        color: "var(--text)",
+        ...style,
+      }}
+    >
+      <span className="flex justify-between gap-2">
+        <strong className="truncate">{card.symbol}</strong>
+        <span className="truncate">{card.decision ?? "aucune décision"}</span>
+      </span>
+      {detail ? (
+        <>
+          <span className="truncate">
+            TP {eur(detail.take_profit)} · SL {eur(detail.stop_loss)}
+          </span>
+          <span className="truncate" style={{ color: "var(--text-dim)" }}>
+            Entrée {eur(detail.entry_price)} · {shortDate(detail.created_at)}
+          </span>
+        </>
+      ) : (
+        <span className="truncate" style={{ color: "var(--text-dim)" }}>
+          {card.confidence == null ? "sans figure" : `figure à ${Math.round(card.confidence)} %`}
+        </span>
+      )}
+    </button>
+  );
 }
 
 export default function UniversTorus({ securities, patternsBySymbol, decisionsMap, selectedSymbol, onSelect }) {
@@ -136,11 +208,33 @@ export default function UniversTorus({ securities, patternsBySymbol, decisionsMa
     () => buildFilaments(buildRadar(securities, patternsBySymbol, decisionsMap).items),
     [securities, patternsBySymbol, decisionsMap]
   );
+  const cards = useMemo(
+    () => buildCards(filaments, decisionsMap, selectedSymbol, CARD_COUNT),
+    [filaments, decisionsMap, selectedSymbol]
+  );
   const [boxRef, boxWidth] = useElementWidth();
   const width = boxWidth ?? 640;
-  const height = Math.round(Math.min(width, 640));
+  const aside = width >= CARDS_FROM && cards.length > 0;
+  const cardWidth = aside ? Math.round(Math.min(270, width * 0.34)) : 0;
+  const torusWidth = aside ? width - cardWidth - LINK_GAP : width;
+  const cardsHeight = aside ? cards.length * CARD_STEP - 8 : 0;
+  const height = Math.round(Math.max(Math.min(torusWidth, 640), cardsHeight));
+  const cardsTop = Math.round((height - cardsHeight) / 2);
+  const links = useMemo(
+    () =>
+      aside
+        ? cards.map((card, i) => ({
+            symbol: card.symbol,
+            decision: card.decision,
+            tip: card.tip,
+            x: width - cardWidth,
+            y: cardsTop + i * CARD_STEP + CARD_HEIGHT / 2,
+          }))
+        : [],
+    [aside, cards, width, cardWidth, cardsTop]
+  );
   const canvasRef = useRef(null);
-  const angles = useRef({ yaw: -0.55, tilt: 0.42 });
+  const view = useRef({ spin: 0, yaw: -0.7, tilt: 0.25 });
   const drag = useRef(null);
   const redrawRef = useRef(() => {});
   const [spinning, setSpinning] = useState(() => !reducedMotion());
@@ -153,7 +247,8 @@ export default function UniversTorus({ securities, patternsBySymbol, decisionsMa
     canvas.width = Math.round(width * ratio);
     canvas.height = Math.round(height * ratio);
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    const redraw = () => draw(canvas, ctx, { filaments, selectedSymbol, width, height, ...angles.current });
+    const redraw = () =>
+      draw(canvas, ctx, { filaments, selectedSymbol, links, view: view.current, width, height, torusWidth });
     redrawRef.current = redraw;
     redraw();
     if (!spinning) return;
@@ -161,7 +256,7 @@ export default function UniversTorus({ securities, patternsBySymbol, decisionsMa
     let previous = null;
     const tick = (now) => {
       // Écart borné : au retour sur l'onglet, le tore ne saute pas.
-      if (previous != null && !drag.current) angles.current.yaw += (Math.min(now - previous, 100) / 1000) * SPIN;
+      if (previous != null && !drag.current) view.current.spin += (Math.min(now - previous, 100) / 1000) * SPIN;
       previous = now;
       if (visible) redraw();
       frame = requestAnimationFrame(tick);
@@ -180,7 +275,7 @@ export default function UniversTorus({ securities, patternsBySymbol, decisionsMa
       cancelAnimationFrame(frame);
       observer?.disconnect();
     };
-  }, [filaments, selectedSymbol, width, height, spinning]);
+  }, [filaments, selectedSymbol, links, width, height, torusWidth, spinning]);
 
   function onPointerDown(event) {
     // Un seul pointeur à la fois : un second doigt est ignoré.
@@ -195,8 +290,8 @@ export default function UniversTorus({ securities, patternsBySymbol, decisionsMa
     const dx = event.clientX - last.x;
     const dy = event.clientY - last.y;
     drag.current = { id: last.id, x: event.clientX, y: event.clientY, travelled: last.travelled + Math.hypot(dx, dy) };
-    angles.current.yaw += dx * DRAG;
-    angles.current.tilt = Math.max(-MAX_TILT, Math.min(MAX_TILT, angles.current.tilt - dy * DRAG));
+    view.current.spin += dx * DRAG;
+    view.current.tilt = Math.max(-MAX_TILT, Math.min(MAX_TILT, view.current.tilt - dy * DRAG));
     redrawRef.current();
   }
 
@@ -208,7 +303,7 @@ export default function UniversTorus({ securities, patternsBySymbol, decisionsMa
     const rect = event.currentTarget.getBoundingClientRect();
     const hit = nearestFilament(
       filaments,
-      makeProjector({ width, height, ...angles.current }),
+      makeProjector({ ...view.current, width: torusWidth, height }),
       event.clientX - rect.left,
       event.clientY - rect.top
     );
@@ -216,44 +311,40 @@ export default function UniversTorus({ securities, patternsBySymbol, decisionsMa
   }
 
   const withPattern = filaments.filter((f) => f.confidence != null).length;
-  const selected = filaments.find((f) => f.symbol === selectedSymbol) ?? null;
+  const cardList = (place) =>
+    cards.map((card, i) => (
+      <Card
+        key={card.symbol}
+        card={card}
+        selected={card.symbol === selectedSymbol}
+        onSelect={onSelect}
+        style={place?.(i)}
+      />
+    ));
 
   return (
     <div ref={boxRef} className="flex flex-col items-center gap-2">
       <div className="relative" style={{ width, maxWidth: "100%" }}>
-      {selected && (
-        <div
-          className="mono absolute right-0 top-0 flex flex-col justify-center rounded-lg border px-2 text-[11.5px]"
-          style={{
-            width: CARD_WIDTH,
-            height: CARD_HEIGHT,
-            background: "var(--panel)",
-            borderColor: selected.decision ? decisionColor(selected.decision) : "var(--accent)",
-            pointerEvents: "none",
+        <canvas
+          ref={canvasRef}
+          role="img"
+          aria-label={
+            `Tore 3D de l'univers : ${filaments.length} valeurs, ${withPattern} avec une figure détectée. ` +
+            "La longueur des antennes suit la confiance de la figure."
+          }
+          style={{ display: "block", width, height, maxWidth: "100%", touchAction: "pan-y pinch-zoom", cursor: "grab" }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={(event) => {
+            if (drag.current?.id === event.pointerId) drag.current = null;
           }}
-        >
-          <strong className="truncate">{selected.symbol}</strong>
-          <span className="truncate">
-            {selected.confidence == null ? "sans figure" : `${Math.round(selected.confidence)} %`}
-            {selected.decision ? ` · ${selected.decision}` : ""}
-          </span>
-        </div>
-      )}
-      <canvas
-        ref={canvasRef}
-        role="img"
-        aria-label={
-          `Tore 3D de l'univers : ${filaments.length} valeurs, ${withPattern} avec une figure détectée. ` +
-          "La longueur des antennes suit la confiance de la figure."
-        }
-        style={{ display: "block", width, height, maxWidth: "100%", touchAction: "pan-y pinch-zoom", cursor: "grab" }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={(event) => {
-          if (drag.current?.id === event.pointerId) drag.current = null;
-        }}
-      />
+        />
+        {aside && (
+          <div role="group" aria-label="Dernières décisions">
+            {cardList((i) => ({ position: "absolute", right: 0, top: cardsTop + i * CARD_STEP, width: cardWidth }))}
+          </div>
+        )}
       </div>
       <p className="m-0 text-center text-[11px]" style={{ color: "var(--text-dim)" }}>
         Antenne = confiance de la figure · couleur = décision (vert achat ou renfort, orange surveiller, rouge alléger,
@@ -262,6 +353,11 @@ export default function UniversTorus({ securities, patternsBySymbol, decisionsMa
       <button type="button" className="gd-btn" onClick={() => setSpinning((on) => !on)}>
         {spinning ? "Mettre en pause" : "Faire tourner"}
       </button>
+      {!aside && cards.length > 0 && (
+        <div role="group" aria-label="Dernières décisions" className="grid w-full gap-2">
+          {cardList()}
+        </div>
+      )}
     </div>
   );
 }

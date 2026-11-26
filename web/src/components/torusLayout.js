@@ -56,17 +56,23 @@ export function buildFilaments(items, steps = 36) {
   });
 }
 
-// Projette un point 3D à l'écran : rotation autour de l'axe vertical (`yaw`)
-// puis autour de l'axe horizontal (`tilt`), puis perspective. `depth` croît
-// vers l'observateur.
-export function makeProjector({ yaw, tilt, width, height }) {
+// Projette un point 3D à l'écran : le tore tourne sur son propre axe, celui
+// qui traverse le trou (`spin`) ; la vue est ensuite inclinée (`yaw` autour de
+// la verticale, `tilt` autour de l'horizontale), puis mise en perspective. À
+// vue fixe, l'axe ne bouge donc pas à l'écran. `depth` croît vers
+// l'observateur.
+export function makeProjector({ spin = 0, yaw, tilt, width, height }) {
+  const cs = Math.cos(spin);
+  const ss = Math.sin(spin);
   const cy = Math.cos(yaw);
   const sy = Math.sin(yaw);
   const cx = Math.cos(tilt);
   const sx = Math.sin(tilt);
   // La marge couvre le grossissement dû à la perspective.
   const scale = (Math.min(width, height) / 2 / MAX_RADIUS) * 0.86;
-  return ([x, y, z]) => {
+  return ([px, py, z]) => {
+    const x = px * cs - py * ss;
+    const y = px * ss + py * cs;
     const x1 = x * cy + z * sy;
     const z1 = -x * sy + z * cy;
     const y2 = y * cx - z1 * sx;
@@ -74,6 +80,22 @@ export function makeProjector({ yaw, tilt, width, height }) {
     const k = (CAMERA / (CAMERA - depth)) * scale;
     return { x: width / 2 + x1 * k, y: height / 2 + y2 * k, depth };
   };
+}
+
+// Cartes affichées à côté du tore : les dernières décisions des valeurs
+// suivies, la plus récente en premier. La valeur sélectionnée a toujours la
+// sienne : en dernier si elle n'est pas parmi les plus récentes, pour que les
+// autres cartes ne bougent pas.
+export function buildCards(items, decisionsMap, selectedSymbol, count = 6) {
+  const bySymbol = new Map(items.map((item) => [item.symbol, item]));
+  const card = (symbol) => ({ ...bySymbol.get(symbol), detail: decisionsMap?.[symbol] ?? null });
+  const recent = Object.values(decisionsMap ?? {})
+    .filter((decision) => bySymbol.has(decision.symbol))
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    .slice(0, count)
+    .map((decision) => card(decision.symbol));
+  if (!bySymbol.has(selectedSymbol) || recent.some((c) => c.symbol === selectedSymbol)) return recent;
+  return [...recent.slice(0, count - 1), card(selectedSymbol)];
 }
 
 // Valeur dont l'antenne (son extrémité) est la plus proche du point cliqué,

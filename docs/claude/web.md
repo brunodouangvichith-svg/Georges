@@ -51,8 +51,9 @@ Vite + React 19 + Tailwind CSS v4 (via `@tailwindcss/postcss`) + Recharts (donut
 ### Univers — tore 3D (nov. 2026, demande de l'utilisateur)
 - Bascule « Radar / Tore 3D » (radar par défaut, choix non mémorisé). `components/UniversTorus.jsx` (géométrie dans `torusLayout.js`) : canvas 2D sans bibliothèque, inspiré d'un tableau de bord vu dans une vidéo.
 - Antenne = confiance de la dernière figure, couleur = décision, même ordre par secteur que le radar (`buildRadar`) ; les autres fils sont décoratifs et signalés comme tels.
-- Une courbe relie l'antenne sélectionnée à une carte (symbole, confiance, décision) en haut à droite ; elle suit la rotation.
-- Pause, respect de « réduire les animations », rien n'est dessiné hors écran. Rotation à la souris ou au doigt seulement (pas au clavier) ; la sélection reste possible par le menu « Choisir une valeur ».
+- Rotation sur l'axe du trou (`spin`), vue fixe : l'axe ne bouge pas à l'écran. Glisser horizontalement fait tourner, verticalement incline.
+- Les six dernières décisions (`buildCards`, la valeur sélectionnée toujours incluse) sont des cartes cliquables ; à partir de 600 px de cadre elles sont à droite, chacune reliée à son antenne par une courbe qui suit la rotation, sinon sous le tore sans courbe.
+- Pause, respect de « réduire les animations », rien n'est dessiné hors écran. Rotation à la souris ou au doigt seulement (pas au clavier) ; la sélection reste possible par les cartes ou le menu « Choisir une valeur ».
 - Vérifié avec des données fictives sur captures Edge headless. Pas essayé sur un vrai téléphone ni avec l'API réelle.
 
 ### Paniers & Mon Portefeuille — same layout as Univers (ad hoc, requested directly by the user)
