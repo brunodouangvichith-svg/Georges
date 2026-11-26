@@ -14,7 +14,7 @@ import { buildCards, buildFilaments, buildItems, buildStrands, makeProjector, ne
 // - Les autres fils sont décoratifs et ne représentent aucune donnée.
 // - Les décisions enregistrées forment un fil de cartes, à droite quand la place
 //   le permet, chacune reliée à son antenne par une courbe ; sur écran étroit
-//   il passe sous le tore, sans courbe. Au-delà de six, il défile en boucle (une
+//   il passe sous le tore, sans courbe. Au-delà de dix, il défile en boucle (une
 //   carte toutes les FEED_MS), comme un flux de transactions ; chaque carte garde
 //   sa date. Un clic sur une carte sélectionne la valeur.
 //
@@ -34,7 +34,7 @@ const DRAG = 0.008; // radians par pixel glissé
 const CLICK_SLOP = 5; // au-delà, le geste est un glisser, pas un clic
 const MAX_TILT = 1.35;
 const CARDS_FROM = 600; // largeur à partir de laquelle les cartes sont à droite
-const CARD_COUNT = 6;
+const CARD_COUNT = 10;
 const CARD_HEIGHT = 58;
 const CARD_STEP = CARD_HEIGHT + 8;
 const LINK_GAP = 24; // espace réservé aux courbes devant les cartes

@@ -126,7 +126,7 @@ export function makeProjector({ spin = 0, yaw, tilt, width, height }) {
 // `count`, le fil défile en boucle : à chaque pas, la carte précédente de la
 // liste entre par le haut et celle du bas sort (au premier pas, la plus
 // ancienne). Aucune décision n'est inventée ni redatée.
-export function buildCards(items, decisionsMap, count = 6, step = 0) {
+export function buildCards(items, decisionsMap, count = 10, step = 0) {
   const bySymbol = new Map(items.map((item) => [item.symbol, item]));
   const all = Object.values(decisionsMap ?? {})
     .filter((decision) => bySymbol.has(decision.symbol))

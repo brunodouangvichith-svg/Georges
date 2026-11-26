@@ -13,7 +13,6 @@ vi.mock("../api/queries", () => ({
   useAgentActivity: vi.fn(),
   useLatestPatterns: vi.fn(),
   useChat: vi.fn(),
-  useExplainDecision: vi.fn(),
   useRefreshPrices: vi.fn(),
   useTriggerCollection: vi.fn(),
 }));
@@ -22,7 +21,6 @@ import {
   useAgentActivity,
   useChat,
   useDecisions,
-  useExplainDecision,
   useLatestPatterns,
   useRefreshPrices,
   useSecurities,
@@ -43,7 +41,6 @@ function mockEmptyApi() {
   useSecurityFundamentals.mockReturnValue({ data: undefined });
   useSecurityDividends.mockReturnValue({ data: { items: [], total: 0 } });
   useChat.mockReturnValue({ mutate: vi.fn(), isPending: false });
-  useExplainDecision.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useRefreshPrices.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useTriggerCollection.mockReturnValue({ mutate: vi.fn(), isPending: false });
 }
@@ -127,16 +124,6 @@ describe("Univers", () => {
     fireEvent.change(select, { target: { value: "AIR.PA" } });
     expect(select).toHaveValue("AIR.PA");
     expect(screen.getByText("Airbus")).toBeInTheDocument();
-  });
-
-  it("invites the user to ask George when no decision exists for the selected security", () => {
-    useSecurities.mockReturnValue({
-      data: { items: [{ symbol: "AIR.PA", name: "Airbus", sector: "Aéronautique" }], total: 1 },
-      isLoading: false,
-      isError: false,
-    });
-    render(<Univers />);
-    expect(screen.getByText(/posez une question à george/i)).toBeInTheDocument();
   });
 
   it("only shows Univers in the sidebar navigation, without Paniers/Décisions/George Index/Historique", () => {
