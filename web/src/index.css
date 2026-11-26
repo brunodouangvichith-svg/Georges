@@ -148,3 +148,202 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .gd-mic-pulse { animation: none; }
 }
+
+/* Structure de l'écran. 100dvh suit la barre d'adresse du navigateur mobile ;
+   les marges env() évitent l'encoche (viewport-fit=cover dans index.html). */
+.gd-screen {
+  height: 100vh;
+  height: 100dvh;
+}
+.gd-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+.gd-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 28px;
+  box-sizing: content-box;
+  height: 56px;
+  padding: env(safe-area-inset-top) 20px 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--panel);
+}
+.gd-topnav {
+  display: flex;
+  gap: 4px;
+}
+.gd-main {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.gd-tabbar,
+.gd-install {
+  display: none;
+}
+.gd-watchlist {
+  min-width: 620px;
+}
+
+/* Téléphone, en portrait comme en paysage (même requête : Univers.jsx). */
+@media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
+  .gd-header {
+    gap: 12px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .gd-header > .ml-auto {
+    gap: 10px;
+  }
+  .gd-topnav,
+  .gd-desktop-only {
+    display: none;
+  }
+  .gd-install {
+    display: block;
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-bottom: 1px solid var(--hairline);
+    background: var(--panel);
+  }
+  /* Barre d'onglets en bas, à portée du pouce. */
+  .gd-tabbar {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    flex-shrink: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid var(--hairline);
+    background: var(--panel);
+  }
+  .gd-tabbar button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+  .gd-tabbar button[aria-current="page"] {
+    color: var(--text);
+    background: var(--panel-alt);
+    box-shadow: inset 0 2px 0 var(--accent);
+  }
+  .gd-tabbar-icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  /* Sous 16 px, l'iPhone zoome sur le champ touché. !important : les tailles
+     des champs sont posées par des classes utilitaires. */
+  input:not([type="checkbox"], [type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+    min-height: 44px !important;
+  }
+  /* Zones tactiles de 44 px au moins (certaines hauteurs sont posées en
+     style en ligne, d'où !important). */
+  .gd-btn,
+  .gd-signout,
+  .gd-main button,
+  .gd-overlay button,
+  .gd-screen button {
+    min-height: 44px !important;
+  }
+  .gd-icon-btn {
+    min-width: 44px;
+  }
+
+  /* Watchlist : valeur, figure, confiance et décision tiennent sans
+     défilement horizontal ; secteur et courbe restent sur grand écran. */
+  .gd-watchlist {
+    min-width: 0;
+  }
+  .gd-watchlist :is(th, td):nth-child(2),
+  .gd-watchlist :is(th, td):nth-child(3),
+  .gd-watchlist td:nth-child(5) div > div {
+    display: none;
+  }
+  .gd-watchlist td:nth-child(5) span {
+    margin-left: 0;
+  }
+  /* !important : les marges des cellules sont posées en style en ligne. */
+  .gd-watchlist :is(th, td) {
+    padding-left: 3px !important;
+    padding-right: 3px !important;
+    overflow-wrap: anywhere;
+  }
+  .gd-watchlist .gd-tag {
+    padding: 2px 5px;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+  .gd-watchlist th {
+    letter-spacing: 0;
+    text-transform: none;
+    overflow-wrap: normal;
+  }
+}
+/* Très petits écrans : la confiance reste visible dans la fiche de la valeur. */
+@media (max-width: 359px) {
+  .gd-watchlist :is(th, td):nth-child(5) {
+    display: none;
+  }
+}
+
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Barre d'onglets : le contour reste à l'intérieur, sinon il sort de l'écran. */
+.gd-tabbar button:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Écrans tactiles : retour visible à l'appui, sans halo gris ni délai de
+   double-toucher. */
+@media (hover: none) {
+  button {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  button:active:not(:disabled) {
+    opacity: 0.8;
+  }
+}
+@media (hover: none) and (prefers-reduced-motion: no-preference) {
+  button:active:not(:disabled) {
+    scale: 0.96;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gd-main {
+    animation: gd-fade 0.2s ease-out;
+  }
+}
+@keyframes gd-fade {
+  from {
+    opacity: 0;
+  }
+}

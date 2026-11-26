@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useBackToClose } from "../hooks/useBackToClose";
 import { useSpeechOutput } from "../hooks/useSpeechOutput";
 
 // Popup centré partagé par toutes les réponses de George (chat, explication
@@ -21,15 +22,32 @@ export default function ResponsePopup({ popup, onClose, onStopListening }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popup?.status, popup?.text]);
 
+  useBackToClose(Boolean(popup), onClose);
+
+  // Clavier et lecteurs d'écran : le focus entre dans la fenêtre à
+  // l'ouverture et revient à son point de départ à la fermeture.
+  const closeRef = useRef(null);
+  const open = Boolean(popup);
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement;
+    closeRef.current?.focus();
+    return () => previous?.focus?.();
+  }, [open]);
+
   if (!popup) return null;
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center z-50 px-6"
+      className="gd-overlay fixed inset-0 flex items-center justify-center z-50 px-6"
       style={{ background: "rgba(0,0,0,0.55)" }}
       onClick={onClose}
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={popup.title}
         className="max-w-lg w-full rounded-xl p-5 border"
         style={{ background: "var(--panel)", borderColor: "var(--hairline)" }}
         onClick={(e) => e.stopPropagation()}
@@ -42,13 +60,15 @@ export default function ResponsePopup({ popup, onClose, onStopListening }) {
             {popup.status === "done" && popup.text && (
               <button
                 onClick={() => (speaking ? stop() : speak(popup.text))}
+                className="gd-icon-btn"
                 style={{ color: "var(--text-dim)" }}
+                aria-label={speaking ? "Arrêter la lecture" : "Relire à voix haute"}
                 title={speaking ? "Arrêter la lecture" : "Relire à voix haute"}
               >
                 {speaking ? "🔊" : "🔈"}
               </button>
             )}
-            <button onClick={onClose} style={{ color: "var(--text-dim)" }}>
+            <button ref={closeRef} className="gd-icon-btn" aria-label="Fermer" onClick={onClose} style={{ color: "var(--text-dim)" }}>
               ✕
             </button>
           </div>
@@ -76,7 +96,7 @@ export default function ResponsePopup({ popup, onClose, onStopListening }) {
         ) : (
           <>
             <div
-              className="text-[13px] leading-relaxed whitespace-pre-wrap max-h-[60vh] overflow-y-auto"
+              className="text-[13px] leading-relaxed whitespace-pre-wrap max-h-[60dvh] overflow-y-auto overscroll-contain"
               style={{ color: popup.status === "error" ? "var(--negative)" : "var(--text)" }}
             >
               {popup.status === "loading" ? popup.loadingText ?? "George réfléchit…" : popup.text}

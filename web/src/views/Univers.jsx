@@ -38,6 +38,7 @@ const ENERGY_LABELS = {
 const ENERGY_ORDER = Object.keys(ENERGY_LABELS);
 
 const FILTERS = ["Tous", "Achat", "Surveiller", "Alléger"];
+const PHONE_QUERY = "(max-width: 767px), (max-height: 500px) and (pointer: coarse)";
 
 const AGENT_STATUS_LABEL = { validated: "validé", pending: "en attente", quarantine: "quarantaine" };
 const AGENT_STATUS_COLOR = { validated: "var(--positive)", pending: "var(--warning)", quarantine: "var(--negative)" };
@@ -156,6 +157,13 @@ export default function Univers() {
 
   const filtered =
     filter === "Tous" ? securities : securities.filter((s) => decisionsMap[s.symbol]?.decision_type === filter);
+
+  // Sur téléphone, la fiche est loin au-dessus de la liste : on y remonte.
+  const selectedRef = useRef(null);
+  function selectFromWatchlist(symbol) {
+    setSelected(symbol);
+    if (window.matchMedia?.(PHONE_QUERY).matches) selectedRef.current?.scrollIntoView({ block: "start" });
+  }
 
   const selectedSymbol = selected ?? securities[0]?.symbol ?? null;
   const selectedSecurity = securities.find((s) => s.symbol === selectedSymbol) ?? null;
@@ -292,7 +300,7 @@ export default function Univers() {
             </section>
 
             <div className="flex flex-col gap-3" style={{ flex: "1 1 340px", minWidth: 0 }}>
-              <section aria-label="Valeur sélectionnée" className="gd-panel">
+              <section ref={selectedRef} aria-label="Valeur sélectionnée" className="gd-panel">
                 <h2 className="gd-label">Valeur sélectionnée</h2>
                 {!selectedSecurity ? (
                   <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
@@ -428,7 +436,7 @@ export default function Univers() {
           </div>
 
           {/* Grille de panneaux */}
-          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))" }}>
             <Panel title="Journal / sous-agents">
               {agentEvents.length === 0 ? (
                 <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
@@ -475,7 +483,7 @@ export default function Univers() {
               )}
               {!securitiesError && securities.length > 0 && (
                 <div className="overflow-x-auto gd-scrollbar" style={{ maxHeight: 420 }}>
-                  <table className="w-full border-collapse" style={{ minWidth: 620 }}>
+                  <table className="gd-watchlist w-full border-collapse">
                     <thead>
                       <tr>
                         {["Valeur", "Secteur", "Tendance", "Pattern", "Confiance", "Décision"].map((h) => (
@@ -504,7 +512,7 @@ export default function Univers() {
                           security={security}
                           decision={decisionsMap[security.symbol]}
                           selected={selectedSymbol === security.symbol}
-                          onSelect={setSelected}
+                          onSelect={selectFromWatchlist}
                           latestPattern={patternsBySymbol?.[security.symbol] ?? null}
                         />
                       ))}

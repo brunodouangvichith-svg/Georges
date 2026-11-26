@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../api/supabaseClient";
 import { marketStatus } from "../lib/marketStatus";
+import InstallBar from "./InstallBar";
 
 const NAV = [
   { key: "univers", label: "Univers", icon: "◆" },
@@ -22,24 +23,17 @@ function useMarketStatus() {
 export default function Layout({ view, setView, children }) {
   const market = useMarketStatus();
   return (
-    <div
-      className="grid h-screen"
-      // minmax(0, 1fr) : la colonne ne s'élargit jamais au-delà de l'écran ;
-      // sur téléphone, c'est la barre du haut qui défile horizontalement.
-      style={{ gridTemplateRows: "56px 1fr", gridTemplateColumns: "minmax(0, 1fr)", background: "var(--bg)", color: "var(--text)" }}
-    >
-      <div
-        className="flex items-center gap-7 px-5 border-b overflow-x-auto whitespace-nowrap"
-        style={{ borderColor: "var(--hairline)", background: "var(--panel)" }}
-      >
+    <div className="gd-shell">
+      <header className="gd-header">
         <div className="display font-bold text-[19px] tracking-tight">
           George<span style={{ color: "var(--accent)" }}>.</span>
         </div>
-        <nav className="flex gap-1">
+        <nav className="gd-topnav" aria-label="Écrans">
           {NAV.map((item) => (
             <button
               key={item.key}
               onClick={() => setView(item.key)}
+              aria-current={view === item.key ? "page" : undefined}
               className="text-sm font-medium px-3.5 py-2 rounded-lg transition-colors"
               style={{
                 color: view === item.key ? "var(--text)" : "var(--text-dim)",
@@ -60,19 +54,33 @@ export default function Layout({ view, setView, children }) {
               }}
             />
             {market.label}
-            {market.reason && <span> · {market.reason}</span>}
+            {market.reason && <span className="gd-desktop-only"> · {market.reason}</span>}
           </span>
-          <span className="mono">{market.time} · Euronext Paris</span>
+          <span className="mono gd-desktop-only">{market.time} · Euronext Paris</span>
           <button
             onClick={() => supabase.auth.signOut()}
-            className="text-[11.5px] px-2.5 py-1 rounded-full border"
+            className="gd-signout text-[11.5px] px-2.5 py-1 rounded-full border"
             style={{ borderColor: "var(--hairline)", color: "var(--text-dim)" }}
           >
             Se déconnecter
           </button>
         </div>
-      </div>
-      <div className="overflow-hidden">{children}</div>
+      </header>
+      <InstallBar />
+      {/* key : rejoue le fondu à chaque changement d'écran. */}
+      <main key={view} className="gd-main">
+        {children}
+      </main>
+      <nav className="gd-tabbar" aria-label="Écrans">
+        {NAV.map((item) => (
+          <button key={item.key} onClick={() => setView(item.key)} aria-current={view === item.key ? "page" : undefined}>
+            <span aria-hidden="true" className="gd-tabbar-icon">
+              {item.icon}
+            </span>
+            {item.label}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
