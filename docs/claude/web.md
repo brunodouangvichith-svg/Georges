@@ -48,6 +48,13 @@ Vite + React 19 + Tailwind CSS v4 (via `@tailwindcss/postcss`) + Recharts (donut
 
 - **Radar groups by sector family (Oct. 2026, user asked "où sont les autres secteurs ?")**: `securities.sector` has ~70 sub-sectors ("Santé / Biotechnologie", "Santé / Pharmacie"…), almost all with 1-3 securities, so only 2 got a label. `buildRadar` (web) / `buildRadarLayout` (mobile) now group by family (`sectorFamily`: the part before " / "), put families of < 3 securities in "Autres secteurs" (last), and label every group of ≥ 3 — 12 labels on the real universe. The watchlist and detail panels still show the full sector.
 
+### Univers — tore 3D (nov. 2026, demande de l'utilisateur)
+- Bascule « Radar / Tore 3D » (radar par défaut, choix non mémorisé). `components/UniversTorus.jsx` (géométrie dans `torusLayout.js`) : canvas 2D sans bibliothèque, inspiré d'un tableau de bord vu dans une vidéo.
+- Antenne = confiance de la dernière figure, couleur = décision, même ordre par secteur que le radar (`buildRadar`) ; les autres fils sont décoratifs et signalés comme tels.
+- Une courbe relie l'antenne sélectionnée à une carte (symbole, confiance, décision) en haut à droite ; elle suit la rotation.
+- Pause, respect de « réduire les animations », rien n'est dessiné hors écran. Rotation à la souris ou au doigt seulement (pas au clavier) ; la sélection reste possible par le menu « Choisir une valeur ».
+- Vérifié avec des données fictives sur captures Edge headless. Pas essayé sur un vrai téléphone ni avec l'API réelle.
+
 ### Paniers & Mon Portefeuille — same layout as Univers (ad hoc, requested directly by the user)
 - Both screens now follow the Univers structure: a "George / <screen>" header with `components/Counter.jsx` counters (shared by the three screens — label, value, thin bar in the colour that carries the meaning), a thin action/status bar, then `gd-panel` sections. **Layout only**: every filter, sort, checkbox, the create-portfolio modal, "Demander à George", remove/delete actions and all tested texts are unchanged (existing `Paniers.test.jsx` / `MonPortefeuille.test.jsx` pass untouched).
 - Paniers: counters per decision type replace the old row of 4 count cards; George Index per basket (now a responsive grid) and the sector donut form the main zone; the decisions table sits in its own panel, decision types shown as `gd-tag-*`. `securities`/`decisions` are memoized (`useMemo` on the query data), which also cleared the 3 long-standing `exhaustive-deps` lint warnings in this file.

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import CandlestickChart from "../components/CandlestickChart";
 import ResponsePopup from "../components/ResponsePopup";
 import UniversRadar from "../components/UniversRadar";
+import UniversTorus from "../components/UniversTorus";
 import { decisionTagClass } from "../data";
 import { useElementWidth } from "../hooks/useElementWidth";
 import {
@@ -47,6 +48,7 @@ function Panel({ title, children, className = "", style, label }) {
 export default function Univers() {
   const [selected, setSelected] = useState(null);
   const [popup, setPopup] = useState(null); // { title, status: "listening"|"loading"|"done"|"error", text }
+  const [shape, setShape] = useState("radar"); // "radar" | "torus"
   // Le graphique en chandeliers prend la largeur de son cadre.
   const [chartRef, chartWidth] = useElementWidth();
   const explainMutation = useExplainDecision();
@@ -230,8 +232,28 @@ export default function Univers() {
 
           {/* Radar + valeur sélectionnée */}
           <div className="flex flex-wrap gap-4 pb-3.5" style={{ borderBottom: "1px solid var(--hairline)" }}>
-            <section aria-label="Radar de l'univers" style={{ flex: "999 1 520px", minWidth: 0 }}>
-              {securities.length > 0 ? (
+            <section aria-label={shape === "torus" ? "Tore 3D de l'univers" : "Radar de l'univers"} style={{ flex: "999 1 520px", minWidth: 0 }}>
+              {securities.length > 0 && (
+                <div role="group" aria-label="Représentation de l'univers" className="flex gap-1.5">
+                  {[
+                    ["radar", "Radar"],
+                    ["torus", "Tore 3D"],
+                  ].map(([key, label]) => (
+                    <button key={key} type="button" className="gd-btn" aria-pressed={shape === key} onClick={() => setShape(key)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {securities.length > 0 && shape === "torus" ? (
+                <UniversTorus
+                  securities={securities}
+                  patternsBySymbol={patternsBySymbol}
+                  decisionsMap={decisionsMap}
+                  selectedSymbol={selectedSymbol}
+                  onSelect={setSelected}
+                />
+              ) : securities.length > 0 ? (
                 <UniversRadar
                   securities={securities}
                   patternsBySymbol={patternsBySymbol}
