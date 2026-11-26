@@ -81,11 +81,22 @@ export default function Rapport() {
   const brent = data?.energy?.find((e) => e.code === "BRENT_CRUDE_USD");
 
   // Valeurs actuelles de l'onglet "Obligataire", rappelées seulement si elles
-  // diffèrent (à la précision affichée) de celles figées dans le rapport.
-  const oatNow = bonds.data?.cards?.find((c) => c.instrument === "OAT_FR_10Y");
+  // diffèrent (à la précision affichée) de celles figées dans le rapport. Un
+  // cache plus ancien que le rapport (dates ISO, comparables comme du texte)
+  // n'est jamais présenté comme actuel.
+  const bondCard = (instrument) => bonds.data?.cards?.find((c) => c.instrument === instrument);
+  const oatNow = bondCard("OAT_FR_10Y");
+  const bundNow = bondCard("BUND_DE_10Y");
   const spreadNow = bonds.data?.spread_oat_bund_bps;
-  const oatChanged = data && oatNow?.value_pct != null && nf(oatNow.value_pct) !== nf(data.risk.oat_10y_pct);
-  const spreadChanged = data && spreadNow != null && nf(spreadNow, 0) !== nf(data.risk.spread_oat_bund_bps, 0);
+  const outdated = oatNow?.observed_at < data?.risk.oat_observed_at;
+  const comparable = data && !bonds.isError && !outdated;
+  const oatChanged = comparable && oatNow?.value_pct != null && nf(oatNow.value_pct) !== nf(data.risk.oat_10y_pct);
+  const spreadChanged = comparable && spreadNow != null && nf(spreadNow, 0) !== nf(data.risk.spread_oat_bund_bps, 0);
+  const unavailable = bonds.isError ? "valeur actuelle indisponible" : null;
+  const spreadDates =
+    oatNow?.observed_at === bundNow?.observed_at
+      ? `au ${dateFr(oatNow?.observed_at)}`
+      : `(OAT au ${dateFr(oatNow?.observed_at)}, Bund au ${dateFr(bundNow?.observed_at)})`;
 
   return (
     <div className="h-full overflow-y-auto gd-scrollbar">
@@ -181,8 +192,8 @@ export default function Rapport() {
                 sub={data.cac40_index ? `${signed(data.cac40_index.week_change_pct)} sur 5 séances · clôture du ${dateFr(data.cac40_index.as_of)}` : "Clôture indisponible"}
                 color={data.cac40_index ? undefined : "var(--text-dim)"}
               />
-              <Kpi label="OAT France 10 ans" value={data.risk.oat_10y_pct == null ? "—" : `${nf(data.risk.oat_10y_pct)} %`} sub={data.risk.oat_observed_at ? `Au jour du rapport · observé le ${dateFr(data.risk.oat_observed_at)}` : "Indisponible"} now={oatChanged ? `${nf(oatNow.value_pct)} % au ${dateFr(oatNow.observed_at)}` : null} />
-              <Kpi label="Spread OAT-Bund" value={data.risk.spread_oat_bund_bps == null ? "—" : `${signed(data.risk.spread_oat_bund_bps, " pb", 0)}`} sub={data.risk.bund_10y_pct == null ? "Bund indisponible" : `Au jour du rapport · Bund 10 ans ${nf(data.risk.bund_10y_pct)} %`} now={spreadChanged ? signed(spreadNow, " pb", 0) : null} />
+              <Kpi label="OAT France 10 ans" value={data.risk.oat_10y_pct == null ? "—" : `${nf(data.risk.oat_10y_pct)} %`} sub={data.risk.oat_observed_at ? `Au jour du rapport · observé le ${dateFr(data.risk.oat_observed_at)}` : "Indisponible"} now={oatChanged ? `${nf(oatNow.value_pct)} % au ${dateFr(oatNow.observed_at)}` : unavailable} />
+              <Kpi label="Spread OAT-Bund" value={data.risk.spread_oat_bund_bps == null ? "—" : `${signed(data.risk.spread_oat_bund_bps, " pb", 0)}`} sub={data.risk.bund_10y_pct == null ? "Bund indisponible" : `Au jour du rapport · Bund 10 ans ${nf(data.risk.bund_10y_pct)} %`} now={spreadChanged ? `${signed(spreadNow, " pb", 0)} ${spreadDates}` : unavailable} />
               <Kpi label="Brent" value={brent ? `${nf(brent.price)} $` : "—"} sub={brent ? `Au ${dateFr(brent.as_of)}${brent.change_24h_pct == null ? "" : ` · ${signed(brent.change_24h_pct)} sur 24 h`}` : "Indisponible"} />
             </div>
 

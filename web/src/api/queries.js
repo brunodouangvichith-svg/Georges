@@ -240,7 +240,12 @@ export function useGenerateStrategicReport() {
       if (status.status === "failed") throw new Error(status.error ?? "Échec de la génération du rapport.");
       return status;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["strategic-reports"] }),
+    // Le rapport fige les rendements en base au moment de la génération : le
+    // cache "Obligataire" peut être plus ancien, il est relu en même temps.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["strategic-reports"] });
+      queryClient.invalidateQueries({ queryKey: ["bonds"] });
+    },
   });
 }
 
