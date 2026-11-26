@@ -23,6 +23,9 @@ const normalizeDeg = (d) => ((((d + 180) % 360) + 360) % 360) - 180;
 
 const truncate = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
+// Écart entre deux angles en radians, dans [0, π].
+const angleGap = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+
 // Le radar regroupe par grande famille de secteur (la partie avant " / " :
 // "Santé / Biotechnologie" et "Santé / Pharmacie" → "Santé"), sinon les ~70
 // sous-secteurs de l'univers ne comptent presque tous qu'1 à 3 valeurs et
@@ -34,6 +37,50 @@ const MIN_FAMILY_SIZE = 3;
 
 export function sectorFamily(sector) {
   return (sector || "Autre").split(" / ")[0].trim() || "Autre";
+}
+
+// Radar étroit (téléphone) : sous cette largeur affichée, les libellés de
+// secteur à taille fixe tomberaient vers 4 px.
+export const COMPACT_BELOW = 500;
+const COMPACT_LABEL_PX = 11;
+export const LABEL_SIZE = 10.5;
+// Longueur radiale maximale d'un libellé agrandi (unités du viewBox) : il
+// reste hors du centre du disque.
+const COMPACT_LABEL_LENGTH = 130;
+const MONO_RATIO = 0.62; // largeur d'un caractère / taille de police
+const TAP_PX = 22; // tolérance autour de l'anneau (demi-cible de 44 px)
+
+// Libellés pour un radar affiché à `scale` px par unité (zoom compris) :
+// police agrandie pour mesurer ~11 px à l'écran, textes raccourcis, et
+// secteurs masqués quand ils chevaucheraient un secteur plus gros déjà gardé
+// (`labels` est trié du plus gros au plus petit).
+export function compactLabels(labels, scale) {
+  const fontSize = Math.max(LABEL_SIZE, COMPACT_LABEL_PX / scale);
+  const maxChars = Math.max(6, Math.min(MAX_LABEL_CHARS, Math.floor(COMPACT_LABEL_LENGTH / (fontSize * MONO_RATIO))));
+  const kept = [];
+  for (const label of labels) {
+    const text = truncate(label.sector === OTHER_FAMILY ? "AUTRES" : label.sector.toUpperCase(), maxChars);
+    // Deux textes radiaux sont le plus proches à leur extrémité intérieure.
+    const innerRadius = R_SECTOR_LABEL - text.length * MONO_RATIO * fontSize;
+    const minGap = (fontSize * 1.1) / Math.max(innerRadius, fontSize);
+    const clear = kept.every((other) => angleGap(label.angle, other.angle) >= Math.max(minGap, other.minGap));
+    if (clear) kept.push({ ...label, text, minGap });
+  }
+  return { fontSize, labels: kept };
+}
+
+// Valeur la plus proche (en angle) du point touché, en unités du viewBox, ou
+// `null` si le point est loin de l'anneau (centre du disque, coins).
+export function nearestItem(items, x, y, scale) {
+  const radius = Math.hypot(x - CX, y - CY);
+  const tolerance = TAP_PX / scale;
+  if (radius < R_TICK_IN - tolerance || radius > R_BAR + 100 * BAR_SCALE + tolerance) return null;
+  const angle = Math.atan2(y - CY, x - CX);
+  let best = null;
+  for (const item of items) {
+    if (!best || angleGap(item.angle, angle) < angleGap(best.angle, angle)) best = item;
+  }
+  return best;
 }
 
 export function buildRadar(securities, patternsBySymbol, decisionsMap) {
@@ -85,6 +132,7 @@ export function buildRadar(securities, patternsBySymbol, decisionsMap) {
       const deg = (mid * 180) / Math.PI;
       labels.push({
         sector,
+        angle: mid,
         text: truncate(sector.toUpperCase(), MAX_LABEL_CHARS),
         x: CX + Math.cos(mid) * R_SECTOR_LABEL,
         y: CY + Math.sin(mid) * R_SECTOR_LABEL,

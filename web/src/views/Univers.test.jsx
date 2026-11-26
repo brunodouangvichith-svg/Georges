@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { mockContainerWidth } from "../test/containerWidth";
 import Univers from "./Univers";
 
 vi.mock("../api/queries", () => ({
@@ -73,6 +74,24 @@ describe("Univers", () => {
     render(<Univers />);
     // La première valeur est sélectionnée d'office dans le panneau de détail.
     expect(screen.getByText("Airbus")).toBeInTheDocument();
+  });
+
+  it("draws the candlestick chart at the measured width of its frame, 320 px by default", () => {
+    useSecurities.mockReturnValue({
+      data: { items: [{ symbol: "AIR.PA", name: "Airbus", sector: "Aéronautique" }], total: 1 },
+      isLoading: false,
+      isError: false,
+    });
+    useSecurityPrices.mockReturnValue({ data: { items: [{ open: 1, high: 2, low: 1, close: 2 }], total: 1 } });
+    const chartWidth = (container) => container.querySelector("svg[height='150']").getAttribute("width");
+
+    const first = render(<Univers />);
+    expect(chartWidth(first.container)).toBe("320");
+    first.unmount();
+
+    const spy = mockContainerWidth(290);
+    expect(chartWidth(render(<Univers />).container)).toBe("290");
+    spy.mockRestore();
   });
 
   it("changes the selected security from the dropdown, sorted by name", () => {

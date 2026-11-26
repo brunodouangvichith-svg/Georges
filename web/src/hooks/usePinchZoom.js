@@ -80,6 +80,7 @@ export function usePinchZoom(width, height) {
   const zoomed = view.k > 1;
   return {
     ref,
+    view,
     zoomed,
     viewBox: `${view.x} ${view.y} ${width / view.k} ${height / view.k}`,
     touchAction: zoomed ? "none" : "pan-y",

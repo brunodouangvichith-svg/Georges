@@ -1,7 +1,22 @@
 import { useMemo } from "react";
 import { decisionColor } from "../data";
+import { useElementWidth } from "../hooks/useElementWidth";
 import { usePinchZoom } from "../hooks/usePinchZoom";
-import { buildRadar, CX, CY, R_IN, R_TICK_IN, R_TICK_OUT, R_BAR, BAR_SCALE, RADAR_SCALE as K } from "./universRadarLayout";
+import {
+  buildRadar,
+  compactLabels,
+  nearestItem,
+  BAR_SCALE,
+  COMPACT_BELOW,
+  CX,
+  CY,
+  LABEL_SIZE,
+  R_BAR,
+  R_IN,
+  R_TICK_IN,
+  R_TICK_OUT,
+  RADAR_SCALE as K,
+} from "./universRadarLayout";
 
 // Radar de l'univers (écran Univers).
 //
@@ -22,6 +37,11 @@ import { buildRadar, CX, CY, R_IN, R_TICK_IN, R_TICK_OUT, R_BAR, BAR_SCALE, RADA
 // d'écran.
 //
 // Sur écran tactile, un pincement agrandit le radar (voir usePinchZoom).
+//
+// Sous 500 px de large (téléphone) : moins de libellés de secteur, plus gros ;
+// le libellé de la valeur sélectionnée passe sous le radar (il sortirait du
+// cadre) ; un toucher près de l'anneau sélectionne la valeur la plus proche,
+// les zones de clic par trait étant trop fines pour un doigt.
 
 const W = 760;
 const H = 680;
@@ -93,6 +113,27 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
   );
   const trail = useMemo(() => buildTrail(closes), [closes]);
   const zoom = usePinchZoom(W, H);
+  const [boxRef, boxWidth] = useElementWidth();
+  const compact = boxWidth != null && boxWidth < COMPACT_BELOW;
+  // Pixels par unité du viewBox, zoom compris (gabarit étroit seulement).
+  const scale = compact ? (boxWidth * zoom.view.k) / W : null;
+  const sectorLabels = useMemo(
+    () => (scale == null ? { fontSize: LABEL_SIZE, labels } : compactLabels(labels, scale)),
+    [labels, scale]
+  );
+
+  function selectNearest(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const { k, x, y } = zoom.view;
+    const item = nearestItem(
+      items,
+      x + ((event.clientX - rect.left) / rect.width) * (W / k),
+      y + ((event.clientY - rect.top) / rect.height) * (H / k),
+      scale
+    );
+    if (item) onSelect(item.symbol);
+  }
 
   // Barres regroupées par couleur de décision (vert achat/renfort, orange
   // surveiller, rouge alléger, bleu sans décision) et par épaisseur
@@ -118,20 +159,23 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
     `Radar de l'univers : ${items.length} valeurs réparties en ${labels.length} grands secteurs, ` +
     `${withPattern} avec une figure détectée. La longueur des barres suit la confiance de la figure.`;
 
+  const selText = selected
+    ? `${selected.symbol} · ${selected.confidence == null ? "sans figure" : `${Math.round(selected.confidence)} %`}`
+    : null;
   let selLabel = null;
-  if (selected) {
+  if (selected && !compact) {
     const [lx, ly] = polar(selected.angle, R_BAR + 52 * K);
     const c = Math.cos(selected.angle);
     selLabel = {
       x: lx,
       y: ly + 4,
       anchor: c > 0.2 ? "start" : c < -0.2 ? "end" : "middle",
-      text: `${selected.symbol} · ${selected.confidence == null ? "sans figure" : `${Math.round(selected.confidence)} %`}`,
+      text: selText,
     };
   }
 
   return (
-    <div className="relative">
+    <div ref={boxRef} className="relative">
     {zoom.zoomed && (
       <button type="button" className="gd-btn absolute right-0 top-0" style={{ background: "var(--panel)", color: "var(--text)" }} onClick={zoom.reset}>
         Vue entière
@@ -142,7 +186,8 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
       viewBox={zoom.viewBox}
       role="img"
       aria-label={ariaLabel}
-      style={{ width: "100%", height: "auto", display: "block", touchAction: zoom.touchAction }}
+      style={{ width: "100%", height: "auto", display: "block", touchAction: zoom.touchAction, cursor: compact ? "pointer" : undefined }}
+      onClick={compact ? selectNearest : undefined}
     >
       <circle cx={CX} cy={CY} r={R_IN} fill="var(--panel)" />
       <path d={FLOW_D} fill="none" stroke="var(--accent)" strokeWidth={0.55} strokeOpacity={0.28} aria-hidden="true" />
@@ -186,7 +231,7 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
           strokeWidth={4}
         />
       )}
-      {labels.map((l) => (
+      {sectorLabels.labels.map((l) => (
         <text
           key={l.sector}
           x={l.x}
@@ -195,11 +240,11 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
           textAnchor={l.anchor}
           dominantBaseline="middle"
           fontFamily="IBM Plex Mono, monospace"
-          fontSize={10.5}
+          fontSize={sectorLabels.fontSize}
           fontWeight={600}
           fill="var(--text-dim)"
           stroke="var(--panel)"
-          strokeWidth={4}
+          strokeWidth={compact ? sectorLabels.fontSize * 0.35 : 4}
           paintOrder="stroke"
         >
           {l.text}
@@ -221,9 +266,9 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
           {selLabel.text}
         </text>
       )}
-      {/* Zones de clic invisibles, une par valeur (souris uniquement). */}
+      {/* Zones de clic invisibles, une par valeur (souris, radar large). */}
       <g aria-hidden="true">
-        {items.map((it) => {
+        {!compact && items.map((it) => {
           const [x0, y0] = polar(it.angle, R_TICK_IN - 6 * K);
           const [x1, y1] = polar(it.angle, R_BAR + 54 * K);
           return (
@@ -244,6 +289,7 @@ export default function UniversRadar({ securities, patternsBySymbol, decisionsMa
         })}
       </g>
     </svg>
+    {compact && selText && <p className="mono m-0 text-center text-[12.5px] font-bold">{selText}</p>}
     </div>
   );
 }
