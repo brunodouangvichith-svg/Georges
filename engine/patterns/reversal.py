@@ -18,8 +18,10 @@ Toutes les figures ne sont retenues qu'une fois **confirmées** par une
 cassure du niveau clé (au-dessus pour les figures haussières, au-dessous
 pour les baissières) sur la dernière clôture disponible — voir
 `BREAKOUT_BUFFER` dans `common.py`. Chaque détecteur ne renvoie que la
-formation la plus récente (celle dont la cassure coïncide avec la dernière
-clôture), pas tout l'historique des appariements possibles.
+formation la plus récente dont la cassure est elle-même récente (première
+clôture au-delà du niveau dans les ``BREAKOUT_FRESHNESS_BARS`` dernières
+séances, voir ``common.py:is_fresh_breakout``), pas tout l'historique des
+appariements possibles.
 
 Ajouté ensuite (même fichier, mêmes conventions) — Triple Top/Bottom,
 Rounding Top/Bottom, Diamond Top/Bottom :
@@ -56,6 +58,7 @@ from engine.patterns.common import (
     MIN_PATTERN_BARS,
     PatternMatch,
     closeness_score,
+    is_fresh_breakout,
     local_maxima_idx,
     local_minima_idx,
     macd,
@@ -114,6 +117,8 @@ def detect_double_bottom(df) -> list[PatternMatch]:
         last_close = close.iloc[-1]
         if last_close <= peak * (1 + BREAKOUT_BUFFER):
             continue
+        if not is_fresh_breakout(close, b2, peak, bullish=True):
+            continue
 
         geometry_quality = 0.5 * closeness_score(p1, p2) + 0.5 * prominence_score(prominence, MIN_PEAK_PROMINENCE)
         volume_conf = volume_confirmation(df["volume"], len(close) - 1)
@@ -167,6 +172,8 @@ def detect_double_top(df) -> list[PatternMatch]:
 
         last_close = close.iloc[-1]
         if last_close >= trough * (1 - BREAKOUT_BUFFER):
+            continue
+        if not is_fresh_breakout(close, t2, trough, bullish=False):
             continue
 
         geometry_quality = 0.5 * closeness_score(p1, p2) + 0.5 * prominence_score(prominence, MIN_PEAK_PROMINENCE)
@@ -225,6 +232,8 @@ def detect_head_and_shoulders(df) -> list[PatternMatch]:
 
         last_close = close.iloc[-1]
         if last_close >= neckline * (1 - BREAKOUT_BUFFER):
+            continue
+        if not is_fresh_breakout(close, rs, neckline, bullish=False):
             continue
 
         head_prominence = relative_diff(p_head, max(p_ls, p_rs))
@@ -289,6 +298,8 @@ def detect_inverse_head_and_shoulders(df) -> list[PatternMatch]:
 
         last_close = close.iloc[-1]
         if last_close <= neckline * (1 + BREAKOUT_BUFFER):
+            continue
+        if not is_fresh_breakout(close, rs, neckline, bullish=True):
             continue
 
         head_prominence = relative_diff(p_head, min(p_ls, p_rs))
@@ -380,6 +391,8 @@ def detect_cup_and_handle(df) -> list[PatternMatch]:
     last_close = close.iloc[-1]
     breakout_level = max(left_rim, right_rim)
     if last_close <= breakout_level * (1 + BREAKOUT_BUFFER):
+        return []
+    if not is_fresh_breakout(close, right_rim_idx, breakout_level, bullish=True):
         return []
 
     geometry_quality = (
@@ -494,6 +507,8 @@ def _triple_extreme(df, bullish: bool) -> list[PatternMatch]:
         if bullish and last_close <= level * (1 + BREAKOUT_BUFFER):
             continue
         if not bullish and last_close >= level * (1 - BREAKOUT_BUFFER):
+            continue
+        if not is_fresh_breakout(close, e3, level, bullish=bullish):
             continue
 
         closeness = (closeness_score(p1, p2) + closeness_score(p2, p3) + closeness_score(p1, p3)) / 3

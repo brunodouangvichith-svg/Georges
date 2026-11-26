@@ -14,6 +14,7 @@ import pytest
 
 from engine.exit_levels import (
     CANDLESTICK_RISK_REWARD_RATIO,
+    are_levels_coherent,
     bollinger_band_levels,
     fibonacci_retracement_levels,
     is_bullish,
@@ -567,3 +568,32 @@ def test_candlestick_levels_respect_minimum_risk_reward_ratio(pattern_type):
     risk = abs(entry_price - stop_loss)
     reward = abs(take_profit - entry_price)
     assert reward == pytest.approx(risk * CANDLESTICK_RISK_REWARD_RATIO, rel=1e-6)
+
+
+@pytest.mark.parametrize("pattern_type", sorted(CASES))
+def test_proposed_levels_are_coherent_on_the_reference_series(pattern_type):
+    make_series, _ = CASES[pattern_type]
+    df = make_series()
+    match = DETECTORS[pattern_type](df)[0]
+    entry_price = float(df["close"].iloc[-1])
+
+    take_profit, stop_loss = propose_levels(pattern_type, match.context, entry_price, df)
+    assert are_levels_coherent(pattern_type, entry_price, take_profit, stop_loss)
+
+
+@pytest.mark.parametrize(
+    "pattern_type, entry, take_profit, stop_loss, expected",
+    [
+        ("Double Bottom", 100.0, 120.0, 90.0, True),
+        ("Double Bottom", 100.0, 99.0, 90.0, False),  # objectif sous l'entrée
+        ("Double Bottom", 100.0, 120.0, 101.0, False),  # stop au-dessus de l'entrée
+        ("Double Bottom", 100.0, 120.0, -1.0, False),
+        ("Double Top", 100.0, 80.0, 110.0, True),
+        ("Double Top", 21.06, -464.82, 5422.39, False),  # objectif négatif (vu sur ATO.PA)
+        ("Double Top", 100.0, 101.0, 110.0, False),
+        ("Double Top", 100.0, 80.0, 99.0, False),
+        ("Double Top", 100.0, float("nan"), 110.0, False),
+    ],
+)
+def test_are_levels_coherent(pattern_type, entry, take_profit, stop_loss, expected):
+    assert are_levels_coherent(pattern_type, entry, take_profit, stop_loss) is expected

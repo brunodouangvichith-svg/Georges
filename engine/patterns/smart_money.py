@@ -39,6 +39,7 @@ from engine.patterns.common import (
     LEVEL_TOLERANCE,
     MIN_PATTERN_BARS,
     PatternMatch,
+    is_fresh_breakout,
     local_maxima_idx,
     local_minima_idx,
     macd,
@@ -415,6 +416,8 @@ def _break_of_structure(df, bullish: bool) -> list[PatternMatch]:
         if last_close >= swing_price * (1 - BREAKOUT_BUFFER):
             return []
         breakout_strength = (swing_price - last_close) / swing_price
+    if not is_fresh_breakout(close, swing_idx, swing_price, bullish=bullish):
+        return []
 
     strength_quality = float(np.clip(breakout_strength / (BREAKOUT_BUFFER * 10), 0.0, 1.0))
     # Ancienneté du point de structure cassé, au-delà du minimum exigé de
