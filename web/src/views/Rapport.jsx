@@ -7,8 +7,8 @@ import { useBondDashboard, useGenerateStrategicReport, useStrategicReport, useSt
 // CAC 40), voir agents/strategic_report.py. Tous les chiffres affichés ici
 // viennent de `report.data` (calculés en Python par George) ; seul le
 // commentaire (`narrative_markdown`) est rédigé par le LLM. Ces chiffres sont
-// figés à la génération : quand l'onglet "Obligataire" affiche depuis une autre
-// valeur, elle est rappelée sous la carte concernée. Le tableau des
+// figés à la génération : quand la base porte depuis une autre valeur
+// obligataire, elle est rappelée sous la carte concernée. Le tableau des
 // valeurs du CAC 40 est affiché dans l'onglet "Trading" (Cac40Panel.jsx).
 
 const RISK = {
@@ -51,7 +51,7 @@ function Kpi({ label, value, sub, color, now }) {
       )}
       {now && (
         <div className="text-[11.5px]" style={{ color: "var(--warning)" }}>
-          Onglet Obligataire : {now}
+          Valeur actuelle : {now}
         </div>
       )}
     </div>
@@ -80,7 +80,7 @@ export default function Rapport() {
   const sourceNumbers = useMemo(() => new Set((data?.sources ?? []).map((s) => s.n)), [data]);
   const brent = data?.energy?.find((e) => e.code === "BRENT_CRUDE_USD");
 
-  // Valeurs actuelles de l'onglet "Obligataire", rappelées seulement si elles
+  // Valeurs obligataires actuelles (GET /bonds), rappelées seulement si elles
   // diffèrent (à la précision affichée) de celles figées dans le rapport. Un
   // cache plus ancien que le rapport (dates ISO, comparables comme du texte)
   // n'est jamais présenté comme actuel.
@@ -92,7 +92,7 @@ export default function Rapport() {
   const comparable = data && !bonds.isError && !outdated;
   const oatChanged = comparable && oatNow?.value_pct != null && nf(oatNow.value_pct) !== nf(data.risk.oat_10y_pct);
   const spreadChanged = comparable && spreadNow != null && nf(spreadNow, 0) !== nf(data.risk.spread_oat_bund_bps, 0);
-  const unavailable = bonds.isError ? "valeur actuelle indisponible" : null;
+  const unavailable = bonds.isError ? "indisponible" : null;
   const spreadDates =
     oatNow?.observed_at === bundNow?.observed_at
       ? `au ${dateFr(oatNow?.observed_at)}`

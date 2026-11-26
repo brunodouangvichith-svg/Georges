@@ -7,7 +7,6 @@ const NAV = [
   { key: "univers", label: "Univers", icon: "◆" },
   { key: "trading", label: "Trading", icon: "⇅" },
   { key: "energie", label: "Marché d'énergie", shortLabel: "Énergie", icon: "↯" },
-  { key: "obligataire", label: "Obligataire", icon: "≈" },
   { key: "rapport", label: "Rapport", icon: "▤" },
 ];
 
