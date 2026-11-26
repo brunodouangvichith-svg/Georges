@@ -83,13 +83,6 @@ export function useChat() {
   });
 }
 
-export function useExplainDecision() {
-  return useMutation({
-    mutationFn: ({ decisionId, includeSecondOpinion = false }) =>
-      apiPost(`/decisions/${decisionId}/explanation`, { include_second_opinion: includeSecondOpinion }),
-  });
-}
-
 // Déclenchement manuel de `python -m ingestion.price_history` (bouton "Mise
 // à jour des prix" de la sidebar Univers) — aucune tâche planifiée à
 // fréquence fine n'existe encore (Phase 7). L'endpoint est asynchrone côté
@@ -292,58 +285,4 @@ export function useRefreshBonds() {
     mutationFn: () => apiPost("/bonds/refresh"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bonds"] }),
   });
-}
-
-// Onglet "Trading" — cycle de vie des décisions (Phase 6, voir
-// api/routers/decisions.py) : proposee → confirmee → sortie_proposee →
-// cloturee. Aucune de ces actions ne passe d'ordre chez un courtier : elles
-// changent seulement le statut de la décision côté George.
-function useInvalidateDecisions() {
-  const queryClient = useQueryClient();
-  return () => {
-    queryClient.invalidateQueries({ queryKey: ["decisions"] });
-    queryClient.invalidateQueries({ queryKey: ["portfolios"] });
-  };
-}
-
-// Gains/pertes réalisés des décisions clôturées (GET /decisions/performance,
-// calculs dans engine/performance.py). Clé sous "decisions" : une sortie
-// confirmée invalide aussi la performance.
-export function usePerformance() {
-  return useQuery({ queryKey: ["decisions", "performance"], queryFn: () => apiFetch("/decisions/performance") });
-}
-
-export function useConfirmDecision() {
-  const invalidate = useInvalidateDecisions();
-  return useMutation({
-    mutationFn: ({ id, takeProfit, stopLoss }) =>
-      apiPost(`/decisions/${id}/confirm`, { take_profit: takeProfit, stop_loss: stopLoss }),
-    onSuccess: invalidate,
-  });
-}
-
-export function useProposeLevels() {
-  const invalidate = useInvalidateDecisions();
-  return useMutation({
-    mutationFn: (id) => apiPost(`/decisions/${id}/propose-levels`),
-    onSuccess: invalidate,
-  });
-}
-
-export function useConfirmExit() {
-  const invalidate = useInvalidateDecisions();
-  return useMutation({
-    mutationFn: (id) => apiPost(`/decisions/${id}/confirm-exit`),
-    onSuccess: invalidate,
-  });
-}
-
-export function useProposeDecisions() {
-  const invalidate = useInvalidateDecisions();
-  return useMutation({ mutationFn: () => apiPost("/decisions/propose"), onSuccess: invalidate });
-}
-
-export function useMonitorDecisions() {
-  const invalidate = useInvalidateDecisions();
-  return useMutation({ mutationFn: () => apiPost("/decisions/monitor"), onSuccess: invalidate });
 }
