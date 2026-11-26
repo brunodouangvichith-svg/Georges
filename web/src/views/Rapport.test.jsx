@@ -38,13 +38,21 @@ const report = {
   },
 };
 
-function setup({ reportData = report, list = [{ id: 3, created_at: report.created_at, risk_level: "orange" }], mutate = vi.fn(), pending = false, bonds } = {}) {
-  useBondDashboard.mockReturnValue({ data: bonds });
+function setup({ reportData = report, list = [{ id: 3, created_at: report.created_at, risk_level: "orange" }], mutate = vi.fn(), pending = false, bonds, bondsError = false } = {}) {
+  useBondDashboard.mockReturnValue({ data: bonds, isError: bondsError });
   useStrategicReports.mockReturnValue({ data: list });
   useStrategicReport.mockReturnValue({ data: reportData, isLoading: false, isError: false });
   useGenerateStrategicReport.mockReturnValue({ mutate, isPending: pending, isError: false });
   return render(<Rapport />);
 }
+
+const bonds = (value_pct, spread, bundDate = "2026-10-23", oatDate = "2026-10-23") => ({
+  cards: [
+    { instrument: "OAT_FR_10Y", value_pct, observed_at: oatDate },
+    { instrument: "BUND_DE_10Y", value_pct: 3.44, observed_at: bundDate },
+  ],
+  spread_oat_bund_bps: spread,
+});
 
 describe("Rapport", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -61,17 +69,29 @@ describe("Rapport", () => {
   });
 
   it("recalls the current Obligataire values only when they differ from the report", () => {
-    const bonds = (value_pct, spread) => ({
-      cards: [{ instrument: "OAT_FR_10Y", value_pct, observed_at: "2026-10-23" }],
-      spread_oat_bund_bps: spread,
-    });
     const { unmount } = setup({ bonds: bonds(4.9, 140.2) });
     expect(screen.queryByText(/Onglet Obligataire/)).not.toBeInTheDocument();
     unmount();
     setup({ bonds: bonds(4.62, 118) });
     expect(screen.getByText("4,90 %")).toBeInTheDocument();
     expect(screen.getByText(/Onglet Obligataire : 4,62 % au 23 octobre 2026/)).toBeInTheDocument();
-    expect(screen.getByText(/Onglet Obligataire : \+118 pb/)).toBeInTheDocument();
+    expect(screen.getByText(/Onglet Obligataire : \+118 pb au 23 octobre 2026/)).toBeInTheDocument();
+  });
+
+  it("dates both legs of the recalled spread when they differ", () => {
+    setup({ bonds: bonds(4.62, 118, "2026-10-02") });
+    expect(screen.getByText(/\+118 pb \(OAT au 23 octobre 2026, Bund au 02 octobre 2026\)/)).toBeInTheDocument();
+  });
+
+  it("never presents values older than the report as current", () => {
+    setup({ bonds: bonds(4.62, 118, "2026-08-01", "2026-08-01") });
+    expect(screen.queryByText(/Onglet Obligataire/)).not.toBeInTheDocument();
+  });
+
+  it("says the current values are unavailable when the bond request fails", () => {
+    setup({ bonds: bonds(4.62, 118), bondsError: true });
+    expect(screen.getAllByText(/Onglet Obligataire : valeur actuelle indisponible/)).toHaveLength(2);
+    expect(screen.queryByText(/4,62 %/)).not.toBeInTheDocument();
   });
 
   it("shows an empty state and starts a generation", () => {
