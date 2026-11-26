@@ -161,6 +161,20 @@ describe("Univers", () => {
     expect(screen.queryByText(/sous-agents/i)).not.toBeInTheDocument();
   });
 
+  it("shows the decision levels without any validation button", () => {
+    useSecurities.mockReturnValue({
+      data: { items: [{ symbol: "AIR.PA", name: "Airbus", sector: "Aéronautique" }], total: 1 },
+      isLoading: false,
+      isError: false,
+    });
+    useDecisions.mockReturnValue({
+      data: { items: [{ symbol: "AIR.PA", decision_type: "Achat", take_profit: 120, stop_loss: 90 }], total: 1 },
+    });
+    render(<Univers />);
+    expect(screen.getByText("120.00 €")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /valider les niveaux|ajuster/i })).not.toBeInTheDocument();
+  });
+
   it("changes the selected security from the dropdown, sorted by name", () => {
     useSecurities.mockReturnValue({
       data: {

@@ -291,46 +291,20 @@ export default function Univers() {
                     error={riskError && !riskData}
                   />
                   {selectedDecision && (
-                    <>
-                      <div className="grid gap-2 text-center" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-                        <div className="p-2 rounded-lg border" style={{ borderColor: "var(--hairline)" }}>
-                          <div className="gd-label">Take-profit</div>
-                          <div className="mono text-[15px] font-semibold mt-0.5" style={{ color: "var(--positive)" }}>
-                            {selectedDecision.take_profit != null ? `${selectedDecision.take_profit.toFixed(2)} €` : "—"}
-                          </div>
-                        </div>
-                        <div className="p-2 rounded-lg border" style={{ borderColor: "var(--hairline)" }}>
-                          <div className="gd-label">Stop-loss</div>
-                          <div className="mono text-[15px] font-semibold mt-0.5" style={{ color: "var(--negative)" }}>
-                            {selectedDecision.stop_loss != null ? `${selectedDecision.stop_loss.toFixed(2)} €` : "—"}
-                          </div>
+                    <div className="grid gap-2 text-center" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                      <div className="p-2 rounded-lg border" style={{ borderColor: "var(--hairline)" }}>
+                        <div className="gd-label">Take-profit</div>
+                        <div className="mono text-[15px] font-semibold mt-0.5" style={{ color: "var(--positive)" }}>
+                          {selectedDecision.take_profit != null ? `${selectedDecision.take_profit.toFixed(2)} €` : "—"}
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          className="gd-btn gd-btn--solid"
-                          style={{ flex: "1 1 140px", minHeight: 40 }}
-                          onClick={() =>
-                            setPopup({ title: "Niveaux", status: "done", text: `Niveaux validés pour ${selectedSymbol}.` })
-                          }
-                        >
-                          Valider les niveaux
-                        </button>
-                        <button
-                          className="gd-btn"
-                          style={{ flex: "1 1 100px", minHeight: 40 }}
-                          onClick={() =>
-                            setPopup({
-                              title: "Niveaux",
-                              status: "done",
-                              text: `Ajustement des niveaux pour ${selectedSymbol} en cours de discussion.`,
-                            })
-                          }
-                        >
-                          Ajuster
-                        </button>
+                      <div className="p-2 rounded-lg border" style={{ borderColor: "var(--hairline)" }}>
+                        <div className="gd-label">Stop-loss</div>
+                        <div className="mono text-[15px] font-semibold mt-0.5" style={{ color: "var(--negative)" }}>
+                          {selectedDecision.stop_loss != null ? `${selectedDecision.stop_loss.toFixed(2)} €` : "—"}
+                        </div>
                       </div>
-                    </>
+                    </div>
                   )}
                 </>
               )}
