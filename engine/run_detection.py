@@ -16,6 +16,7 @@ from sqlalchemy import select
 
 from engine.detect import detect_all
 from engine.exit_levels import bollinger_band_levels
+from engine.price_breaks import trim_before_break
 from engine.scoring import predict_confidence
 from ingestion.db import get_engine
 from ingestion.models import PatternDetected, PriceHistoryLong, Security
@@ -58,7 +59,9 @@ def load_prices(engine, symbol: str) -> pd.DataFrame:
     # confiance NaN (`patterns_detected`), puis un `entry_price` NaN
     # (`decisions`), jusqu'à faire planter `engine.propose_decisions` sur
     # une comparaison Postgres avec un `Decimal('NaN')`.
-    return df[df["close"].notna()]
+    # Écarte aussi les séances antérieures à une rupture d'échelle connue
+    # (`engine/price_breaks.py`).
+    return trim_before_break(symbol, df[df["close"].notna()])
 
 
 def run() -> int:
