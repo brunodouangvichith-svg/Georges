@@ -196,3 +196,36 @@ def test_summarize_and_verdict():
     assert verdict(bad, {"net_moyen_pct": -0.4}, {"net_moyen_pct": -0.6}) == "à écarter"
     assert verdict({"trades": 5}, {}, {}) == "trop peu de trades"
     assert math.isnan(summarize(trades.iloc[:1])["t_stat"])
+
+
+def test_corrupt_period_drops_trades_in_position_or_in_lookback(monkeypatch):
+    from engine import backtest_detectors as bd
+
+    df = ohlc([(100, 101, 99, 100)] * 400)
+    bad = str(df.index[10].date())
+    monkeypatch.setattr(bd, "CORRUPT_PERIODS", {"X.PA": [(bad, bad)]})
+    positions = [2, 8, 200, 309, 310]  # avant, en position, deux fois dans la fenêtre, après
+    signals = pd.DataFrame(
+        {
+            "signal_pos": positions,
+            "signal_date": [df.index[i] for i in positions],
+            "pattern_type": [f"figure {i}" for i in positions],
+            "bullish": [True] * 5,
+            "confidence": [60.0] * 5,
+            "take_profit": [120.0] * 5,
+            "stop_loss": [90.0] * 5,
+        }
+    )
+    kept = run_trades("X.PA", df, signals, NO_COSTS, False, max_hold=5)
+    assert [t.pattern_type for t in kept] == ["figure 2", "figure 310"]
+    assert len(run_trades("Y.PA", df, signals, NO_COSTS, False, max_hold=5)) == 5
+
+
+def test_baseline_ignores_corrupt_periods():
+    df = ohlc([(100, 101, 99, 100)] * 320)
+    df.iloc[315, df.columns.get_loc("close")] = 6000.0
+    bad = str(df.index[315].date())
+    assert baseline_returns(df, NO_COSTS, False, hold=10)["long_sum"] > 0
+    b = baseline_returns(df, NO_COSTS, False, hold=10, periods=[(bad, bad)])
+    assert b["long_sum"] == pytest.approx(0.0)
+    assert b["n"] == 6  # entrées 300 à 305 : sorties avant la séance corrompue

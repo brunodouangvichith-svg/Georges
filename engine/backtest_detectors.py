@@ -50,6 +50,9 @@ Commandes :
     python -m engine.backtest_detectors --symbols TTE.PA MC.PA --workers 1
     python -m engine.backtest_detectors --report-only    # recalcule le rapport depuis le cache
 
+Périodes de prix corrompues (`CORRUPT_PERIODS`) : écartées au moment du
+rapport (aucun signal à recalculer), pour les trades comme pour la base.
+
 Prix : depuis `price_history_long` si `DATABASE_URL` est défini, sinon
 téléchargés via yfinance (10 ans). Prix et signaux sont mis en cache sous
 `engine/data/backtest/` (non versionné), donc une exécution interrompue
@@ -79,6 +82,14 @@ WINDOW = 300  # séances vues par les détecteurs à chaque date (≥ 200 pour l
 MAX_HOLD = 20  # séances maximum en position
 OUT_OF_SAMPLE_YEARS = 3
 BASELINE_HOLD = 10  # durée de la base « entrée au hasard »
+
+# Séances dont les cours fournis par yfinance sont à une autre échelle que le
+# reste de la série (cours multiplié d'un jour à l'autre puis retombé, volume
+# effondré), constaté à la source le 26/11/2026. Bornes incluses.
+CORRUPT_PERIODS: dict[str, list[tuple[str, str]]] = {
+    "ATO.PA": [("2024-11-12", "2024-12-05")],
+    "EMEIS.PA": [("2023-11-14", "2023-11-29")],
+}
 
 CACHE_DIR = Path(__file__).resolve().parent / "data" / "backtest"
 PRICES_DIR = CACHE_DIR / "prices"
@@ -170,6 +181,11 @@ def load_symbol_prices(symbol: str) -> pd.DataFrame:
     df = df.astype({"open": float, "high": float, "low": float, "close": float, "volume": float})
     df.to_parquet(path)
     return df
+
+
+def touches_corrupt_period(first: pd.Timestamp, last: pd.Timestamp, periods: list[tuple[str, str]]) -> bool:
+    """L'intervalle `[first, last]` recoupe-t-il une période corrompue ?"""
+    return any(first <= pd.Timestamp(end) and last >= pd.Timestamp(start) for start, end in periods)
 
 
 # --- Signaux --------------------------------------------------------------
@@ -348,7 +364,10 @@ def run_trades(
     max_hold: int = MAX_HOLD,
 ) -> list[Trade]:
     """Transforme les signaux d'un titre en trades, sans empiler deux trades
-    simultanés de la même figure sur ce titre."""
+    simultanés de la même figure sur ce titre. Un trade est écarté si une
+    période corrompue tombe dans la fenêtre vue par le détecteur ou pendant la
+    position."""
+    periods = CORRUPT_PERIODS.get(symbol, [])
     trades: list[Trade] = []
     busy_until: dict[str, int] = {}
     arrays = _price_arrays(df)
@@ -364,6 +383,9 @@ def run_trades(
             df, int(sig.pos), bool(sig.bullish), sig.take_profit, sig.stop_loss, costs, french_equity, max_hold, arrays
         )
         if result is None:
+            continue
+        first_seen = df.index[max(int(sig.pos) - WINDOW + 1, 0)]
+        if touches_corrupt_period(first_seen, df.index[result["exit_pos"]], periods):
             continue
         busy_until[sig.pattern_type] = result["exit_pos"]
         trades.append(
@@ -390,11 +412,18 @@ def run_trades(
     return trades
 
 
-def baseline_returns(df: pd.DataFrame, costs: Costs, french_equity: bool, hold: int = BASELINE_HOLD) -> dict[str, float]:
+def baseline_returns(
+    df: pd.DataFrame,
+    costs: Costs,
+    french_equity: bool,
+    hold: int = BASELINE_HOLD,
+    periods: list[tuple[str, str]] | None = None,
+) -> dict[str, float]:
     """Rendement net moyen d'une entrée à l'ouverture de n'importe quelle
     séance, revendue `hold` séances plus tard à la clôture — la « figure
     aléatoire » à battre. Renvoie la somme et le nombre, pour agréger
-    plusieurs titres sans biais de pondération."""
+    plusieurs titres sans biais de pondération. `periods` écarte les mêmes
+    périodes corrompues que pour les trades."""
     opens = df["open"].to_numpy(dtype=float)
     closes = df["close"].to_numpy(dtype=float)
     if len(df) <= WINDOW + hold:
@@ -403,6 +432,9 @@ def baseline_returns(df: pd.DataFrame, costs: Costs, french_equity: bool, hold: 
     entry = opens[start : len(df) - hold + 1]
     exit_ = closes[start + hold - 1 :]
     valid = entry > 0
+    for pos in range(start, start + len(entry)):
+        if touches_corrupt_period(df.index[pos - WINDOW], df.index[pos + hold - 1], periods or []):
+            valid[pos - start] = False
     move = (exit_[valid] - entry[valid]) / entry[valid]
     return {
         "long_sum": float(np.sum(move - costs.round_trip(True, french_equity))),
@@ -513,7 +545,7 @@ def run_backtest(symbols: list[tuple[str, str]], costs: Costs, max_hold: int = M
         french = country == "FR"
         signals = pd.read_parquet(sig_path)
         all_trades.extend(run_trades(symbol, df, signals, costs, french, max_hold))
-        b = baseline_returns(df, costs, french)
+        b = baseline_returns(df, costs, french, periods=CORRUPT_PERIODS.get(symbol))
         for k in base:
             base[k] += b[k]
         first_dates.append(df.index[0])
