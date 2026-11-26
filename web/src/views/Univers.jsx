@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CandlestickChart from "../components/CandlestickChart";
-import GeorgeIndexTile from "../components/GeorgeIndexTile";
-import Counter from "../components/Counter";
 import ResponsePopup from "../components/ResponsePopup";
 import UniversRadar from "../components/UniversRadar";
-import WatchlistRow from "../components/WatchlistRow";
 import { decisionTagClass } from "../data";
 import {
   useAgentActivity,
-  useBaskets,
   useDecisions,
   useExplainDecision,
   useLatestPatterns,
@@ -37,13 +33,9 @@ const ENERGY_LABELS = {
 };
 const ENERGY_ORDER = Object.keys(ENERGY_LABELS);
 
-const FILTERS = ["Tous", "Achat", "Surveiller", "Alléger"];
-const PHONE_QUERY = "(max-width: 767px), (max-height: 500px) and (pointer: coarse)";
 
 const AGENT_STATUS_LABEL = { validated: "validé", pending: "en attente", quarantine: "quarantaine" };
 const AGENT_STATUS_COLOR = { validated: "var(--positive)", pending: "var(--warning)", quarantine: "var(--negative)" };
-
-const BULLISH = new Set(["Achat", "Renforcer"]);
 
 function EmptyState({ children }) {
   return (
@@ -63,10 +55,7 @@ function Panel({ title, children, className = "", style, label }) {
 }
 
 
-const time = (iso) => new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-
 export default function Univers() {
-  const [filter, setFilter] = useState("Tous");
   const [selected, setSelected] = useState(null);
   const [popup, setPopup] = useState(null); // { title, status: "listening"|"loading"|"done"|"error", text }
   const explainMutation = useExplainDecision();
@@ -133,7 +122,6 @@ export default function Univers() {
 
   const { data: securitiesPage, isLoading: securitiesLoading, isError: securitiesError } = useSecurities({ limit: 200 });
   const { data: decisionsPage } = useDecisions({ limit: 200 });
-  const { data: basketsPage } = useBaskets();
   const { data: agentPage } = useAgentActivity({ limit: 20 });
   const { data: energyPrices } = useEnergyPrices();
 
@@ -155,17 +143,12 @@ export default function Univers() {
     return map;
   }, [decisionsPage]);
 
-  const filtered =
-    filter === "Tous" ? securities : securities.filter((s) => decisionsMap[s.symbol]?.decision_type === filter);
+  const sortedSecurities = useMemo(
+    () => [...securities].sort((a, b) => a.name.localeCompare(b.name, "fr")),
+    [securities],
+  );
 
-  // Sur téléphone, la fiche est loin au-dessus de la liste : on y remonte.
-  const selectedRef = useRef(null);
-  function selectFromWatchlist(symbol) {
-    setSelected(symbol);
-    if (window.matchMedia?.(PHONE_QUERY).matches) selectedRef.current?.scrollIntoView({ block: "start" });
-  }
-
-  const selectedSymbol = selected ?? securities[0]?.symbol ?? null;
+  const selectedSymbol = selected ??securities[0]?.symbol ?? null;
   const selectedSecurity = securities.find((s) => s.symbol === selectedSymbol) ?? null;
   const selectedDecision = selectedSymbol ? decisionsMap[selectedSymbol] : null;
 
@@ -186,7 +169,6 @@ export default function Univers() {
   // absolus du `context` d'un pattern pour les replacer dans ce sous-ensemble.
   const indexOffset = selectedPricesPage ? selectedPricesPage.total - priceItems.length : 0;
 
-  const georgeBaskets = (basketsPage ?? []).slice(0, 2);
   const agentEvents = useMemo(() => agentPage?.items ?? [], [agentPage]);
 
   // Sous-agents : dernier état connu par agent (les événements arrivent du
@@ -201,20 +183,6 @@ export default function Univers() {
     return [...byName.values()];
   }, [agentEvents]);
   const maxAgentCount = Math.max(1, ...agentSummary.map((a) => a.count));
-
-  const decisionCounts = useMemo(() => {
-    const counts = { achat: 0, surveiller: 0, alleger: 0 };
-    for (const s of securities) {
-      const d = decisionsMap[s.symbol]?.decision_type;
-      if (!d) continue;
-      if (BULLISH.has(d)) counts.achat += 1;
-      else if (d === "Surveiller") counts.surveiller += 1;
-      else counts.alleger += 1;
-    }
-    return counts;
-  }, [securities, decisionsMap]);
-  const activePatterns = symbols.filter((s) => patternsBySymbol?.[s]).length;
-  const universeSize = Math.max(1, securities.length);
 
   const reasoningLines = selectedSecurity
     ? [
@@ -234,7 +202,7 @@ export default function Univers() {
       <ResponsePopup popup={popup} onClose={closePopup} />
       <div className="h-full overflow-y-auto gd-scrollbar">
         <div className="mx-auto flex flex-col gap-3.5 px-5 pt-4" style={{ maxWidth: 1440 }}>
-          {/* En-tête + compteurs */}
+          {/* En-tête */}
           <header className="flex flex-wrap items-start justify-between" style={{ gap: "16px 40px" }}>
             <div className="flex flex-col gap-1" style={{ minWidth: 260 }}>
               <h1 className="display m-0 text-[20px] font-semibold">
@@ -243,18 +211,6 @@ export default function Univers() {
               <div className="gd-label" style={{ color: "var(--text-dim)" }}>
                 CAC 40 &amp; CAC Mid 60 → décisions expliquées
               </div>
-            </div>
-            <div className="flex flex-wrap justify-end" style={{ gap: "14px 28px", flex: "1 1 600px" }}>
-              <Counter label="Valeurs" value={securitiesLoading ? "…" : securities.length} ratio={1} />
-              <Counter label="Figures actives" value={activePatterns} ratio={activePatterns / universeSize} />
-              <Counter label="Achat" value={decisionCounts.achat} ratio={decisionCounts.achat / universeSize} color="var(--positive)" />
-              <Counter
-                label="Surveiller"
-                value={decisionCounts.surveiller}
-                ratio={decisionCounts.surveiller / universeSize}
-                color="var(--warning)"
-              />
-              <Counter label="Alléger" value={decisionCounts.alleger} ratio={decisionCounts.alleger / universeSize} color="var(--negative)" />
             </div>
           </header>
 
@@ -280,6 +236,12 @@ export default function Univers() {
             </EmptyState>
           )}
 
+          {!securitiesError && !securitiesLoading && securities.length === 0 && (
+            <EmptyState>
+              Aucun titre en base. Lancez <code>python -m ingestion.seed</code> puis <code>python -m ingestion.ohlcv</code>.
+            </EmptyState>
+          )}
+
           {/* Radar + valeur sélectionnée */}
           <div className="flex flex-wrap gap-4 pb-3.5" style={{ borderBottom: "1px solid var(--hairline)" }}>
             <section aria-label="Radar de l'univers" style={{ flex: "999 1 520px", minWidth: 0 }}>
@@ -300,11 +262,26 @@ export default function Univers() {
             </section>
 
             <div className="flex flex-col gap-3" style={{ flex: "1 1 340px", minWidth: 0 }}>
-              <section ref={selectedRef} aria-label="Valeur sélectionnée" className="gd-panel">
+              <section aria-label="Valeur sélectionnée" className="gd-panel">
                 <h2 className="gd-label">Valeur sélectionnée</h2>
+                {securities.length > 0 && (
+                  <select
+                    aria-label="Choisir une valeur"
+                    className="w-full rounded-lg border px-2 text-[12.5px]"
+                    style={{ minHeight: 36, background: "var(--panel-alt)", borderColor: "var(--hairline)", color: "var(--text)" }}
+                    value={selectedSymbol ?? ""}
+                    onChange={(e) => setSelected(e.target.value)}
+                  >
+                    {sortedSecurities.map((s) => (
+                      <option key={s.symbol} value={s.symbol}>
+                        {s.name} ({s.symbol})
+                      </option>
+                    ))}
+                  </select>
+                )}
                 {!selectedSecurity ? (
                   <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
-                    Sélectionnez une valeur dans la liste.
+                    Aucune valeur à afficher.
                   </div>
                 ) : (
                   <>
@@ -437,104 +414,6 @@ export default function Univers() {
 
           {/* Grille de panneaux */}
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))" }}>
-            <Panel title="Journal / sous-agents">
-              {agentEvents.length === 0 ? (
-                <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
-                  Aucun événement — les sous-agents de veille alimentent ce journal.
-                </div>
-              ) : (
-                <div className="grid text-[11.5px] leading-snug" style={{ gridTemplateColumns: "44px 108px minmax(0, 1fr)", gap: "3px 8px" }}>
-                  {agentEvents.slice(0, 9).map((e) => (
-                    <div key={e.id} className="contents">
-                      <span style={{ color: "var(--text-dim)" }}>{time(e.created_at)}</span>
-                      <span className="font-bold overflow-hidden text-ellipsis whitespace-nowrap">{e.agent_name}</span>
-                      <span className="overflow-hidden text-ellipsis whitespace-nowrap" title={e.description}>
-                        {e.description}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Panel>
-
-            <Panel title="Watchlist / figures actives" label="Watchlist" className="gd-wide">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
-                  Univers suivi — CAC 40 &amp; CAC Mid 60
-                </span>
-                <div role="group" aria-label="Filtrer par décision" className="flex flex-wrap gap-1">
-                  {FILTERS.map((f) => (
-                    <button
-                      key={f}
-                      className="gd-btn"
-                      style={{ minHeight: 30, padding: "0 10px", fontSize: 10.5 }}
-                      aria-pressed={filter === f}
-                      onClick={() => setFilter(f)}
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {!securitiesError && !securitiesLoading && securities.length === 0 && (
-                <EmptyState>
-                  Aucun titre en base. Lancez <code>python -m ingestion.seed</code> puis <code>python -m ingestion.ohlcv</code>.
-                </EmptyState>
-              )}
-              {!securitiesError && securities.length > 0 && (
-                <div className="overflow-x-auto gd-scrollbar" style={{ maxHeight: 420 }}>
-                  <table className="gd-watchlist w-full border-collapse">
-                    <thead>
-                      <tr>
-                        {["Valeur", "Secteur", "Tendance", "Pattern", "Confiance", "Décision"].map((h) => (
-                          <th
-                            key={h}
-                            scope="col"
-                            className="gd-label text-left"
-                            style={{
-                              color: "var(--text-dim)",
-                              padding: "4px 6px",
-                              borderBottom: "1px solid var(--hairline)",
-                              position: "sticky",
-                              top: 0,
-                              background: "var(--panel)",
-                            }}
-                          >
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered.map((security) => (
-                        <WatchlistRow
-                          key={security.symbol}
-                          security={security}
-                          decision={decisionsMap[security.symbol]}
-                          selected={selectedSymbol === security.symbol}
-                          onSelect={selectFromWatchlist}
-                          latestPattern={patternsBySymbol?.[security.symbol] ?? null}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Panel>
-
-            <Panel title="George Index / paniers" label="Indices des paniers">
-              {georgeBaskets.length === 0 ? (
-                <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
-                  Aucun panier. Lancez <code>python -m ingestion.seed_demo</code>.
-                </div>
-              ) : (
-                georgeBaskets.map((b) => <GeorgeIndexTile key={b.id} basketId={b.id} basketName={b.name} />)
-              )}
-              <div className="text-[10.5px]" style={{ color: "var(--text-dim)" }}>
-                1 case = 2 points · rempli = score atteint
-              </div>
-            </Panel>
-
             {selectedSecurity && (
               <Panel title={`Fondamentaux / ${selectedSecurity.symbol}`} label="Fondamentaux">
                 <dl className="m-0 grid gap-x-3 gap-y-1 text-[11.5px]" style={{ gridTemplateColumns: "minmax(0, 1fr) auto" }}>
