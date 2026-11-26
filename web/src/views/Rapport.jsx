@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import MarkdownText from "../components/MarkdownText";
 import { dateFr, nf, signed } from "../lib/format";
-import { useGenerateStrategicReport, useStrategicReport, useStrategicReports } from "../api/queries";
+import { useBondDashboard, useGenerateStrategicReport, useStrategicReport, useStrategicReports } from "../api/queries";
 
 // Onglet "Rapport" — Rapport stratégique hebdomadaire (France, marchés,
 // CAC 40), voir agents/strategic_report.py. Tous les chiffres affichés ici
 // viennent de `report.data` (calculés en Python par George) ; seul le
-// commentaire (`narrative_markdown`) est rédigé par le LLM. Le tableau des
+// commentaire (`narrative_markdown`) est rédigé par le LLM. Ces chiffres sont
+// figés à la génération : quand l'onglet "Obligataire" affiche depuis une autre
+// valeur, elle est rappelée sous la carte concernée. Le tableau des
 // valeurs du CAC 40 est affiché dans l'onglet "Trading" (Cac40Panel.jsx).
 
 const RISK = {
@@ -33,7 +35,7 @@ function Panel({ title, children, right, className = "" }) {
   );
 }
 
-function Kpi({ label, value, sub, color }) {
+function Kpi({ label, value, sub, color, now }) {
   return (
     <div className="border rounded-[10px] p-3 flex flex-col gap-1 min-w-0" style={{ borderColor: "var(--hairline)", background: "var(--panel)" }}>
       <div className="text-[10.5px] uppercase tracking-wider" style={{ color: "var(--text-dim)" }}>
@@ -47,6 +49,11 @@ function Kpi({ label, value, sub, color }) {
           {sub}
         </div>
       )}
+      {now && (
+        <div className="text-[11.5px]" style={{ color: "var(--warning)" }}>
+          Onglet Obligataire : {now}
+        </div>
+      )}
     </div>
   );
 }
@@ -56,6 +63,7 @@ export default function Rapport() {
   const reports = useStrategicReports();
   const { data: report, isLoading, isError } = useStrategicReport(selectedId);
   const generate = useGenerateStrategicReport();
+  const bonds = useBondDashboard();
   const abortRef = useRef(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -71,6 +79,13 @@ export default function Rapport() {
   const risk = RISK[report?.risk_level] ?? RISK.indetermine;
   const sourceNumbers = useMemo(() => new Set((data?.sources ?? []).map((s) => s.n)), [data]);
   const brent = data?.energy?.find((e) => e.code === "BRENT_CRUDE_USD");
+
+  // Valeurs actuelles de l'onglet "Obligataire", rappelées seulement si elles
+  // diffèrent (à la précision affichée) de celles figées dans le rapport.
+  const oatNow = bonds.data?.cards?.find((c) => c.instrument === "OAT_FR_10Y");
+  const spreadNow = bonds.data?.spread_oat_bund_bps;
+  const oatChanged = data && oatNow?.value_pct != null && nf(oatNow.value_pct) !== nf(data.risk.oat_10y_pct);
+  const spreadChanged = data && spreadNow != null && nf(spreadNow, 0) !== nf(data.risk.spread_oat_bund_bps, 0);
 
   return (
     <div className="h-full overflow-y-auto gd-scrollbar">
@@ -166,8 +181,8 @@ export default function Rapport() {
                 sub={data.cac40_index ? `${signed(data.cac40_index.week_change_pct)} sur 5 séances · clôture du ${dateFr(data.cac40_index.as_of)}` : "Clôture indisponible"}
                 color={data.cac40_index ? undefined : "var(--text-dim)"}
               />
-              <Kpi label="OAT France 10 ans" value={data.risk.oat_10y_pct == null ? "—" : `${nf(data.risk.oat_10y_pct)} %`} sub={data.risk.oat_observed_at ? `Observé le ${dateFr(data.risk.oat_observed_at)}` : "Indisponible"} />
-              <Kpi label="Spread OAT-Bund" value={data.risk.spread_oat_bund_bps == null ? "—" : `${signed(data.risk.spread_oat_bund_bps, " pb", 0)}`} sub={data.risk.bund_10y_pct == null ? "Bund indisponible" : `Bund 10 ans ${nf(data.risk.bund_10y_pct)} %`} />
+              <Kpi label="OAT France 10 ans" value={data.risk.oat_10y_pct == null ? "—" : `${nf(data.risk.oat_10y_pct)} %`} sub={data.risk.oat_observed_at ? `Au jour du rapport · observé le ${dateFr(data.risk.oat_observed_at)}` : "Indisponible"} now={oatChanged ? `${nf(oatNow.value_pct)} % au ${dateFr(oatNow.observed_at)}` : null} />
+              <Kpi label="Spread OAT-Bund" value={data.risk.spread_oat_bund_bps == null ? "—" : `${signed(data.risk.spread_oat_bund_bps, " pb", 0)}`} sub={data.risk.bund_10y_pct == null ? "Bund indisponible" : `Au jour du rapport · Bund 10 ans ${nf(data.risk.bund_10y_pct)} %`} now={spreadChanged ? signed(spreadNow, " pb", 0) : null} />
               <Kpi label="Brent" value={brent ? `${nf(brent.price)} $` : "—"} sub={brent ? `Au ${dateFr(brent.as_of)}${brent.change_24h_pct == null ? "" : ` · ${signed(brent.change_24h_pct)} sur 24 h`}` : "Indisponible"} />
             </div>
 
