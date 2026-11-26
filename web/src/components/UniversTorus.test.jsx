@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UniversTorus from "./UniversTorus";
-import { buildFilaments, makeProjector, MAX_RADIUS, nearestFilament } from "./torusLayout";
+import { mockContainerWidth } from "../test/containerWidth";
+import { buildCards, buildFilaments, makeProjector, MAX_RADIUS, nearestFilament, torusPoint } from "./torusLayout";
 import { buildRadar } from "./universRadarLayout";
 
 const securities = [
@@ -10,7 +11,7 @@ const securities = [
   { symbol: "CCC.PA", name: "Gamma", sector: "Santé" },
 ];
 const patterns = { "AAA.PA": { confidence: 80 } };
-const decisions = { "AAA.PA": { decision_type: "Achat" } };
+const decisions = { "AAA.PA": { symbol: "AAA.PA", decision_type: "Achat", entry_price: 10, created_at: "2026-11-20T10:00:00" } };
 const filaments = () => buildFilaments(buildRadar(securities, patterns, decisions).items);
 const radius = ([x, y, z]) => Math.hypot(x, y, z);
 
@@ -23,14 +24,33 @@ describe("torusLayout", () => {
 
   it("keeps every spike inside the frame whatever the rotation", () => {
     const all = buildFilaments(buildRadar(securities, { "AAA.PA": { confidence: 100 } }, {}).items);
-    for (let yaw = 0; yaw < 6.3; yaw += 0.2) {
-      const project = makeProjector({ yaw, tilt: 0.42, width: 600, height: 600 });
+    for (let spin = 0; spin < 6.3; spin += 0.2) {
+      const project = makeProjector({ spin, yaw: -0.7, tilt: 0.25, width: 600, height: 600 });
       for (const { tip } of all) {
         const { x, y } = project(tip);
         expect(Math.min(x, y)).toBeGreaterThanOrEqual(0);
         expect(Math.max(x, y)).toBeLessThanOrEqual(600);
       }
     }
+  });
+
+  it("spins around the axis going through the hole, which stays still", () => {
+    const view = { yaw: -0.7, tilt: 0.25, width: 600, height: 600 };
+    const still = makeProjector({ ...view, spin: 0 });
+    const turned = makeProjector({ ...view, spin: 2 });
+    expect(turned([0, 0, 0.5])).toEqual(still([0, 0, 0.5]));
+    expect(turned(torusPoint(0, 0)).x).not.toBeCloseTo(still(torusPoint(0, 0)).x);
+  });
+
+  it("lists the latest decisions first and always keeps the selected security", () => {
+    const map = {
+      "AAA.PA": { symbol: "AAA.PA", created_at: "2026-11-01T10:00:00" },
+      "BBB.PA": { symbol: "BBB.PA", created_at: "2026-11-20T10:00:00" },
+      "ZZZ.PA": { symbol: "ZZZ.PA", created_at: "2026-11-25T10:00:00" },
+    };
+    const symbols = (cards) => cards.map((card) => card.symbol);
+    expect(symbols(buildCards(filaments(), map, "AAA.PA"))).toEqual(["BBB.PA", "AAA.PA"]);
+    expect(symbols(buildCards(filaments(), map, "CCC.PA", 2))).toEqual(["BBB.PA", "CCC.PA"]);
   });
 
   it("picks the spike under the pointer, and nothing far from every spike", () => {
@@ -59,8 +79,18 @@ describe("UniversTorus", () => {
   it("describes the data and the selected security", () => {
     render(<UniversTorus {...props} onSelect={() => {}} />);
     expect(screen.getByRole("img", { name: /3 valeurs, 1 avec une figure/ })).toBeInTheDocument();
-    expect(screen.getByText("AAA.PA")).toBeInTheDocument();
-    expect(screen.getByText("80 % · Achat")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /AAA\.PA.*Achat/, pressed: true })).toBeInTheDocument();
+  });
+
+  it("selects a security from its card, beside the torus or below it", () => {
+    for (const width of [900, 360]) {
+      mockContainerWidth(width);
+      const onSelect = vi.fn();
+      const { unmount } = render(<UniversTorus {...props} selectedSymbol="BBB.PA" onSelect={onSelect} />);
+      fireEvent.click(screen.getByRole("button", { name: /AAA\.PA/ }));
+      expect(onSelect).toHaveBeenCalledWith("AAA.PA");
+      unmount();
+    }
   });
 
   it("lets the user pause and restart the rotation", () => {
@@ -77,9 +107,10 @@ describe("UniversTorus", () => {
 
   it("selects on a click, ignoring a second finger", () => {
     const onSelect = vi.fn();
+    const size = 360; // cadre étroit : le tore occupe tout le canvas
+    mockContainerWidth(size);
     render(<UniversTorus {...props} onSelect={onSelect} />);
-    const size = 640;
-    const { x, y } = makeProjector({ yaw: -0.55, tilt: 0.42, width: size, height: size })(filaments()[1].tip);
+    const { x, y } = makeProjector({ yaw: -0.7, tilt: 0.25, width: size, height: size })(filaments()[1].tip);
     const canvas = screen.getByRole("img");
     // jsdom n'a pas de PointerEvent : on fixe les champs sur un MouseEvent.
     const fire = (type, pointerId) => {
