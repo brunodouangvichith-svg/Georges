@@ -1,4 +1,4 @@
-// Formats d'affichage français partagés (onglets "Rapport" et "Trading").
+// Formats d'affichage français partagés (onglet "Rapport" et tableau du CAC 40).
 export const nf = (value, digits = 2) =>
   value == null ? "—" : Number(value).toLocaleString("fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 export const eur = (value) => (value == null ? "—" : `${nf(value)} €`);
