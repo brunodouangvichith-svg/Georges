@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks
 
+from api.routers.securities import clear_risk_cache
 from api.schemas import PriceRefreshStatus
 from ingestion.price_history import run as run_price_refresh
 
@@ -48,6 +49,7 @@ def _run_refresh_job() -> None:
     global _state
     try:
         summary = run_price_refresh()
+        clear_risk_cache()
         failed = sorted(symbol for symbol, rows in summary.items() if rows < 0)
         updated = sorted(symbol for symbol, rows in summary.items() if rows >= 0)
         with _lock:

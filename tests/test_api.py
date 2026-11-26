@@ -24,6 +24,8 @@ import agents.mistral_client as mistral_client
 import agents.web_search as web_search
 import api.auth as auth
 import api.deps as deps
+import api.routers.securities as securities_router
+from ingestion import index_prices
 from api.main import app
 from ingestion.models import (
     AgentEvent,
@@ -85,6 +87,7 @@ def client(database_url, monkeypatch):
     test_engine = create_engine(database_url, future=True)
     monkeypatch.setattr(deps, "engine", test_engine)
     monkeypatch.setattr(deps, "SessionLocal", sessionmaker(bind=test_engine, autoflush=False, future=True))
+    securities_router.clear_risk_cache()
 
     # 30 séances se terminant "aujourd'hui", pour que la figure détectée
     # tombe dans la fenêtre d'activité du George Index (voir
@@ -448,6 +451,37 @@ def test_list_agent_activity_filtered_by_status(client):
 
     resp = client.get("/agents/activity", params={"status": "quarantine"})
     assert resp.json()["total"] == 0
+
+
+def test_risk_metrics_cover_the_whole_universe(client, monkeypatch):
+    dates = pd.bdate_range(end=pd.Timestamp.now().normalize(), periods=30)
+    monkeypatch.setattr(index_prices, "cac40_closes", lambda: pd.Series(range(8000, 8030), index=dates, dtype=float))
+
+    resp = client.get("/securities/risk-metrics")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["index"]["available"] is True
+    rows = {row["symbol"]: row for row in body["items"]}
+    assert set(rows) == {"AAA.PA", "BBB.PA"}
+    # 30 séances : assez pour le volume et l'ATR, pas pour les mesures sur un an.
+    assert rows["AAA.PA"]["average_daily_volume"] == 1_000_000
+    assert rows["AAA.PA"]["atr"] == pytest.approx(2.0)
+    assert rows["AAA.PA"]["volatility_pct"] is None
+    assert rows["AAA.PA"]["beta"] is None
+    assert rows["BBB.PA"]["average_daily_volume"] is None
+
+
+def test_risk_metrics_without_index(client, monkeypatch):
+    monkeypatch.setattr(index_prices, "cac40_closes", lambda: None)
+    body = client.get("/securities/risk-metrics").json()
+    assert body["index"] == {"name": "CAC 40", "ticker": "^FCHI", "available": False, "as_of": None}
+    assert len(body["items"]) == 2
+
+
+def test_risk_metrics_require_a_signed_in_user():
+    """Sans Docker : le refus tombe avant toute requête ou appel à Yahoo."""
+    assert TestClient(app).get("/securities/risk-metrics").status_code == 401
 
 
 def test_db_unreachable_returns_503_with_cors_headers(monkeypatch):

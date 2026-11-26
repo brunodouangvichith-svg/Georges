@@ -41,6 +41,36 @@ class PriceBarOut(BaseModel):
     volume: int
 
 
+class IndexReferenceOut(BaseModel):
+    name: str
+    ticker: str
+    available: bool
+    as_of: date | None
+
+
+class SecurityRiskOut(BaseModel):
+    """Une mesure à `None` = historique insuffisant ou référence indisponible."""
+
+    symbol: str
+    as_of: date | None
+    average_daily_volume: float | None
+    atr: float | None
+    atr_pct: float | None
+    volatility_pct: float | None
+    beta: float | None
+    index_correlation: float | None
+    sector_family: str | None
+    sector_correlation: float | None
+    sector_peers: int
+    # Dernière variation de plus de 50 % en une séance sur la fenêtre d'un an.
+    suspect_jump_date: date | None
+
+
+class RiskMetricsOut(BaseModel):
+    index: IndexReferenceOut
+    items: list[SecurityRiskOut]
+
+
 class PatternOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
