@@ -16,6 +16,8 @@ cas contrôlés : `docs/claude/foundations.md`, section « Long-term price
 history ».
 """
 
+import datetime
+
 import pandas as pd
 
 # Première séance (date de Paris) de la partie exploitable de chaque série.
@@ -30,6 +32,15 @@ FIRST_USABLE_SESSION: dict[str, str] = {
     # 09/12 ; l'historique antérieur n'est pas au même niveau.
     "VIV.PA": "2024-12-09",
 }
+
+
+def usable_since(symbol: str) -> datetime.datetime | None:
+    """Minuit à Paris de la première séance exploitable de `symbol`, pour
+    filtrer en base comme `trim_before_break` ; `None` sans rupture connue."""
+    first = FIRST_USABLE_SESSION.get(symbol)
+    if first is None:
+        return None
+    return pd.Timestamp(first, tz="Europe/Paris").to_pydatetime()
 
 
 def trim_before_break(symbol: str, df: pd.DataFrame) -> pd.DataFrame:

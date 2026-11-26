@@ -14,7 +14,7 @@ import time
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, select
 from sqlalchemy.orm import Session
 
 from api.deps import get_db
@@ -28,6 +28,7 @@ from api.schemas import (
     RiskMetricsOut,
     SecurityOut,
 )
+from engine.price_breaks import usable_since
 from engine.risk_metrics import PARIS, compute_risk_metrics
 from engine.run_detection import load_recent_prices
 from ingestion import index_prices
@@ -207,9 +208,21 @@ def list_security_prices(
     Lit `price_history_long` (jusqu'à 10 ans) plutôt que `prices_ohlcv`
     (2 ans, plus alimentée depuis le passage à `price_history_long` — voir
     CLAUDE.md) ; `le=3000` couvre large les ~2600 séances de 10 ans, contre
-    2000 (~8 ans) auparavant."""
+    2000 (~8 ans) auparavant.
+
+    Mêmes séances que `engine.run_detection.load_prices` (sans clôture `NaN`
+    ni historique antérieur à une rupture connue) : les index du `context`
+    d'une figure comptent sur cette série, et le graphique les replace à
+    partir de `total`."""
     _get_security_or_404(symbol, db)
-    stmt = select(PriceHistoryLong).where(PriceHistoryLong.symbol == symbol)
+    stmt = select(PriceHistoryLong).where(
+        PriceHistoryLong.symbol == symbol,
+        # Comparé en texte : un paramètre numérique `NaN` devient NULL en SQLite.
+        cast(PriceHistoryLong.close, String) != "NaN",
+    )
+    since = usable_since(symbol)
+    if since is not None:
+        stmt = stmt.where(PriceHistoryLong.ts >= since)
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
     rows = db.execute(stmt.order_by(PriceHistoryLong.ts.desc()).limit(limit).offset(offset)).scalars().all()
     return Page(items=list(reversed(rows)), total=total or 0, limit=limit, offset=offset)
