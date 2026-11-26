@@ -52,6 +52,8 @@ describe("Univers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockEmptyApi();
+    // jsdom ne dessine pas : sans contexte, le tore ne trace rien.
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
   });
 
   it("shows an empty-state message when there are no securities in the database", () => {
@@ -92,6 +94,19 @@ describe("Univers", () => {
     const spy = mockContainerWidth(290);
     expect(chartWidth(render(<Univers />).container)).toBe("290");
     spy.mockRestore();
+  });
+
+  it("shows the torus alone, with the selected security panel below it", () => {
+    useSecurities.mockReturnValue({
+      data: { items: [{ symbol: "AIR.PA", name: "Airbus", sector: "Aéronautique" }], total: 1 },
+      isLoading: false,
+      isError: false,
+    });
+    render(<Univers />);
+    expect(screen.queryByRole("button", { name: /radar|tore 3d/i })).not.toBeInTheDocument();
+    const torus = screen.getByRole("region", { name: "Tore 3D de l'univers" });
+    const panel = screen.getByRole("region", { name: "Valeur sélectionnée" });
+    expect(torus.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("changes the selected security from the dropdown, sorted by name", () => {

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CandlestickChart from "../components/CandlestickChart";
 import ResponsePopup from "../components/ResponsePopup";
-import UniversRadar from "../components/UniversRadar";
 import UniversTorus from "../components/UniversTorus";
 import { decisionTagClass } from "../data";
 import { useElementWidth } from "../hooks/useElementWidth";
@@ -19,10 +18,10 @@ import {
   useTriggerCollection,
 } from "../api/queries";
 
-// Écran Univers — radar central + grille de panneaux, dans le thème George
-// d'origine (bleu nuit, blanc, accent bleu ; vert/orange/rouge pour les
-// décisions). Toutes les données affichées viennent de l'API : aucun
-// chiffre de démonstration ici.
+// Écran Univers — tore 3D, fiche de la valeur sélectionnée en dessous, puis
+// grille de panneaux, dans le thème George d'origine (bleu nuit, blanc, accent
+// bleu ; vert/orange/rouge pour les décisions). Toutes les données affichées
+// viennent de l'API : aucun chiffre de démonstration ici.
 
 const AGENT_STATUS_LABEL = { validated: "validé", pending: "en attente", quarantine: "quarantaine" };
 const AGENT_STATUS_COLOR = { validated: "var(--positive)", pending: "var(--warning)", quarantine: "var(--negative)" };
@@ -48,7 +47,6 @@ function Panel({ title, children, className = "", style, label }) {
 export default function Univers() {
   const [selected, setSelected] = useState(null);
   const [popup, setPopup] = useState(null); // { title, status: "listening"|"loading"|"done"|"error", text }
-  const [shape, setShape] = useState("radar"); // "radar" | "torus"
   // Le graphique en chandeliers prend la largeur de son cadre.
   const [chartRef, chartWidth] = useElementWidth();
   const explainMutation = useExplainDecision();
@@ -151,7 +149,6 @@ export default function Univers() {
 
   const selectedPattern = selectedPatternsPage?.items?.[0] ?? null;
   const priceItems = useMemo(() => selectedPricesPage?.items ?? [], [selectedPricesPage]);
-  const closes = useMemo(() => priceItems.map((bar) => bar.close), [priceItems]);
   // `items` ne contient que les `limit` séances les plus récentes : l'écart
   // entre `total` et leur nombre est le décalage à soustraire aux indices
   // absolus du `context` d'un pattern pour les replacer dans ce sous-ensemble.
@@ -230,194 +227,172 @@ export default function Univers() {
             </EmptyState>
           )}
 
-          {/* Radar + valeur sélectionnée */}
-          <div className="flex flex-wrap gap-4 pb-3.5" style={{ borderBottom: "1px solid var(--hairline)" }}>
-            <section aria-label={shape === "torus" ? "Tore 3D de l'univers" : "Radar de l'univers"} style={{ flex: "999 1 520px", minWidth: 0 }}>
+          {/* Tore 3D */}
+          <section aria-label="Tore 3D de l'univers">
+            {securities.length > 0 ? (
+              <UniversTorus
+                securities={securities}
+                patternsBySymbol={patternsBySymbol}
+                decisionsMap={decisionsMap}
+                selectedSymbol={selectedSymbol}
+                onSelect={setSelected}
+              />
+            ) : (
+              <div className="flex items-center justify-center text-[12px]" style={{ minHeight: 320, color: "var(--text-dim)" }}>
+                {securitiesLoading ? "Chargement de l'univers…" : "Le tore s'affichera dès que des titres seront en base."}
+              </div>
+            )}
+          </section>
+
+          {/* Valeur sélectionnée et raisonnement, sous le tore */}
+          <div className="flex flex-wrap items-start gap-3 pb-3.5" style={{ borderBottom: "1px solid var(--hairline)" }}>
+            <section aria-label="Valeur sélectionnée" className="gd-panel" style={{ flex: "2 1 520px" }}>
+              <h2 className="gd-label">Valeur sélectionnée</h2>
               {securities.length > 0 && (
-                <div role="group" aria-label="Représentation de l'univers" className="flex gap-1.5">
-                  {[
-                    ["radar", "Radar"],
-                    ["torus", "Tore 3D"],
-                  ].map(([key, label]) => (
-                    <button key={key} type="button" className="gd-btn" aria-pressed={shape === key} onClick={() => setShape(key)}>
-                      {label}
-                    </button>
+                <select
+                  aria-label="Choisir une valeur"
+                  className="w-full rounded-lg border px-2 text-[12.5px]"
+                  style={{ minHeight: 36, background: "var(--panel-alt)", borderColor: "var(--hairline)", color: "var(--text)" }}
+                  value={selectedSymbol ?? ""}
+                  onChange={(e) => setSelected(e.target.value)}
+                >
+                  {sortedSecurities.map((s) => (
+                    <option key={s.symbol} value={s.symbol}>
+                      {s.name} ({s.symbol})
+                    </option>
                   ))}
-                </div>
+                </select>
               )}
-              {securities.length > 0 && shape === "torus" ? (
-                <UniversTorus
-                  securities={securities}
-                  patternsBySymbol={patternsBySymbol}
-                  decisionsMap={decisionsMap}
-                  selectedSymbol={selectedSymbol}
-                  onSelect={setSelected}
-                />
-              ) : securities.length > 0 ? (
-                <UniversRadar
-                  securities={securities}
-                  patternsBySymbol={patternsBySymbol}
-                  decisionsMap={decisionsMap}
-                  selectedSymbol={selectedSymbol}
-                  onSelect={setSelected}
-                  closes={closes}
-                />
-              ) : (
-                <div className="flex items-center justify-center text-[12px]" style={{ minHeight: 320, color: "var(--text-dim)" }}>
-                  {securitiesLoading ? "Chargement de l'univers…" : "Le radar s'affichera dès que des titres seront en base."}
+              {!selectedSecurity ? (
+                <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+                  Aucune valeur à afficher.
                 </div>
+              ) : (
+                <>
+                  <div>
+                    <div className="text-[18px] font-bold">{selectedSecurity.name}</div>
+                    <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
+                      {selectedSecurity.symbol} · {selectedSecurity.sector}
+                    </div>
+                  </div>
+                  <div ref={chartRef} style={{ background: "var(--panel-alt)", overflow: "hidden" }}>
+                    <CandlestickChart
+                      candles={priceItems}
+                      loading={pricesLoading}
+                      error={pricesError}
+                      context={selectedPattern?.context ?? null}
+                      indexOffset={indexOffset}
+                      takeProfit={selectedDecision?.take_profit ?? null}
+                      stopLoss={selectedDecision?.stop_loss ?? null}
+                      width={chartWidth ?? 320}
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-dim)" }}>
+                    {selectedPattern ? (
+                      <>
+                        <span className="inline-block w-3.5" style={{ borderTop: "1.5px dashed var(--accent)" }} />
+                        Figure détectée par George : {selectedPattern.pattern_type}
+                      </>
+                    ) : (
+                      "Aucune figure active détectée pour ce titre."
+                    )}
+                  </div>
+                  <dl className="m-0 grid gap-x-3 gap-y-1 text-[11.5px]" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                    <dt style={{ color: "var(--text-dim)" }}>Pattern détecté</dt>
+                    <dd className="m-0 text-right font-semibold">{selectedPattern?.pattern_type ?? "—"}</dd>
+                    <dt style={{ color: "var(--text-dim)" }}>Confiance</dt>
+                    <dd className="m-0 text-right font-semibold">
+                      {selectedPattern ? `${Math.round(selectedPattern.confidence)}%` : "—"}
+                    </dd>
+                    <dt style={{ color: "var(--text-dim)" }}>Décision</dt>
+                    <dd className="m-0 text-right">
+                      {selectedDecision ? (
+                        <span className={decisionTagClass(selectedDecision.decision_type)}>
+                          {selectedDecision.decision_type}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </dd>
+                  </dl>
+                  {selectedDecision && (
+                    <>
+                      <div className="grid gap-2 text-center" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                        <div className="p-2 rounded-lg border" style={{ borderColor: "var(--hairline)" }}>
+                          <div className="gd-label">Take-profit</div>
+                          <div className="mono text-[15px] font-semibold mt-0.5" style={{ color: "var(--positive)" }}>
+                            {selectedDecision.take_profit != null ? `${selectedDecision.take_profit.toFixed(2)} €` : "—"}
+                          </div>
+                        </div>
+                        <div className="p-2 rounded-lg border" style={{ borderColor: "var(--hairline)" }}>
+                          <div className="gd-label">Stop-loss</div>
+                          <div className="mono text-[15px] font-semibold mt-0.5" style={{ color: "var(--negative)" }}>
+                            {selectedDecision.stop_loss != null ? `${selectedDecision.stop_loss.toFixed(2)} €` : "—"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          className="gd-btn gd-btn--solid"
+                          style={{ flex: "1 1 140px", minHeight: 40 }}
+                          onClick={() =>
+                            setPopup({ title: "Niveaux", status: "done", text: `Niveaux validés pour ${selectedSymbol}.` })
+                          }
+                        >
+                          Valider les niveaux
+                        </button>
+                        <button
+                          className="gd-btn"
+                          style={{ flex: "1 1 100px", minHeight: 40 }}
+                          onClick={() =>
+                            setPopup({
+                              title: "Niveaux",
+                              status: "done",
+                              text: `Ajustement des niveaux pour ${selectedSymbol} en cours de discussion.`,
+                            })
+                          }
+                        >
+                          Ajuster
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </>
               )}
             </section>
 
-            <div className="flex flex-col gap-3" style={{ flex: "1 1 340px", minWidth: 0 }}>
-              <section aria-label="Valeur sélectionnée" className="gd-panel">
-                <h2 className="gd-label">Valeur sélectionnée</h2>
-                {securities.length > 0 && (
-                  <select
-                    aria-label="Choisir une valeur"
-                    className="w-full rounded-lg border px-2 text-[12.5px]"
-                    style={{ minHeight: 36, background: "var(--panel-alt)", borderColor: "var(--hairline)", color: "var(--text)" }}
-                    value={selectedSymbol ?? ""}
-                    onChange={(e) => setSelected(e.target.value)}
+            {selectedSecurity && (
+              <Panel title="Raisonnement / George" style={{ flex: "1 1 340px" }}>
+                <pre className="mono m-0 text-[11.5px] leading-relaxed whitespace-pre-wrap">
+                  {reasoningLines.map((line, i) => `${String(31 + i).padStart(3, "0")}  ${line}`).join("\n")}
+                </pre>
+                <p className="m-0 text-[12px] leading-relaxed" style={{ color: "var(--text-dim)" }}>
+                  {selectedDecision?.rationale ??
+                    (selectedDecision
+                      ? "Aucune note courte pour cette décision — demandez l'explication complète à George."
+                      : "Aucune décision enregistrée pour ce titre — posez une question à George dans la barre en bas si vous voulez son avis.")}
+                </p>
+                {selectedDecision && (
+                  <button
+                    className="gd-btn self-start"
+                    disabled={explainMutation.isPending}
+                    onClick={() => {
+                      const title = `George explique — ${selectedSymbol}`;
+                      setPopup({ title, status: "loading", text: null });
+                      explainMutation.mutate(
+                        { decisionId: selectedDecision.id },
+                        {
+                          onSuccess: (data) => setPopup({ title, status: "done", text: data.explanation }),
+                          onError: (err) => setPopup({ title, status: "error", text: err.message }),
+                        }
+                      );
+                    }}
                   >
-                    {sortedSecurities.map((s) => (
-                      <option key={s.symbol} value={s.symbol}>
-                        {s.name} ({s.symbol})
-                      </option>
-                    ))}
-                  </select>
+                    {explainMutation.isPending ? "George réfléchit…" : "Demander une analyse à George →"}
+                  </button>
                 )}
-                {!selectedSecurity ? (
-                  <div className="text-[12px]" style={{ color: "var(--text-dim)" }}>
-                    Aucune valeur à afficher.
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <div className="text-[18px] font-bold">{selectedSecurity.name}</div>
-                      <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
-                        {selectedSecurity.symbol} · {selectedSecurity.sector}
-                      </div>
-                    </div>
-                    <div ref={chartRef} style={{ background: "var(--panel-alt)", overflow: "hidden" }}>
-                      <CandlestickChart
-                        candles={priceItems}
-                        loading={pricesLoading}
-                        error={pricesError}
-                        context={selectedPattern?.context ?? null}
-                        indexOffset={indexOffset}
-                        takeProfit={selectedDecision?.take_profit ?? null}
-                        stopLoss={selectedDecision?.stop_loss ?? null}
-                        width={chartWidth ?? 320}
-                      />
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-dim)" }}>
-                      {selectedPattern ? (
-                        <>
-                          <span className="inline-block w-3.5" style={{ borderTop: "1.5px dashed var(--accent)" }} />
-                          Figure détectée par George : {selectedPattern.pattern_type}
-                        </>
-                      ) : (
-                        "Aucune figure active détectée pour ce titre."
-                      )}
-                    </div>
-                    <dl className="m-0 grid gap-x-3 gap-y-1 text-[11.5px]" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-                      <dt style={{ color: "var(--text-dim)" }}>Pattern détecté</dt>
-                      <dd className="m-0 text-right font-semibold">{selectedPattern?.pattern_type ?? "—"}</dd>
-                      <dt style={{ color: "var(--text-dim)" }}>Confiance</dt>
-                      <dd className="m-0 text-right font-semibold">
-                        {selectedPattern ? `${Math.round(selectedPattern.confidence)}%` : "—"}
-                      </dd>
-                      <dt style={{ color: "var(--text-dim)" }}>Décision</dt>
-                      <dd className="m-0 text-right">
-                        {selectedDecision ? (
-                          <span className={decisionTagClass(selectedDecision.decision_type)}>
-                            {selectedDecision.decision_type}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </dd>
-                    </dl>
-                    {selectedDecision && (
-                      <>
-                        <div className="grid gap-2 text-center" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-                          <div className="p-2 rounded-lg border" style={{ borderColor: "var(--hairline)" }}>
-                            <div className="gd-label">Take-profit</div>
-                            <div className="mono text-[15px] font-semibold mt-0.5" style={{ color: "var(--positive)" }}>
-                              {selectedDecision.take_profit != null ? `${selectedDecision.take_profit.toFixed(2)} €` : "—"}
-                            </div>
-                          </div>
-                          <div className="p-2 rounded-lg border" style={{ borderColor: "var(--hairline)" }}>
-                            <div className="gd-label">Stop-loss</div>
-                            <div className="mono text-[15px] font-semibold mt-0.5" style={{ color: "var(--negative)" }}>
-                              {selectedDecision.stop_loss != null ? `${selectedDecision.stop_loss.toFixed(2)} €` : "—"}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            className="gd-btn gd-btn--solid"
-                            style={{ flex: "1 1 140px", minHeight: 40 }}
-                            onClick={() =>
-                              setPopup({ title: "Niveaux", status: "done", text: `Niveaux validés pour ${selectedSymbol}.` })
-                            }
-                          >
-                            Valider les niveaux
-                          </button>
-                          <button
-                            className="gd-btn"
-                            style={{ flex: "1 1 100px", minHeight: 40 }}
-                            onClick={() =>
-                              setPopup({
-                                title: "Niveaux",
-                                status: "done",
-                                text: `Ajustement des niveaux pour ${selectedSymbol} en cours de discussion.`,
-                              })
-                            }
-                          >
-                            Ajuster
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-              </section>
-
-              {selectedSecurity && (
-                <Panel title="Raisonnement / George">
-                  <pre className="mono m-0 text-[11.5px] leading-relaxed whitespace-pre-wrap">
-                    {reasoningLines.map((line, i) => `${String(31 + i).padStart(3, "0")}  ${line}`).join("\n")}
-                  </pre>
-                  <p className="m-0 text-[12px] leading-relaxed" style={{ color: "var(--text-dim)" }}>
-                    {selectedDecision?.rationale ??
-                      (selectedDecision
-                        ? "Aucune note courte pour cette décision — demandez l'explication complète à George."
-                        : "Aucune décision enregistrée pour ce titre — posez une question à George dans la barre en bas si vous voulez son avis.")}
-                  </p>
-                  {selectedDecision && (
-                    <button
-                      className="gd-btn self-start"
-                      disabled={explainMutation.isPending}
-                      onClick={() => {
-                        const title = `George explique — ${selectedSymbol}`;
-                        setPopup({ title, status: "loading", text: null });
-                        explainMutation.mutate(
-                          { decisionId: selectedDecision.id },
-                          {
-                            onSuccess: (data) => setPopup({ title, status: "done", text: data.explanation }),
-                            onError: (err) => setPopup({ title, status: "error", text: err.message }),
-                          }
-                        );
-                      }}
-                    >
-                      {explainMutation.isPending ? "George réfléchit…" : "Demander une analyse à George →"}
-                    </button>
-                  )}
-                </Panel>
-              )}
-            </div>
+              </Panel>
+            )}
           </div>
 
           {/* Grille de panneaux */}

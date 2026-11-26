@@ -8,6 +8,8 @@ const SPIKE_SPAN = 0.5; // longueur ajoutée à 100 % de confiance
 export const MAX_RADIUS = RING + TUBE + SPIKE_MIN + SPIKE_SPAN;
 const CAMERA = 5.2; // distance de la caméra (perspective)
 const TAP_PX = 22; // tolérance d'un clic ou d'un toucher
+const SECTOR_GAP = 2; // places vides entre deux familles de secteur
+const MIN_FAMILY_SIZE = 3;
 
 export function torusPoint(u, v, radius = TUBE) {
   const d = RING + radius * Math.cos(v);
@@ -41,9 +43,46 @@ export function buildStrands(count = 300, steps = 48) {
   });
 }
 
-// Une valeur = une boucle autour du tube et une antenne sur le bord extérieur,
-// à l'angle qu'elle occupe aussi sur le radar. La longueur de l'antenne suit
-// la confiance de la dernière figure détectée (`items` vient de buildRadar).
+// Les valeurs sont rangées autour de l'anneau par grande famille de secteur
+// (la partie avant " / " : "Santé / Biotechnologie" et "Santé / Pharmacie" →
+// "Santé"), la plus grosse d'abord, avec un écart entre deux familles. Les
+// familles de moins de MIN_FAMILY_SIZE valeurs sont réunies en fin d'anneau.
+const sectorFamily = (sector) => (sector || "Autre").split(" / ")[0].trim() || "Autre";
+
+export function buildItems(securities, patternsBySymbol, decisionsMap) {
+  const families = new Map();
+  for (const security of securities) {
+    const key = sectorFamily(security.sector);
+    if (!families.has(key)) families.set(key, []);
+    families.get(key).push(security);
+  }
+  const all = [...families.values()];
+  const groups = all.filter((list) => list.length >= MIN_FAMILY_SIZE).sort((a, b) => b.length - a.length);
+  const others = all.filter((list) => list.length < MIN_FAMILY_SIZE).flat();
+  if (others.length) groups.push(others);
+  const slots = securities.length + groups.length * SECTOR_GAP;
+  const step = slots > 0 ? (Math.PI * 2) / slots : 0;
+
+  let slot = 0;
+  return groups.flatMap((list) => {
+    const items = list.map(({ symbol, name }) => {
+      const pattern = patternsBySymbol?.[symbol] ?? null;
+      return {
+        symbol,
+        name,
+        angle: -Math.PI / 2 + slot++ * step,
+        confidence: pattern ? Math.max(0, Math.min(100, pattern.confidence)) : null,
+        decision: decisionsMap?.[symbol]?.decision_type ?? null,
+      };
+    });
+    slot += SECTOR_GAP;
+    return items;
+  });
+}
+
+// Une valeur = une boucle autour du tube et une antenne sur le bord extérieur.
+// La longueur de l'antenne suit la confiance de la dernière figure détectée
+// (`items` vient de buildItems).
 export function buildFilaments(items, steps = 36) {
   return items.map((item) => {
     const length = SPIKE_MIN + ((item.confidence ?? 0) / 100) * SPIKE_SPAN;
@@ -82,20 +121,22 @@ export function makeProjector({ spin = 0, yaw, tilt, width, height }) {
   };
 }
 
-// Cartes affichées à côté du tore : les dernières décisions des valeurs
-// suivies, la plus récente en premier. La valeur sélectionnée a toujours la
-// sienne : en dernier si elle n'est pas parmi les plus récentes, pour que les
-// autres cartes ne bougent pas.
-export function buildCards(items, decisionsMap, selectedSymbol, count = 6) {
+// Cartes du fil affiché à côté du tore : les décisions enregistrées des valeurs
+// suivies (la dernière de chaque valeur), la plus récente en premier. Au-delà de
+// `count`, le fil défile en boucle : à chaque pas, la carte précédente de la
+// liste entre par le haut et celle du bas sort (au premier pas, la plus
+// ancienne). Aucune décision n'est inventée ni redatée.
+export function buildCards(items, decisionsMap, count = 6, step = 0) {
   const bySymbol = new Map(items.map((item) => [item.symbol, item]));
-  const card = (symbol) => ({ ...bySymbol.get(symbol), detail: decisionsMap?.[symbol] ?? null });
-  const recent = Object.values(decisionsMap ?? {})
+  const all = Object.values(decisionsMap ?? {})
     .filter((decision) => bySymbol.has(decision.symbol))
-    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
-    .slice(0, count)
-    .map((decision) => card(decision.symbol));
-  if (!bySymbol.has(selectedSymbol) || recent.some((c) => c.symbol === selectedSymbol)) return recent;
-  return [...recent.slice(0, count - 1), card(selectedSymbol)];
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  const total = all.length;
+  const start = total > count ? (total - (step % total)) % total : 0;
+  return Array.from({ length: Math.min(count, total) }, (_, i) => {
+    const decision = all[(start + i) % total];
+    return { ...bySymbol.get(decision.symbol), detail: decision };
+  });
 }
 
 // Valeur dont l'antenne (son extrémité) est la plus proche du point cliqué,
