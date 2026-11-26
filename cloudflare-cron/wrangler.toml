@@ -27,8 +27,12 @@ compatibility_date = "2026-01-01"
 # le même process Render gratuit (qui sert aussi le trafic web/mobile en
 # direct) auraient pu le faire ramer pendant la fenêtre -- trouvé par
 # /code-review avant même ce problème de quota.
+# DÉSACTIVÉ (nov. 2026) : les collectes sont de nouveau planifiées par GitHub
+# Actions (../.github/workflows/*.yml). Liste vide = `wrangler deploy` retire
+# le déclencheur du Worker déjà déployé. Ne pas le remettre sans retirer
+# d'abord les `schedule:` GitHub, sinon chaque collecte tourne deux fois.
 [triggers]
-crons = ["0,30 * * * *"]
+crons = []
 
 # URL publique de l'API -- pas un secret, peut rester en clair ici.
 # CRON_SECRET, lui, ne va JAMAIS dans ce fichier : voir README.md
