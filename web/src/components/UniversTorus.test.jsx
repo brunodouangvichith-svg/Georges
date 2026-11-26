@@ -10,6 +10,7 @@ import {
   makeProjector,
   MAX_RADIUS,
   nearestFilament,
+  recentPatterns,
   torusPoint,
 } from "./torusLayout";
 
@@ -18,7 +19,8 @@ const securities = [
   { symbol: "BBB.PA", name: "Beta", sector: "Santé" },
   { symbol: "CCC.PA", name: "Gamma", sector: "Santé" },
 ];
-const patterns = { "AAA.PA": { confidence: 80 } };
+const patterns = { "AAA.PA": { confidence: 80, detected_at: "2026-11-25T10:00:00" } };
+const NOW = new Date("2026-11-27T12:00:00").getTime();
 const decisions = { "AAA.PA": { symbol: "AAA.PA", decision_type: "Achat", entry_price: 10, created_at: "2026-11-20T10:00:00" } };
 const filaments = () => buildFilaments(buildItems(securities, patterns, decisions));
 const radius = ([x, y, z]) => Math.hypot(x, y, z);
@@ -99,6 +101,12 @@ describe("torusLayout", () => {
     expect(buildPatternCards(items, { "AAA.PA": null }, 10)).toEqual([]);
   });
 
+  it("keeps only the patterns detected within the engine's freshness window", () => {
+    const daysAgo = (days) => ({ detected_at: new Date(NOW - days * 86400000).toISOString() });
+    const found = { A: daysAgo(0), B: daysAgo(7.4), C: daysAgo(7.6), D: null };
+    expect(Object.keys(recentPatterns(found, NOW))).toEqual(["A", "B"]);
+  });
+
   it("picks the spike under the pointer, and nothing far from every spike", () => {
     const all = filaments();
     const project = makeProjector({ yaw: 0, tilt: 0, width: 600, height: 600 });
@@ -112,6 +120,7 @@ describe("UniversTorus", () => {
   const props = { securities, patternsBySymbol: patterns, decisionsMap: decisions, selectedSymbol: "AAA.PA" };
 
   beforeEach(() => {
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
     // jsdom ne dessine pas : un contexte factice suffit.
     const context = new Proxy({}, { get: (target, key) => (key in target ? target[key] : () => {}) });
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context);
@@ -270,6 +279,15 @@ describe("UniversTorus", () => {
       expect(names()[0]).toBe("V11.PA");
       unmount();
     }
+  });
+
+  it("leaves old patterns out of the list and says when none is recent", () => {
+    const old = { "AAA.PA": { confidence: 80, detected_at: "2026-11-01T10:00:00" } };
+    render(<UniversTorus {...props} patternsBySymbol={old} onSelect={() => {}} />);
+    expect(screen.queryByRole("button", { name: /80 %/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/aucune détection sur les 7 derniers jours/)).toBeInTheDocument();
+    // L'antenne reste : la figure existe toujours sur le tore.
+    expect(screen.getByRole("img", { name: /1 avec une figure/ })).toBeInTheDocument();
   });
 
   it("describes the data and the selected security", () => {
