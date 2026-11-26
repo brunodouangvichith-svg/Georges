@@ -6,7 +6,6 @@ import UniversTorus from "../components/UniversTorus";
 import { decisionTagClass } from "../data";
 import { useElementWidth } from "../hooks/useElementWidth";
 import {
-  useAgentActivity,
   useDecisions,
   useLatestPatterns,
   useRefreshPrices,
@@ -19,13 +18,10 @@ import {
   useTriggerCollection,
 } from "../api/queries";
 
-// Écran Univers — tore 3D, fiche de la valeur sélectionnée en dessous, puis
-// grille de panneaux, dans le thème George d'origine (bleu nuit, blanc, accent
+// Écran Univers — tore 3D, puis côte à côte la fiche de la valeur sélectionnée
+// et ses fondamentaux, dans le thème George d'origine (bleu nuit, blanc, accent
 // bleu ; vert/orange/rouge pour les décisions). Toutes les données affichées
 // viennent de l'API : aucun chiffre de démonstration ici.
-
-const AGENT_STATUS_LABEL = { validated: "validé", pending: "en attente", quarantine: "quarantaine" };
-const AGENT_STATUS_COLOR = { validated: "var(--positive)", pending: "var(--warning)", quarantine: "var(--negative)" };
 
 function EmptyState({ children }) {
   return (
@@ -113,7 +109,6 @@ export default function Univers() {
 
   const { data: securitiesPage, isLoading: securitiesLoading, isError: securitiesError } = useSecurities({ limit: 200 });
   const { data: decisionsPage } = useDecisions({ limit: 200 });
-  const { data: agentPage } = useAgentActivity({ limit: 20 });
   const { data: riskData, isLoading: riskLoading, isError: riskError } = useRiskMetrics();
 
   const securities = useMemo(() => securitiesPage?.items ?? [], [securitiesPage]);
@@ -154,21 +149,6 @@ export default function Univers() {
   // entre `total` et leur nombre est le décalage à soustraire aux indices
   // absolus du `context` d'un pattern pour les replacer dans ce sous-ensemble.
   const indexOffset = selectedPricesPage ? selectedPricesPage.total - priceItems.length : 0;
-
-  const agentEvents = useMemo(() => agentPage?.items ?? [], [agentPage]);
-
-  // Sous-agents : dernier état connu par agent (les événements arrivent du
-  // plus récent au plus ancien), avec le nombre d'événements récents.
-  const agentSummary = useMemo(() => {
-    const byName = new Map();
-    for (const e of agentEvents) {
-      const cur = byName.get(e.agent_name);
-      if (cur) cur.count += 1;
-      else byName.set(e.agent_name, { name: e.agent_name, status: e.status, count: 1 });
-    }
-    return [...byName.values()];
-  }, [agentEvents]);
-  const maxAgentCount = Math.max(1, ...agentSummary.map((a) => a.count));
 
   return (
     <>
@@ -232,9 +212,10 @@ export default function Univers() {
             )}
           </section>
 
-          {/* Valeur sélectionnée, sous le tore */}
-          <div className="pb-3.5" style={{ borderBottom: "1px solid var(--hairline)" }}>
-            <section aria-label="Valeur sélectionnée" className="gd-panel">
+          {/* Sous le tore : valeur sélectionnée et fondamentaux côte à côte
+              (l'un sous l'autre quand la place manque) */}
+          <div className="flex flex-wrap items-start gap-3 pb-3.5">
+            <section aria-label="Valeur sélectionnée" className="gd-panel" style={{ flex: "999 1 520px", minWidth: 0 }}>
               <h2 className="gd-label">Valeur sélectionnée</h2>
               {securities.length > 0 && (
                 <select
@@ -354,12 +335,13 @@ export default function Univers() {
                 </>
               )}
             </section>
-          </div>
 
-          {/* Grille de panneaux */}
-          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))" }}>
             {selectedSecurity && (
-              <Panel title={`Fondamentaux / ${selectedSecurity.symbol}`} label="Fondamentaux">
+              <Panel
+                title={`Fondamentaux / ${selectedSecurity.symbol}`}
+                label="Fondamentaux"
+                style={{ flex: "1 1 300px", minWidth: 0 }}
+              >
                 <dl className="m-0 grid gap-x-3 gap-y-1 text-[11.5px]" style={{ gridTemplateColumns: "minmax(0, 1fr) auto" }}>
                   {[
                     ["Secteur", selectedFundamentals?.sector ?? "—"],
@@ -399,38 +381,6 @@ export default function Univers() {
                 )}
               </Panel>
             )}
-
-            <Panel title={`${agentSummary.length} sous-agents / dispatch`} label="Sous-agents">
-              {agentSummary.length === 0 ? (
-                <div className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
-                  Aucun sous-agent actif récemment.
-                </div>
-              ) : (
-                <div className="grid gap-x-3.5 gap-y-1.5" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-                  {agentSummary.map((a) => (
-                    <div key={a.name} className="flex flex-col gap-0.5 min-w-0">
-                      <div className="flex justify-between gap-1.5 text-[11px]">
-                        <span className="font-bold overflow-hidden text-ellipsis whitespace-nowrap">{a.name}</span>
-                        <span style={{ color: "var(--text-dim)" }}>{AGENT_STATUS_LABEL[a.status] ?? a.status}</span>
-                      </div>
-                      <div style={{ height: 6, borderRadius: 3, background: "var(--panel-alt)" }}>
-                        <div
-                          style={{
-                            height: 6,
-                            borderRadius: 3,
-                            width: `${Math.round((a.count / maxAgentCount) * 100)}%`,
-                            background: AGENT_STATUS_COLOR[a.status] ?? "var(--text-dim)",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="text-[10.5px]" style={{ color: "var(--text-dim)" }}>
-                barre = événements récents · vert validé, orange en attente, rouge quarantaine
-              </div>
-            </Panel>
           </div>
         </div>
       </div>

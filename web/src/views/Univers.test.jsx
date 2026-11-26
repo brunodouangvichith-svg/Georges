@@ -10,7 +10,6 @@ vi.mock("../api/queries", () => ({
   useSecurityPatterns: vi.fn(),
   useSecurityPrices: vi.fn(),
   useDecisions: vi.fn(),
-  useAgentActivity: vi.fn(),
   useLatestPatterns: vi.fn(),
   useChat: vi.fn(),
   useRefreshPrices: vi.fn(),
@@ -19,7 +18,6 @@ vi.mock("../api/queries", () => ({
 }));
 
 import {
-  useAgentActivity,
   useChat,
   useDecisions,
   useLatestPatterns,
@@ -36,7 +34,6 @@ import {
 function mockEmptyApi() {
   useSecurities.mockReturnValue({ data: { items: [], total: 0 }, isLoading: false, isError: false });
   useDecisions.mockReturnValue({ data: { items: [], total: 0 } });
-  useAgentActivity.mockReturnValue({ data: { items: [] } });
   useLatestPatterns.mockReturnValue({});
   useSecurityPatterns.mockReturnValue({ data: { items: [] } });
   useSecurityPrices.mockReturnValue({ data: { items: [], total: 0 } });
@@ -149,6 +146,19 @@ describe("Univers", () => {
     });
     render(<Univers />);
     expect(screen.getByText("1,11")).toBeInTheDocument();
+  });
+
+  it("puts the fundamentals panel next to the selected security, without the sub-agents panel", () => {
+    useSecurities.mockReturnValue({
+      data: { items: [{ symbol: "AIR.PA", name: "Airbus", sector: "Aéronautique" }], total: 1 },
+      isLoading: false,
+      isError: false,
+    });
+    render(<Univers />);
+    const panel = screen.getByRole("region", { name: "Valeur sélectionnée" });
+    const fundamentals = screen.getByRole("region", { name: "Fondamentaux" });
+    expect(fundamentals.parentElement).toBe(panel.parentElement);
+    expect(screen.queryByText(/sous-agents/i)).not.toBeInTheDocument();
   });
 
   it("changes the selected security from the dropdown, sorted by name", () => {
