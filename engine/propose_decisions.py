@@ -19,15 +19,18 @@ sur le même principe de séparation que `engine/reevaluate_decisions.py`
 Usage :
     python -m engine.propose_decisions
 """
+import logging
 from datetime import datetime, timezone
 
 import pandas as pd
 from sqlalchemy import select
 
-from engine.exit_levels import is_bullish, propose_levels
+from engine.exit_levels import are_levels_coherent, is_bullish, propose_levels
 from engine.run_detection import load_prices
 from ingestion.db import get_engine
 from ingestion.models import Decision, PatternDetected
+
+logger = logging.getLogger(__name__)
 
 MIN_PROPOSAL_CONFIDENCE = 50.0
 ACTIVE_WINDOW_SESSIONS = 5  # même fenêtre que engine.george_index.ACTIVE_WINDOW_SESSIONS
@@ -112,6 +115,13 @@ def run(as_of=None) -> list[dict]:
             take_profit, stop_loss = propose_levels(pattern.pattern_type, pattern.context, entry_price, df)
         except KeyError:
             continue  # type de figure non géré par exit_levels — ne devrait pas arriver
+        # Contrôle sur les valeurs arrondies, celles qui seront enregistrées.
+        if not are_levels_coherent(pattern.pattern_type, entry_price, round(take_profit, 2), round(stop_loss, 2)):
+            logger.warning(
+                "Proposition écartée pour %s (%s) : niveaux incohérents, entrée %.2f, TP %.2f, SL %.2f",
+                symbol, pattern.pattern_type, entry_price, take_profit, stop_loss,
+            )
+            continue
 
         with engine.begin() as conn:
             decision_id = conn.execute(

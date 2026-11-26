@@ -18,6 +18,9 @@ plutôt que dupliquées dans chaque fichier de pattern :
 - ``BREAKOUT_BUFFER`` (0.002 = 0.2 %) : marge exigée au-delà d'un niveau de
   résistance/support pour valider une cassure (breakout/breakdown), afin
   d'éviter de confirmer sur un simple bruit de clôture.
+- ``BREAKOUT_FRESHNESS_BARS`` (5 séances) : ancienneté maximale de la
+  **première** clôture ayant franchi le niveau après le dernier pivot de la
+  figure — voir `is_fresh_breakout`.
 
 Toutes les fonctions de détection prennent un ``pandas.DataFrame`` indexé par
 date, trié par ordre chronologique croissant, avec les colonnes
@@ -34,6 +37,7 @@ EXTREMA_ORDER = 3
 LEVEL_TOLERANCE = 0.03
 MIN_PATTERN_BARS = 10
 BREAKOUT_BUFFER = 0.002
+BREAKOUT_FRESHNESS_BARS = 5  # même horizon que engine.george_index.ACTIVE_WINDOW_SESSIONS
 RSI_WINDOW = 14
 RSI_NEUTRAL_ZONE = 50.0
 MACD_FAST_SPAN = 12
@@ -214,6 +218,26 @@ def stochastic_oscillator(
     percent_k = 100 * (close - lowest_low) / denom
     percent_d = percent_k.rolling(window=signal, min_periods=signal).mean()
     return percent_k, percent_d
+
+
+def is_fresh_breakout(close, last_pivot_idx: int, level: float, bullish: bool) -> bool:
+    """Vrai si aucune clôture entre le dernier pivot de la figure et les
+    `BREAKOUT_FRESHNESS_BARS` dernières séances n'avait déjà franchi `level`
+    (au-dessus si `bullish`, au-dessous sinon, marge `BREAKOUT_BUFFER`
+    comprise). L'appelant vérifie séparément que la dernière clôture est
+    au-delà du niveau.
+
+    Sans ce contrôle, "la dernière clôture est sous le support" reste vrai
+    indéfiniment après un effondrement : les détecteurs qui parcourent tout
+    l'historique (10 ans) retenaient une figure vieille de plusieurs années,
+    avec des niveaux de sortie sans rapport avec le cours (ATO.PA : double
+    sommet de 2024 "cassé" en 2026, stop à 179,56 € pour une entrée à
+    31,80 €). La tolérance de quelques séances couvre le rythme de la
+    détection, qui ne tourne que deux fois par semaine."""
+    before = np.asarray(close, dtype=float)[last_pivot_idx + 1 : -BREAKOUT_FRESHNESS_BARS]
+    if bullish:
+        return not bool((before > level * (1 + BREAKOUT_BUFFER)).any())
+    return not bool((before < level * (1 - BREAKOUT_BUFFER)).any())
 
 
 def last_row(df: pd.DataFrame):

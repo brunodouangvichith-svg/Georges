@@ -108,6 +108,17 @@ def is_bullish(pattern_type: str) -> bool:
     raise KeyError(f"Type de figure non classé bullish/bearish : {pattern_type}")
 
 
+def are_levels_coherent(pattern_type: str, entry_price: float, take_profit: float, stop_loss: float) -> bool:
+    """Vrai si les niveaux encadrent l'entrée dans le sens de la figure
+    (haussière : ``0 < stop < entrée < objectif`` ; baissière :
+    ``0 < objectif < entrée < stop``). Ne borne volontairement pas leur
+    distance : une figure ample donne des niveaux larges, que l'investisseur
+    revoit avant de confirmer. Faux aussi pour un niveau `NaN`."""
+    if is_bullish(pattern_type):
+        return 0 < stop_loss < entry_price < take_profit
+    return 0 < take_profit < entry_price < stop_loss
+
+
 def _recent_low(df: pd.DataFrame, window: int) -> float:
     return float(df["close"].iloc[-window:].min())
 
