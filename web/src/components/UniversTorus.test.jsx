@@ -100,13 +100,13 @@ describe("UniversTorus", () => {
     vi.unstubAllGlobals();
   });
 
-  // Huit valeurs avec une décision, de la plus récente (V0) à la plus ancienne.
-  const many = Array.from({ length: 8 }, (_, i) => ({ symbol: `V${i}.PA`, name: `Valeur ${i}`, sector: "Santé" }));
+  // Douze valeurs avec une décision, de la plus récente (V0) à la plus ancienne.
+  const many = Array.from({ length: 12 }, (_, i) => ({ symbol: `V${i}.PA`, name: `Valeur ${i}`, sector: "Santé" }));
   const feedProps = {
     securities: many,
     patternsBySymbol: {},
     decisionsMap: Object.fromEntries(
-      many.map(({ symbol }, i) => [symbol, { symbol, decision_type: "Achat", created_at: `2026-11-${20 - i}T10:00:00` }])
+      many.map(({ symbol }, i) => [symbol, { symbol, decision_type: "Achat", created_at: `2026-11-${30 - i}T10:00:00` }])
     ),
     selectedSymbol: "V0.PA",
     onSelect: () => {},
@@ -114,6 +114,7 @@ describe("UniversTorus", () => {
   // Sélecteurs directs : les requêtes par rôle, répétées, sont très lentes dans jsdom.
   const feedGroup = () => document.querySelector('[role="group"][aria-label="Dernières décisions"]');
   const feed = () => [...feedGroup().querySelectorAll("button strong")].map((symbol) => symbol.textContent);
+  const symbolsOf = (...ranks) => ranks.map((rank) => `V${rank}.PA`);
   const wait = (ms) => act(() => vi.advanceTimersByTime(ms));
   // Seul le minuteur du fil est simulé, et le tore n'est pas dessiné : sous
   // jsdom, le dessin rendrait ces tests très lents.
@@ -127,15 +128,15 @@ describe("UniversTorus", () => {
     for (const width of [900, 360]) {
       mockContainerWidth(width);
       const { unmount } = render(<UniversTorus {...feedProps} />);
-      expect(feed()).toEqual(["V0.PA", "V1.PA", "V2.PA", "V3.PA", "V4.PA", "V5.PA"]);
+      expect(feed()).toEqual(symbolsOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
       wait(3000);
-      expect(feed()).toEqual(["V7.PA", "V0.PA", "V1.PA", "V2.PA", "V3.PA", "V4.PA"]);
+      expect(feed()).toEqual(symbolsOf(11, 0, 1, 2, 3, 4, 5, 6, 7, 8));
       fireEvent.click(screen.getByText("Mettre en pause"));
       wait(9000);
-      expect(feed()[0]).toBe("V7.PA");
+      expect(feed()[0]).toBe("V11.PA");
       fireEvent.click(screen.getByText("Reprendre l'animation"));
       wait(3000);
-      expect(feed()[0]).toBe("V6.PA");
+      expect(feed()[0]).toBe("V10.PA");
       unmount();
     }
   });
@@ -150,21 +151,21 @@ describe("UniversTorus", () => {
     expect(feed()[0]).toBe("V0.PA");
     fireEvent.pointerOut(group);
     wait(3000);
-    expect(feed()[0]).toBe("V7.PA");
+    expect(feed()[0]).toBe("V11.PA");
     const card = group.querySelectorAll("button")[1];
     // jsdom ne sait pas dire si le focus vient du clavier : on le lui dit.
     card.matches = () => false; // focus donné par un clic
     act(() => card.focus());
     wait(3000);
-    expect(feed()[0]).toBe("V6.PA");
+    expect(feed()[0]).toBe("V10.PA");
     act(() => card.blur());
     card.matches = () => true;
     act(() => card.focus());
     wait(9000);
-    expect(feed()[0]).toBe("V6.PA");
+    expect(feed()[0]).toBe("V10.PA");
     act(() => card.blur());
     wait(3000);
-    expect(feed()[0]).toBe("V5.PA");
+    expect(feed()[0]).toBe("V9.PA");
   });
 
   it("finishes sliding the cards even when the torus is off screen", () => {
@@ -211,7 +212,7 @@ describe("UniversTorus", () => {
     width.mockReturnValue(360);
     act(() => resize());
     wait(3000);
-    expect(feed()[0]).toBe("V7.PA");
+    expect(feed()[0]).toBe("V11.PA");
   });
 
   it("stays still when reduced motion is requested", () => {

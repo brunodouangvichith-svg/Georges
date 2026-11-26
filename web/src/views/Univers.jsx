@@ -7,7 +7,6 @@ import { useElementWidth } from "../hooks/useElementWidth";
 import {
   useAgentActivity,
   useDecisions,
-  useExplainDecision,
   useLatestPatterns,
   useRefreshPrices,
   useSecurities,
@@ -49,7 +48,6 @@ export default function Univers() {
   const [popup, setPopup] = useState(null); // { title, status: "listening"|"loading"|"done"|"error", text }
   // Le graphique en chandeliers prend la largeur de son cadre.
   const [chartRef, chartWidth] = useElementWidth();
-  const explainMutation = useExplainDecision();
   const refreshPricesMutation = useRefreshPrices();
   // Annule le polling de useRefreshPrices (voir queries.js) si l'écran est
   // démonté avant la fin — sans ça, la boucle de polling continue en
@@ -169,19 +167,6 @@ export default function Univers() {
   }, [agentEvents]);
   const maxAgentCount = Math.max(1, ...agentSummary.map((a) => a.count));
 
-  const reasoningLines = selectedSecurity
-    ? [
-        `serie    = prices("${selectedSymbol}", ${priceItems.length})`,
-        `figure   = detect(serie) → ${selectedPattern?.pattern_type ?? "aucune"}`,
-        selectedPattern ? `conf     = ${Math.round(selectedPattern.confidence)} %` : null,
-        selectedDecision
-          ? `decision = ${selectedDecision.decision_type}` +
-            (selectedDecision.take_profit != null ? ` · tp ${selectedDecision.take_profit.toFixed(2)}` : "") +
-            (selectedDecision.stop_loss != null ? ` · sl ${selectedDecision.stop_loss.toFixed(2)}` : "")
-          : "decision = —",
-      ].filter(Boolean)
-    : [];
-
   return (
     <>
       <ResponsePopup popup={popup} onClose={closePopup} />
@@ -244,9 +229,9 @@ export default function Univers() {
             )}
           </section>
 
-          {/* Valeur sélectionnée et raisonnement, sous le tore */}
-          <div className="flex flex-wrap items-start gap-3 pb-3.5" style={{ borderBottom: "1px solid var(--hairline)" }}>
-            <section aria-label="Valeur sélectionnée" className="gd-panel" style={{ flex: "2 1 520px" }}>
+          {/* Valeur sélectionnée, sous le tore */}
+          <div className="pb-3.5" style={{ borderBottom: "1px solid var(--hairline)" }}>
+            <section aria-label="Valeur sélectionnée" className="gd-panel">
               <h2 className="gd-label">Valeur sélectionnée</h2>
               {securities.length > 0 && (
                 <select
@@ -360,39 +345,6 @@ export default function Univers() {
                 </>
               )}
             </section>
-
-            {selectedSecurity && (
-              <Panel title="Raisonnement / George" style={{ flex: "1 1 340px" }}>
-                <pre className="mono m-0 text-[11.5px] leading-relaxed whitespace-pre-wrap">
-                  {reasoningLines.map((line, i) => `${String(31 + i).padStart(3, "0")}  ${line}`).join("\n")}
-                </pre>
-                <p className="m-0 text-[12px] leading-relaxed" style={{ color: "var(--text-dim)" }}>
-                  {selectedDecision?.rationale ??
-                    (selectedDecision
-                      ? "Aucune note courte pour cette décision — demandez l'explication complète à George."
-                      : "Aucune décision enregistrée pour ce titre — posez une question à George dans la barre en bas si vous voulez son avis.")}
-                </p>
-                {selectedDecision && (
-                  <button
-                    className="gd-btn self-start"
-                    disabled={explainMutation.isPending}
-                    onClick={() => {
-                      const title = `George explique — ${selectedSymbol}`;
-                      setPopup({ title, status: "loading", text: null });
-                      explainMutation.mutate(
-                        { decisionId: selectedDecision.id },
-                        {
-                          onSuccess: (data) => setPopup({ title, status: "done", text: data.explanation }),
-                          onError: (err) => setPopup({ title, status: "error", text: err.message }),
-                        }
-                      );
-                    }}
-                  >
-                    {explainMutation.isPending ? "George réfléchit…" : "Demander une analyse à George →"}
-                  </button>
-                )}
-              </Panel>
-            )}
           </div>
 
           {/* Grille de panneaux */}
