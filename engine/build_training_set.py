@@ -40,7 +40,9 @@ def run(output_path: str = OUTPUT_PATH) -> pd.DataFrame:
     samples = []
     for row in pattern_rows:
         df = price_frames.get(row.symbol)
-        if df is None:
+        # Une figure antérieure à la première séance chargée (rupture de prix
+        # écartée par `load_prices`) serait sinon rattachée à cette séance.
+        if df is None or row.detected_at < df.index[0]:
             continue
         at_idx = int(df.index.get_indexer([row.detected_at], method="nearest")[0])
         if at_idx < 0:

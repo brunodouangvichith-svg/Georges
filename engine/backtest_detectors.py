@@ -89,6 +89,9 @@ BASELINE_HOLD = 10  # durée de la base « entrée au hasard »
 CORRUPT_PERIODS: dict[str, list[tuple[str, str]]] = {
     "ATO.PA": [("2024-11-12", "2024-12-05")],
     "EMEIS.PA": [("2023-11-14", "2023-11-29")],
+    # Série qui change d'échelle une semaine avant la scission du 16/12/2024 :
+    # écarte ce qui chevauche la rupture (voir `engine/price_breaks.py`).
+    "VIV.PA": [("2024-12-09", "2024-12-09")],
 }
 
 CACHE_DIR = Path(__file__).resolve().parent / "data" / "backtest"

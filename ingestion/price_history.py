@@ -30,12 +30,29 @@ from ingestion.ohlcv import download_symbol
 logger = logging.getLogger(__name__)
 
 PERIOD = "10y"
+# Contrôle des sauts de prix : une clôture multipliée ou divisée par plus de
+# ce facteur d'une séance à l'autre, sur les `JUMP_CHECK_SESSIONS` dernières.
+JUMP_FACTOR = 2.0
+JUMP_CHECK_SESSIONS = 20
 
 
 def _to_aware(ts: pd.Timestamp):
     if ts.tzinfo is None:
         ts = ts.tz_localize("UTC")
     return ts.to_pydatetime()
+
+
+def recent_price_jumps(df: pd.DataFrame) -> list[tuple[pd.Timestamp, float]]:
+    """Séances récentes dont la clôture a varié de plus d'un facteur
+    `JUMP_FACTOR` : `[(date, rapport avec la clôture précédente)]`. Un tel
+    saut peut être réel ou trahir une rupture de la série
+    (`engine/price_breaks.py`) : à contrôler à la main."""
+    if df.empty:
+        return []
+    close = df["close"].dropna()
+    ratio = (close / close.shift()).iloc[-JUMP_CHECK_SESSIONS:]
+    jumps = ratio[(ratio > JUMP_FACTOR) | (ratio < 1 / JUMP_FACTOR)]
+    return [(ts, float(value)) for ts, value in jumps.items()]
 
 
 def upsert_price_history(engine, symbol: str, df: pd.DataFrame) -> int:
@@ -88,6 +105,9 @@ def run(period: str = PERIOD) -> dict[str, int]:
     results: dict[str, int] = {}
     for symbol in symbols:
         df = download_symbol(symbol, period=period)
+        if df is not None:
+            for ts, ratio in recent_price_jumps(df):
+                logger.warning("Saut de prix à contrôler pour %s le %s : clôture x%.3f", symbol, ts.date(), ratio)
         results[symbol] = upsert_price_history(engine, symbol, df) if df is not None else -1
     return results
 
