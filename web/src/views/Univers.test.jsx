@@ -8,8 +8,6 @@ vi.mock("../api/queries", () => ({
   useSecurityFundamentals: vi.fn(),
   useSecurityPatterns: vi.fn(),
   useSecurityPrices: vi.fn(),
-  useBaskets: vi.fn(),
-  useGeorgeIndex: vi.fn(),
   useDecisions: vi.fn(),
   useAgentActivity: vi.fn(),
   useEnergyPrices: vi.fn(),
@@ -22,12 +20,10 @@ vi.mock("../api/queries", () => ({
 
 import {
   useAgentActivity,
-  useBaskets,
   useChat,
   useDecisions,
   useEnergyPrices,
   useExplainDecision,
-  useGeorgeIndex,
   useLatestPatterns,
   useRefreshPrices,
   useSecurities,
@@ -41,7 +37,6 @@ import {
 function mockEmptyApi() {
   useSecurities.mockReturnValue({ data: { items: [], total: 0 }, isLoading: false, isError: false });
   useDecisions.mockReturnValue({ data: { items: [], total: 0 } });
-  useBaskets.mockReturnValue({ data: [] });
   useAgentActivity.mockReturnValue({ data: { items: [] } });
   useEnergyPrices.mockReturnValue({ data: [] });
   useLatestPatterns.mockReturnValue({});
@@ -49,7 +44,6 @@ function mockEmptyApi() {
   useSecurityPrices.mockReturnValue({ data: { items: [], total: 0 } });
   useSecurityFundamentals.mockReturnValue({ data: undefined });
   useSecurityDividends.mockReturnValue({ data: { items: [], total: 0 } });
-  useGeorgeIndex.mockReturnValue({ data: null, isLoading: false });
   useChat.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useExplainDecision.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useRefreshPrices.mockReturnValue({ mutate: vi.fn(), isPending: false });
@@ -80,10 +74,28 @@ describe("Univers", () => {
       isError: false,
     });
     render(<Univers />);
-    expect(screen.getByText("AIR.PA")).toBeInTheDocument();
-    // "Airbus" apparaît à la fois dans la ligne de la watchlist et dans le
-    // panneau de détail (la première valeur est auto-sélectionnée).
-    expect(screen.getAllByText("Airbus").length).toBeGreaterThan(0);
+    // La première valeur est sélectionnée d'office dans le panneau de détail.
+    expect(screen.getByText("Airbus")).toBeInTheDocument();
+  });
+
+  it("changes the selected security from the dropdown, sorted by name", () => {
+    useSecurities.mockReturnValue({
+      data: {
+        items: [
+          { symbol: "TTE.PA", name: "TotalEnergies", sector: "Énergie" },
+          { symbol: "AIR.PA", name: "Airbus", sector: "Aéronautique" },
+        ],
+        total: 2,
+      },
+      isLoading: false,
+      isError: false,
+    });
+    render(<Univers />);
+    const select = screen.getByLabelText("Choisir une valeur");
+    expect([...select.options].map((o) => o.value)).toEqual(["AIR.PA", "TTE.PA"]);
+    fireEvent.change(select, { target: { value: "AIR.PA" } });
+    expect(select).toHaveValue("AIR.PA");
+    expect(screen.getByText("Airbus")).toBeInTheDocument();
   });
 
   it("invites the user to ask George when no decision exists for the selected security", () => {

@@ -3,11 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, apiPatch, apiPost } from "./client";
 
 // Chaque hook correspond à un endpoint de l'API George (Phase 3, voir
-// api/routers/). Pas d'endpoint de lot pour "pattern/prix par titre" côté
-// API : useSecurityPatterns/useSecurityPrices sont appelés une fois par
-// ligne de la watchlist (React Query dédoublonne/parallélise les requêtes,
-// mais ça reste du N+1 — acceptable pour l'univers CAC 40 à ce stade, à
-// revoir si l'univers suivi grossit beaucoup).
+// api/routers/).
 
 export function useSecurities({ basketId, limit = 100 } = {}) {
   return useQuery({
@@ -67,18 +63,6 @@ export function useSecurityDividends(symbol, { limit = 5 } = {}) {
 
 export function useEnergyPrices() {
   return useQuery({ queryKey: ["energy-prices"], queryFn: () => apiFetch("/energy-prices") });
-}
-
-export function useBaskets() {
-  return useQuery({ queryKey: ["baskets"], queryFn: () => apiFetch("/baskets") });
-}
-
-export function useGeorgeIndex(basketId) {
-  return useQuery({
-    queryKey: ["george-index", basketId],
-    queryFn: () => apiFetch(`/baskets/${basketId}/george-index`),
-    enabled: basketId != null,
-  });
 }
 
 export function useDecisions({ decisionType, status, basketId, limit = 100 } = {}) {

@@ -74,8 +74,13 @@ Vite + React 19 + Tailwind CSS v4 (via `@tailwindcss/postcss`) + Recharts (donut
 Any data still explicitly fictive/illustrative (`seed_demo.py` output) says so in the UI or in code comments — don't remove those disclaimers or present them as real. (The macro tile itself is no longer fictive — see the Energy Market section below.)
 
 ### Téléphone (nov. 2026, inspiré du dépôt artisan-marin)
-- Sous 768 px de large, ou sur écran tactile de moins de 500 px de haut (paysage) : barre d'onglets en bas (`Layout.jsx`, `.gd-tabbar`), onglets du haut masqués, champs à 16 px (sinon l'iPhone zoome), boutons de 44 px, watchlist sans les colonnes Secteur et Tendance. La requête est répétée dans `Univers.jsx:PHONE_QUERY`.
+- Sous 768 px de large, ou sur écran tactile de moins de 500 px de haut (paysage) : barre d'onglets en bas (`Layout.jsx`, `.gd-tabbar`), onglets du haut masqués, champs à 16 px (sinon l'iPhone zoome), boutons de 44 px.
 - Marges `env(safe-area-inset-*)` et `100dvh` dans `.gd-shell` (`viewport-fit=cover`).
 - L'onglet est porté par l'adresse (`hooks/useViewHistory.js`, `?view=`) : le retour du téléphone revient à l'onglet précédent, et ferme d'abord la fenêtre de réponse ouverte (`hooks/useBackToClose.js`, utilisé par `ResponsePopup`). Les raccourcis du manifeste (`vite.config.js`) ouvrent Trading, Obligataire ou Rapport ; l'écran demandé est perdu si la connexion Google s'intercale.
 - Barre « Installer George » (`components/InstallBar.jsx`, `lib/install.js`) : invite native si le navigateur la propose, sinon mode d'emploi ; masquable, absente de l'application installée.
 - Pas encore essayé sur un vrai téléphone.
+
+### Accueil allégé (nov. 2026, demande de l'utilisateur)
+- Les panneaux « Journal / sous-agents » et « George Index / paniers » ne sont plus sur l'écran Univers ; `GeorgeIndexTile`, `useBaskets` et `useGeorgeIndex` ont été supprimés du web. L'API des paniers est inchangée.
+- Le panneau « Watchlist / figures actives » a aussi été retiré, avec `WatchlistRow` et `Sparkline`. Une valeur se choisit sur le radar ou dans le menu « Choisir une valeur » de la fiche (seul moyen au clavier).
+- Les cinq compteurs d’en-tête (Valeurs, Figures actives, Achat, Surveiller, Alléger) ont été retirés, avec `Counter`.

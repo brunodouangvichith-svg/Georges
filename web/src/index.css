@@ -57,17 +57,6 @@ body {
   min-width: 0;
 }
 
-/* Panneau qui occupe deux colonnes de la grille, sauf sur écran étroit où
-   la grille n'en a qu'une (sinon débordement horizontal). */
-.gd-wide {
-  grid-column: span 2;
-}
-@media (max-width: 720px) {
-  .gd-wide {
-    grid-column: auto;
-  }
-}
-
 .gd-btn {
   font-family: inherit;
   font-size: 12px;
@@ -191,11 +180,8 @@ body {
 .gd-install {
   display: none;
 }
-.gd-watchlist {
-  min-width: 620px;
-}
 
-/* Téléphone, en portrait comme en paysage (même requête : Univers.jsx). */
+/* Téléphone, en portrait comme en paysage. */
 @media (max-width: 767px), (max-height: 500px) and (pointer: coarse) {
   .gd-header {
     gap: 12px;
@@ -266,42 +252,6 @@ body {
   }
   .gd-icon-btn {
     min-width: 44px;
-  }
-
-  /* Watchlist : valeur, figure, confiance et décision tiennent sans
-     défilement horizontal ; secteur et courbe restent sur grand écran. */
-  .gd-watchlist {
-    min-width: 0;
-  }
-  .gd-watchlist :is(th, td):nth-child(2),
-  .gd-watchlist :is(th, td):nth-child(3),
-  .gd-watchlist td:nth-child(5) div > div {
-    display: none;
-  }
-  .gd-watchlist td:nth-child(5) span {
-    margin-left: 0;
-  }
-  /* !important : les marges des cellules sont posées en style en ligne. */
-  .gd-watchlist :is(th, td) {
-    padding-left: 3px !important;
-    padding-right: 3px !important;
-    overflow-wrap: anywhere;
-  }
-  .gd-watchlist .gd-tag {
-    padding: 2px 5px;
-    white-space: nowrap;
-    overflow-wrap: normal;
-  }
-  .gd-watchlist th {
-    letter-spacing: 0;
-    text-transform: none;
-    overflow-wrap: normal;
-  }
-}
-/* Très petits écrans : la confiance reste visible dans la fiche de la valeur. */
-@media (max-width: 359px) {
-  .gd-watchlist :is(th, td):nth-child(5) {
-    display: none;
   }
 }
 
