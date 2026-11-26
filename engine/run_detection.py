@@ -11,6 +11,8 @@ Usage :
     python -m engine.run_detection
 """
 
+import datetime
+
 import pandas as pd
 from sqlalchemy import select
 
@@ -48,6 +50,41 @@ def load_prices(engine, symbol: str) -> pd.DataFrame:
     if df.empty:
         return df
     df.index = pd.to_datetime(df.index)
+    # Écarte aussi les séances antérieures à une rupture d'échelle connue
+    # (`engine/price_breaks.py`).
+    return trim_before_break(symbol, _clean_prices(df))
+
+
+def load_recent_prices(bind, since: datetime.datetime) -> dict[str, pd.DataFrame]:
+    """`{symbol: OHLCV}` de tout l'univers depuis `since`, en une seule requête
+    (même source et même nettoyage que `load_prices`) — pour les écrans qui ont
+    besoin de tous les titres à la fois sans une requête par titre. `bind` :
+    moteur ou connexion."""
+    stmt = (
+        select(
+            PriceHistoryLong.symbol,
+            PriceHistoryLong.ts,
+            PriceHistoryLong.open,
+            PriceHistoryLong.high,
+            PriceHistoryLong.low,
+            PriceHistoryLong.close,
+            PriceHistoryLong.volume,
+        )
+        .where(PriceHistoryLong.ts >= since)
+        .order_by(PriceHistoryLong.symbol, PriceHistoryLong.ts)
+    )
+    df = pd.read_sql(stmt, bind, index_col="ts")
+    if df.empty:
+        return {}
+    df.index = pd.to_datetime(df.index, utc=True)
+    # Nettoyé d'un bloc : une conversion par titre coûtait plusieurs secondes.
+    return {
+        symbol: trim_before_break(symbol, group.drop(columns="symbol"))
+        for symbol, group in _clean_prices(df).groupby("symbol")
+    }
+
+
+def _clean_prices(df: pd.DataFrame) -> pd.DataFrame:
     df = df.astype({"open": float, "high": float, "low": float, "close": float, "volume": "int64"})
     # Une séance encore en cours au moment de l'ingestion peut avoir un
     # `close` NaN (open/high/low/volume réels par ailleurs — même piège déjà
@@ -59,9 +96,7 @@ def load_prices(engine, symbol: str) -> pd.DataFrame:
     # confiance NaN (`patterns_detected`), puis un `entry_price` NaN
     # (`decisions`), jusqu'à faire planter `engine.propose_decisions` sur
     # une comparaison Postgres avec un `Decimal('NaN')`.
-    # Écarte aussi les séances antérieures à une rupture d'échelle connue
-    # (`engine/price_breaks.py`).
-    return trim_before_break(symbol, df[df["close"].notna()])
+    return df[df["close"].notna()]
 
 
 def run() -> int:

@@ -13,6 +13,7 @@ vi.mock("../api/queries", () => ({
   useLatestPatterns: vi.fn(),
   useChat: vi.fn(),
   useRefreshPrices: vi.fn(),
+  useRiskMetrics: vi.fn(),
   useTriggerCollection: vi.fn(),
 }));
 
@@ -21,6 +22,7 @@ import {
   useDecisions,
   useLatestPatterns,
   useRefreshPrices,
+  useRiskMetrics,
   useSecurities,
   useSecurityDividends,
   useSecurityFundamentals,
@@ -38,6 +40,7 @@ function mockEmptyApi() {
   useSecurityFundamentals.mockReturnValue({ data: undefined });
   useSecurityDividends.mockReturnValue({ data: { items: [], total: 0 } });
   useChat.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  useRiskMetrics.mockReturnValue({ data: undefined, isLoading: false, isError: false });
   useRefreshPrices.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useTriggerCollection.mockReturnValue({ mutate: vi.fn(), isPending: false });
 }
@@ -101,6 +104,48 @@ describe("Univers", () => {
     const torus = screen.getByRole("region", { name: "Tore 3D de l'univers" });
     const panel = screen.getByRole("region", { name: "Valeur sélectionnée" });
     expect(torus.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows the risk measures of the selected security only", () => {
+    useSecurities.mockReturnValue({
+      data: {
+        items: [
+          { symbol: "AIR.PA", name: "Airbus", sector: "Aéronautique" },
+          { symbol: "TTE.PA", name: "TotalEnergies", sector: "Énergie" },
+        ],
+        total: 2,
+      },
+      isLoading: false,
+      isError: false,
+    });
+    useRiskMetrics.mockReturnValue({
+      data: {
+        index: { name: "CAC 40", available: true, as_of: "2026-11-25" },
+        items: [
+          { symbol: "AIR.PA", beta: 1.11, sector_peers: 0 },
+          { symbol: "TTE.PA", beta: 0.77, sector_peers: 0 },
+        ],
+      },
+    });
+    render(<Univers />);
+    expect(screen.getByText("1,11")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Choisir une valeur" }), { target: { value: "TTE.PA" } });
+    expect(screen.getByText("0,77")).toBeInTheDocument();
+    expect(screen.queryByText("1,11")).not.toBeInTheDocument();
+  });
+
+  it("keeps the measures already shown when a background refresh fails", () => {
+    useSecurities.mockReturnValue({
+      data: { items: [{ symbol: "AIR.PA", name: "Airbus", sector: "Aéronautique" }], total: 1 },
+      isLoading: false,
+      isError: false,
+    });
+    useRiskMetrics.mockReturnValue({
+      data: { index: { name: "CAC 40", available: false }, items: [{ symbol: "AIR.PA", beta: 1.11 }] },
+      isError: true,
+    });
+    render(<Univers />);
+    expect(screen.getByText("1,11")).toBeInTheDocument();
   });
 
   it("puts the fundamentals panel next to the selected security, without the sub-agents panel", () => {

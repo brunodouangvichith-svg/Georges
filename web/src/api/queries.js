@@ -36,6 +36,16 @@ export function useLatestPatterns(symbols) {
   }, [data, symbols]);
 }
 
+// Liquidité et risque de tout l'univers en un seul appel ; la fiche de l'écran
+// Univers y pioche la valeur sélectionnée.
+export function useRiskMetrics() {
+  return useQuery({
+    queryKey: ["risk-metrics"],
+    queryFn: () => apiFetch("/securities/risk-metrics"),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useSecurityPrices(symbol, { limit = 250 } = {}) {
   return useQuery({
     queryKey: ["security-prices", symbol, limit],

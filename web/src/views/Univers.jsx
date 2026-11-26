@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CandlestickChart from "../components/CandlestickChart";
 import ResponsePopup from "../components/ResponsePopup";
+import RiskMetrics from "../components/RiskMetrics";
 import UniversTorus from "../components/UniversTorus";
 import { decisionTagClass } from "../data";
 import { useElementWidth } from "../hooks/useElementWidth";
@@ -8,6 +9,7 @@ import {
   useDecisions,
   useLatestPatterns,
   useRefreshPrices,
+  useRiskMetrics,
   useSecurities,
   useSecurityDividends,
   useSecurityFundamentals,
@@ -107,6 +109,7 @@ export default function Univers() {
 
   const { data: securitiesPage, isLoading: securitiesLoading, isError: securitiesError } = useSecurities({ limit: 200 });
   const { data: decisionsPage } = useDecisions({ limit: 200 });
+  const { data: riskData, isLoading: riskLoading, isError: riskError } = useRiskMetrics();
 
   const securities = useMemo(() => securitiesPage?.items ?? [], [securitiesPage]);
   const symbols = useMemo(() => securities.map((s) => s.symbol), [securities]);
@@ -281,6 +284,12 @@ export default function Univers() {
                       )}
                     </dd>
                   </dl>
+                  <RiskMetrics
+                    metrics={riskData?.items?.find((m) => m.symbol === selectedSymbol)}
+                    index={riskData?.index}
+                    loading={riskLoading}
+                    error={riskError && !riskData}
+                  />
                   {selectedDecision && (
                     <>
                       <div className="grid gap-2 text-center" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
