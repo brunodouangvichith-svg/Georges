@@ -68,14 +68,14 @@ describe("Rapport", () => {
     expect(screen.queryByText("LVMH")).not.toBeInTheDocument();
   });
 
-  it("recalls the current Obligataire values only when they differ from the report", () => {
+  it("recalls the current bond values only when they differ from the report", () => {
     const { unmount } = setup({ bonds: bonds(4.9, 140.2) });
-    expect(screen.queryByText(/Onglet Obligataire/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Valeur actuelle/)).not.toBeInTheDocument();
     unmount();
     setup({ bonds: bonds(4.62, 118) });
     expect(screen.getByText("4,90 %")).toBeInTheDocument();
-    expect(screen.getByText(/Onglet Obligataire : 4,62 % au 23 octobre 2026/)).toBeInTheDocument();
-    expect(screen.getByText(/Onglet Obligataire : \+118 pb au 23 octobre 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Valeur actuelle : 4,62 % au 23 octobre 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Valeur actuelle : \+118 pb au 23 octobre 2026/)).toBeInTheDocument();
   });
 
   it("dates both legs of the recalled spread when they differ", () => {
@@ -85,12 +85,12 @@ describe("Rapport", () => {
 
   it("never presents values older than the report as current", () => {
     setup({ bonds: bonds(4.62, 118, "2026-08-01", "2026-08-01") });
-    expect(screen.queryByText(/Onglet Obligataire/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Valeur actuelle/)).not.toBeInTheDocument();
   });
 
   it("says the current values are unavailable when the bond request fails", () => {
     setup({ bonds: bonds(4.62, 118), bondsError: true });
-    expect(screen.getAllByText(/Onglet Obligataire : valeur actuelle indisponible/)).toHaveLength(2);
+    expect(screen.getAllByText(/Valeur actuelle : indisponible/)).toHaveLength(2);
     expect(screen.queryByText(/4,62 %/)).not.toBeInTheDocument();
   });
 

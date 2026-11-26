@@ -34,7 +34,6 @@ export default defineConfig({
         // Appui long sur l'icône installée (Android) ; non géré par iOS.
         shortcuts: [
           ['Trading', 'trading'],
-          ['Obligataire', 'obligataire'],
           ['Rapport', 'rapport'],
         ].map(([name, view]) => ({
           name,

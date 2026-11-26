@@ -1,12 +1,13 @@
 import Layout from "./components/Layout";
 import Univers from "./views/Univers";
-import Obligataire from "./views/Obligataire";
 import Trading from "./views/Trading";
 import Energie from "./views/Energie";
 import Rapport from "./views/Rapport";
 import { useViewHistory } from "./hooks/useViewHistory";
 
-const VIEWS = ["univers", "trading", "energie", "obligataire", "rapport"];
+// L'écran views/Obligataire.jsx est conservé mais n'est plus proposé (demande
+// de l'utilisateur, nov. 2026).
+const VIEWS = ["univers", "trading", "energie", "rapport"];
 
 export default function App() {
   const [view, setView] = useViewHistory(VIEWS);
@@ -16,7 +17,6 @@ export default function App() {
       {view === "univers" && <Univers />}
       {view === "trading" && <Trading />}
       {view === "energie" && <Energie />}
-      {view === "obligataire" && <Obligataire />}
       {view === "rapport" && <Rapport />}
     </Layout>
   );

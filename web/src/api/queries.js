@@ -241,7 +241,7 @@ export function useGenerateStrategicReport() {
       return status;
     },
     // Le rapport fige les rendements en base au moment de la génération : le
-    // cache "Obligataire" peut être plus ancien, il est relu en même temps.
+    // cache obligataire peut être plus ancien, il est relu en même temps.
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["strategic-reports"] });
       queryClient.invalidateQueries({ queryKey: ["bonds"] });
