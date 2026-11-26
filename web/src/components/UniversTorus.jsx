@@ -10,6 +10,7 @@ import {
   buildStrands,
   makeProjector,
   nearestFilament,
+  recentPatterns,
 } from "./torusLayout";
 
 // Tore 3D de l'univers (écran Univers).
@@ -21,9 +22,10 @@ import {
 //   surlignée en blanc.
 // - Les autres fils sont décoratifs et ne représentent aucune donnée.
 // - Deux listes de cartes encadrent le tore quand la place le permet : à gauche
-//   les valeurs dont la dernière figure a la plus forte confiance, à droite les
-//   décisions enregistrées. Chaque carte est reliée à son antenne par une courbe ;
-//   faute de place, une liste passe sous le tore, sans courbe. Au-delà de dix,
+//   les valeurs dont la dernière figure, si elle est récente (recentPatterns), a
+//   la plus forte confiance, à droite les décisions enregistrées. Chaque carte est
+//   reliée à son antenne par une courbe ; faute de place, une liste passe sous le
+//   tore, sans courbe. Au-delà de dix,
 //   une liste défile en boucle (une carte toutes les FEED_MS), comme un flux de
 //   transactions ; chaque carte garde sa date. Un clic sur une carte sélectionne
 //   la valeur.
@@ -264,15 +266,21 @@ export default function UniversTorus({ securities, patternsBySymbol, decisionsMa
     () => buildCards(filaments, decisionsMap, CARD_COUNT, step),
     [filaments, decisionsMap, step]
   );
+  // La liste de gauche ne garde que les figures récentes ; les antennes, elles,
+  // montrent toutes les dernières figures.
+  const recent = useMemo(() => recentPatterns(patternsBySymbol, Date.now()), [patternsBySymbol]);
   const patternCards = useMemo(
-    () => buildPatternCards(filaments, patternsBySymbol, CARD_COUNT, step),
-    [filaments, patternsBySymbol, step]
+    () => buildPatternCards(filaments, recent, CARD_COUNT, step),
+    [filaments, recent, step]
   );
   const decisionsScroll = useMemo(
     () => filaments.filter((f) => decisionsMap?.[f.symbol]).length > CARD_COUNT,
     [filaments, decisionsMap]
   );
-  const patternsScroll = useMemo(() => filaments.filter((f) => f.confidence != null).length > CARD_COUNT, [filaments]);
+  const patternsScroll = useMemo(
+    () => filaments.filter((f) => recent[f.symbol]).length > CARD_COUNT,
+    [filaments, recent]
+  );
   const scrolls = decisionsScroll || patternsScroll;
   const [boxRef, boxWidth] = useElementWidth();
   const width = boxWidth ?? 640;
@@ -463,26 +471,33 @@ export default function UniversTorus({ securities, patternsBySymbol, decisionsMa
     },
   });
 
-  const patternList = { cards: patternCards, content: patternContent, ref: patternListRef, label: "Meilleures figures" };
+  const patternList = {
+    cards: patternCards,
+    content: patternContent,
+    ref: patternListRef,
+    label: "Meilleures figures",
+    title: "Meilleures figures · 7 jours",
+  };
   const decisionList = {
     cards: decisionCards,
     content: decisionContent,
     ref: decisionListRef,
     label: "Dernières décisions",
+    title: "Dernières décisions",
   };
 
-  const besideList = ({ cards, content, ref, label }, { left, top, listSize }) => (
+  const besideList = ({ cards, content, ref, label, title }, { left, top, listSize }) => (
     <>
-      <Heading style={{ position: "absolute", left, top: top - HEADING, width: cardWidth }}>{label}</Heading>
+      <Heading style={{ position: "absolute", left, top: top - HEADING, width: cardWidth }}>{title}</Heading>
       <div {...feedProps(ref, label)} style={{ position: "absolute", left, top, width: cardWidth, height: listSize }}>
         {cardList(cards, content, (i) => ({ position: "absolute", left: 0, top: i * CARD_STEP, width: cardWidth }))}
       </div>
     </>
   );
 
-  const belowList = ({ cards, content, ref, label }) => (
+  const belowList = ({ cards, content, ref, label, title }) => (
     <div className="flex w-full flex-col gap-1">
-      <Heading>{label}</Heading>
+      <Heading>{title}</Heading>
       <div className="w-full overflow-hidden p-1">
         <div {...feedProps(ref, label)} className="grid w-full gap-2">
           {cardList(cards, content)}
@@ -521,6 +536,11 @@ export default function UniversTorus({ securities, patternsBySymbol, decisionsMa
       </button>
       {!rightAside && decisionCards.length > 0 && belowList(decisionList)}
       {!leftAside && patternCards.length > 0 && belowList(patternList)}
+      {withPattern > 0 && patternCards.length === 0 && (
+        <p className="m-0 text-center text-[11px]" style={{ color: "var(--text-dim)" }}>
+          Meilleures figures : aucune détection sur les 7 derniers jours.
+        </p>
+      )}
     </div>
   );
 }

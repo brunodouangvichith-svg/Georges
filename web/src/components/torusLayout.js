@@ -143,6 +143,20 @@ export function buildCards(items, decisionsMap, count = 10, step = 0) {
   return loopWindow(all, count, step).map((decision) => ({ ...bySymbol.get(decision.symbol), detail: decision }));
 }
 
+// Fenêtre de fraîcheur d'une figure : celle du moteur (5 séances, comptées
+// 5 × 1,5 jours pour les week-ends et jours fériés, voir
+// engine/propose_decisions.py:_is_active).
+const RECENT_MS = 7.5 * 24 * 60 * 60 * 1000;
+
+// Dernières figures détectées depuis moins de RECENT_MS avant `now`.
+export function recentPatterns(patternsBySymbol, now) {
+  return Object.fromEntries(
+    Object.entries(patternsBySymbol ?? {}).filter(
+      ([, pattern]) => pattern && new Date(pattern.detected_at).getTime() > now - RECENT_MS
+    )
+  );
+}
+
 // Cartes de la liste des meilleures figures : la dernière figure de chaque
 // valeur suivie, classées par confiance (à égalité, la plus récente d'abord),
 // avec leur rang. Même défilement en boucle que les décisions.
