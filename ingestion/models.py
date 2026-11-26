@@ -638,7 +638,7 @@ class StrategicReport(Base):
     construction anti-hallucination :
     - `data` : tout ce qui est chiffré et calculé en Python (taux, spread,
       Brent, indice CAC 40, indicateur de risque, tableau des 40 valeurs,
-      portefeuille virtuel, sources web numérotées) — jamais produit par un LLM ;
+      sources web numérotées) — jamais produit par un LLM ;
     - `narrative_markdown` : le commentaire rédigé par le LLM à partir de ce
       seul contexte, qui ne peut citer que les chiffres présents dans `data`
       ou dans les extraits web numérotés de `data["sources"]`.
@@ -658,11 +658,9 @@ class StrategicReport(Base):
 
 
 class VirtualPortfolioTrade(Base):
-    """Ordre simulé du portefeuille virtuel du rapport stratégique (capital
-    initial 100 000 €, `engine/virtual_portfolio.py`). Jamais envoyé à un
-    courtier. L'état du portefeuille (positions, liquidités) est toujours
-    recalculé à partir de la suite complète des ordres, jamais stocké à part,
-    pour qu'il ne puisse pas diverger de son propre historique."""
+    """Ordre simulé de l'ancien portefeuille virtuel du rapport stratégique.
+    Fonction retirée : plus rien n'écrit ni ne lit cette table, gardée pour
+    son historique."""
 
     __tablename__ = "virtual_portfolio_trades"
 
@@ -682,9 +680,9 @@ class VirtualPortfolioTrade(Base):
 
 
 class VirtualPortfolioSnapshot(Base):
-    """Valorisation du portefeuille virtuel au moment d'un rapport — sert à
-    calculer la performance d'un rapport à l'autre sans revaloriser le passé
-    avec des prix d'aujourd'hui."""
+    """Ancienne valorisation du portefeuille virtuel par rapport. Fonction
+    retirée : table gardée pour son historique, comme
+    `VirtualPortfolioTrade`."""
 
     __tablename__ = "virtual_portfolio_snapshots"
 

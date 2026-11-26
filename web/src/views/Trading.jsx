@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Cac40Panel from "../components/Cac40Panel";
 import ResponsePopup from "../components/ResponsePopup";
 import { decisionColor, decisionTagClass } from "../data";
 import {
@@ -10,6 +11,7 @@ import {
   usePerformance,
   useProposeDecisions,
   useProposeLevels,
+  useStrategicReport,
 } from "../api/queries";
 
 // Onglet "Trading" — suivi du cycle de vie des décisions de George
@@ -431,6 +433,7 @@ export default function Trading() {
   };
   const explain = useExplainDecision();
   const performance = usePerformance();
+  const latestReport = useStrategicReport(null);
   const outcomes = Object.fromEntries((performance.data?.trades ?? []).map((t) => [t.decision_id, t]));
   const propose = useProposeDecisions();
   const monitor = useMonitorDecisions();
@@ -507,6 +510,8 @@ export default function Trading() {
               />
             ))}
           </div>
+
+          <Cac40Panel query={latestReport} />
         </div>
       </div>
     </>

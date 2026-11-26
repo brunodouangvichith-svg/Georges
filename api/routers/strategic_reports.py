@@ -4,8 +4,7 @@ que `api/routers/prices.py` : `POST /generate` lance le job en tâche de fond
 et répond tout de suite, les clients font un `GET /generate` en polling
 jusqu'à `done`/`failed`. Un seul job à la fois (`_lock`) : un second `POST`
 pendant une génération renvoie l'état en cours au lieu d'en lancer une autre
-(chaque génération passe des ordres simulés : deux en parallèle doubleraient
-les achats du portefeuille virtuel).
+(inutile de payer deux fois les appels Tavily et Mistral).
 
 La génération ouvre ses propres sessions sur un moteur dédié sans pool
 (`_job_engine`, construit depuis `deps.engine.url` lu à l'appel) et ne garde aucune connexion ouverte pendant

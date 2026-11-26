@@ -29,23 +29,9 @@ const report = {
     },
     cac40_index: { close: 7934.7, as_of: "2026-10-15", week_change_pct: 1.68 },
     energy: [{ code: "BRENT_CRUDE_USD", price: 106, as_of: "2026-10-16", change_24h_pct: 1.4 }],
-    portfolio: {
-      initial_capital: 100000,
-      fee_rate: 0.0015,
-      min_cash_ratio: 0.45,
-      cash: 92036.0,
-      positions_value: 7950,
-      total_value: 99986.0,
-      fees_total: 11.93,
-      performance_since_start_pct: -0.01,
-      previous_total_value: null,
-      performance_since_previous_pct: null,
-      positions: [{ symbol: "AIR.PA", name: "Airbus", quantity: 40, price: 198.75, value: 7950, weight_pct: 7.95 }],
-      trades: [{ symbol: "AIR.PA", name: "Airbus", side: "achat", quantity: 40, price: 198.75, gross: 7950, fees: 11.93, rationale: "Signal George « Achat » (confiance 80 %)" }],
-    },
     cac40: [
-      { symbol: "AIR.PA", name: "Airbus", sector: "Industrie", close: 198.75, week_change_pct: 2.1, decision_type: "Achat", confidence: 80, pattern_type: "Double Bottom", portfolio_action: "Achat simulé(e) : 40" },
-      { symbol: "MC.PA", name: "LVMH", sector: "Luxe", close: 396, week_change_pct: -3, decision_type: null, confidence: null, pattern_type: null, portfolio_action: null },
+      { symbol: "AIR.PA", name: "Airbus", sector: "Industrie", close: 198.75, week_change_pct: 2.1, decision_type: "Achat", confidence: 80, pattern_type: "Double Bottom" },
+      { symbol: "MC.PA", name: "LVMH", sector: "Luxe", close: 396, week_change_pct: -3, decision_type: null, confidence: null, pattern_type: null },
     ],
     sources: [{ n: 1, theme: "Croissance, emploi, inflation", titre: "Inflation en septembre", url: "https://www.insee.fr/x" }],
   },
@@ -61,7 +47,7 @@ function setup({ reportData = report, list = [{ id: 3, created_at: report.create
 describe("Rapport", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows the risk level, key figures, the commentary with linked sources and the portfolio", () => {
+  it("shows the risk level, key figures, the commentary with linked sources, without the CAC 40 table", () => {
     setup();
     expect(screen.getByText("ORANGE")).toBeInTheDocument();
     expect(screen.getByText("7 934,70")).toBeInTheDocument();
@@ -69,9 +55,7 @@ describe("Rapport", () => {
     expect(screen.getByText("3,1 %")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "[1]", hidden: true })).toHaveAttribute("href", "#source-1");
     expect(screen.getByRole("link", { name: "Inflation en septembre", hidden: true })).toHaveAttribute("href", "https://www.insee.fr/x");
-    expect(screen.getByText("Signal George « Achat » (confiance 80 %)")).toBeInTheDocument();
-    expect(screen.getByText("LVMH")).toBeInTheDocument();
-    expect(screen.getByText("Premier rapport")).toBeInTheDocument();
+    expect(screen.queryByText("LVMH")).not.toBeInTheDocument();
   });
 
   it("shows an empty state and starts a generation", () => {

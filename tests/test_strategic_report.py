@@ -6,19 +6,16 @@ import datetime
 import pytest
 
 from agents import mistral_client, strategic_report, web_search
-from engine import virtual_portfolio as vp
 
 
-def _context(trades=None, decisions=None):
+def _context():
     return {
         "securities": [
             {"symbol": "AIR.PA", "name": "Airbus", "sector": "Industrie"},
             {"symbol": "MC.PA", "name": "LVMH", "sector": "Luxe"},
             {"symbol": "BNP.PA", "name": "BNP Paribas", "sector": "Banque"},
         ],
-        "decisions": decisions
-        if decisions is not None
-        else {
+        "decisions": {
             "AIR.PA": {"decision_type": "Achat", "confidence": 80.0, "pattern_type": "Double Bottom"},
             "MC.PA": {"decision_type": "Alléger", "confidence": 70.0, "pattern_type": "Double Top"},
         },
@@ -37,8 +34,6 @@ def _context(trades=None, decisions=None):
         },
         "energy": [],
         "geopolitics_france": [],
-        "trades": trades or [],
-        "previous_snapshot": None,
     }
 
 
@@ -53,89 +48,47 @@ def test_compute_risk_is_undetermined_without_bond_data():
     assert strategic_report.compute_risk({"cards": [], "spread_oat_bund_bps": None})["level"] == "indetermine"
 
 
-def test_build_portfolio_buys_only_bullish_and_reports_performance():
-    planned, summary = strategic_report.build_portfolio(_context(), "orange")
-    assert [(t.symbol, t.side) for t in planned] == [("AIR.PA", "achat")]
-    assert summary["positions"][0]["symbol"] == "AIR.PA"
-    assert summary["total_value"] == pytest.approx(vp.INITIAL_CAPITAL - planned[0].fees, abs=0.01)
-    assert summary["performance_since_previous_pct"] is None
-
-
-def test_build_portfolio_sells_a_held_position_turned_bearish():
-    trades = [{"symbol": "MC.PA", "side": "achat", "quantity": 10, "price": 390.0, "fees": vp.fee_for(3900.0)}]
-    planned, summary = strategic_report.build_portfolio(_context(trades=trades), "orange")
-    assert ("MC.PA", "vente", 10) in [(t.symbol, t.side, t.quantity) for t in planned]
-    assert "MC.PA" not in {p["symbol"] for p in summary["positions"]}
-
-
-def test_exit_and_closed_decisions_are_bearish_even_when_decision_type_is_still_achat():
+def test_exit_and_closed_decisions_are_not_labelled_as_buys():
     """Régression : monitor_decisions passe le statut à `sortie_proposee` sans
-    changer `decision_type` ("Achat") — ce n'est pas un signal d'achat."""
-    held = [
-        {"symbol": "AIR.PA", "side": "achat", "quantity": 10, "price": 190.0, "fees": vp.fee_for(1900.0)},
-        {"symbol": "BNP.PA", "side": "achat", "quantity": 10, "price": 85.0, "fees": vp.fee_for(850.0)},
-    ]
-    decisions = {
-        "AIR.PA": {"decision_type": "Achat", "status": "sortie_proposee", "confidence": 80.0},
-        "BNP.PA": {"decision_type": "Achat", "status": "cloturee", "confidence": 70.0},
-        "MC.PA": {"decision_type": "Achat", "status": "sortie_proposee", "confidence": 90.0},
-    }
-    planned, _summary = strategic_report.build_portfolio(_context(trades=held, decisions=decisions), "vert")
-    assert sorted((t.symbol, t.side) for t in planned) == [("AIR.PA", "vente"), ("BNP.PA", "vente")]
-    assert strategic_report.decision_label(decisions["AIR.PA"]) == "Sortie proposée"
-    assert strategic_report.decision_label(decisions["BNP.PA"]) == "Clôturée"
+    changer `decision_type` ("Achat") — ce n'est pas un achat."""
+    assert strategic_report.decision_label({"decision_type": "Achat", "status": "sortie_proposee"}) == "Sortie proposée"
+    assert strategic_report.decision_label({"decision_type": "Achat", "status": "cloturee"}) == "Clôturée"
+    assert strategic_report.decision_label({"decision_type": "Achat", "status": "proposee"}) == "Achat"
 
 
-def test_stale_prices_are_never_traded_but_still_value_the_portfolio():
-    context = _context(decisions={"AIR.PA": {"decision_type": "Achat", "status": "proposee", "confidence": 80.0}})
-    context["prices"]["AIR.PA"]["stale"] = True
-    context["trades"] = [{"symbol": "OLD.PA", "side": "achat", "quantity": 5, "price": 10.0, "fees": vp.fee_for(50.0)}]
-    context["fallback_prices"] = {"OLD.PA": {"close": 12.0, "as_of": "2026-06-01", "week_change_pct": None, "stale": True}}
-    planned, summary = strategic_report.build_portfolio(context, "orange")
-    assert planned == []  # AIR.PA à un prix périmé : pas d'achat ; OLD.PA : pas de signal
-    old = next(p for p in summary["positions"] if p["symbol"] == "OLD.PA")
-    assert old["price"] == 12.0 and old["price_stale"] is True and summary["total_value"] is not None
-
-
-def test_recent_closes_flags_stalled_feeds():
+def test_recent_closes_computes_the_weekly_change():
     import types
 
-    rows = [("A", datetime.datetime(2026, 10, d), 10.0 + d) for d in range(1, 16)] + [
-        ("B", datetime.datetime(2026, 10, 2), 5.0)
-    ]
+    rows = [("A", datetime.datetime(2026, 10, d), 10.0 + d) for d in range(1, 16)]
     fake_db = types.SimpleNamespace(execute=lambda stmt: rows)
-    result = strategic_report._recent_closes(fake_db, ["A", "B"], datetime.date(2026, 10, 16))
-    assert result["A"]["stale"] is False and result["A"]["week_change_pct"] is not None
-    assert result["B"]["stale"] is True
+    result = strategic_report._recent_closes(fake_db, ["A"], datetime.date(2026, 10, 16))
+    assert result["A"]["close"] == 25.0 and result["A"]["week_change_pct"] == 25.0
 
 
-def test_cac40_table_has_every_security_and_portfolio_actions():
-    context = _context()
-    _planned, portfolio = strategic_report.build_portfolio(context, "orange")
-    table = strategic_report.build_cac40_table(context, portfolio)
+def test_cac40_table_has_every_security():
+    table = strategic_report.build_cac40_table(_context())
     assert [r["symbol"] for r in table] == ["AIR.PA", "MC.PA", "BNP.PA"]
-    assert table[0]["portfolio_action"].startswith("Achat simulé")
-    assert table[2]["decision_type"] is None and table[2]["portfolio_action"] is None
+    assert table[0]["decision_type"] == "Achat" and table[2]["decision_type"] is None
+    assert "portfolio_action" not in table[0]
 
 
-def test_llm_context_never_carries_unlisted_positions_and_groups_decisions():
+def test_llm_context_groups_decisions_without_any_virtual_portfolio():
     context = _context()
-    _planned, portfolio = strategic_report.build_portfolio(context, "orange")
     data = {
         "report_date": "2026-10-16",
         "risk": strategic_report.compute_risk(context["bonds"]),
         "bonds": context["bonds"],
         "energy": [],
         "cac40_index": None,
-        "portfolio": portfolio,
         "geopolitics_france": [],
         "sources": [],
-        "cac40": strategic_report.build_cac40_table(context, portfolio),
+        "cac40": strategic_report.build_cac40_table(context),
     }
     llm = strategic_report.build_llm_context(data)
     assert llm["decisions_george_par_type"]["Aucune décision ouverte"] == ["BNP Paribas"]
     assert llm["plus_fortes_baisses_5_seances"][0] == {"valeur": "LVMH", "variation_pct": -3.0}
-    assert "positions" not in llm["portefeuille_virtuel"]
+    assert "portefeuille_virtuel" not in llm
+    assert "portefeuille virtuel" not in mistral_client.load_system_prompt(strategic_report.PROMPT_NAME).lower()
 
 
 def test_fetch_web_sources_numbers_and_dedupes(monkeypatch):
@@ -210,10 +163,9 @@ def test_generation_endpoint_surfaces_job_failure(monkeypatch):
 # --- Génération complète contre une vraie base (Docker / testcontainers) ---
 
 
-def test_generate_report_end_to_end_is_idempotent_for_the_portfolio(database_url, monkeypatch):
-    """Deux générations successives : la première achète, la seconde ne
-    rachète pas ce qui est déjà détenu ; rapport, ordres et valorisation sont
-    bien écrits, et l'API sert le dernier rapport."""
+def test_generate_report_end_to_end(database_url, monkeypatch):
+    """Deux générations successives : les rapports sont écrits sans aucun ordre
+    simulé, et l'API sert le dernier."""
     import pandas as pd
     from alembic import command
     from alembic.config import Config
@@ -229,8 +181,6 @@ def test_generate_report_end_to_end_is_idempotent_for_the_portfolio(database_url
         PriceHistoryLong,
         Security,
         StrategicReport,
-        VirtualPortfolioSnapshot,
-        VirtualPortfolioTrade,
     )
 
     cfg = Config("alembic.ini")
@@ -291,29 +241,9 @@ def test_generate_report_end_to_end_is_idempotent_for_the_portfolio(database_url
             assert first.risk_level == "orange"  # OAT 4,9 % / spread 140 pb
             assert first.data["cac40_index"]["close"] == 7934.7
             assert [r["symbol"] for r in first.data["cac40"]] == ["AIR.PA", "MC.PA"]  # univers CAC 40 seulement
-            trades = db.execute(select(VirtualPortfolioTrade)).scalars().all()
-            assert [(t.symbol, t.side) for t in trades] == [("AIR.PA", "achat")]  # pas de rachat au 2e rapport
-            assert db.scalar(select(func.count()).select_from(VirtualPortfolioSnapshot)) == 2
-            second = db.get(StrategicReport, second_id)
-            assert second.data["portfolio"]["performance_since_previous_pct"] == 0.0
-            assert second.data["portfolio"]["previous_report_id"] == first_id
-        assert "Airbus" in captured["context"] and "ALO.PA" not in captured["context"]
-
-        # Un ordre passé par quelqu'un d'autre pendant la génération : le
-        # rapport est refusé plutôt que d'acheter sur un portefeuille périmé.
-        def concurrent_trade():
-            with engine.begin() as conn:
-                conn.execute(
-                    VirtualPortfolioTrade.__table__.insert(),
-                    [{"symbol": "MC.PA", "side": "achat", "quantity": 1, "price": 409, "fees": 0.61}],
-                )
-            return []
-
-        monkeypatch.setattr(strategic_report, "fetch_web_sources", concurrent_trade)
-        with pytest.raises(RuntimeError, match="a changé pendant la génération"):
-            strategic_report.generate_report(session_factory)
-        with session_factory() as db:
+            assert "portfolio" not in first.data
             assert db.scalar(select(func.count()).select_from(StrategicReport)) == 2
+        assert "Airbus" in captured["context"] and "ALO.PA" not in captured["context"]
 
         monkeypatch.setattr(deps, "engine", engine)
         monkeypatch.setattr(deps, "SessionLocal", session_factory)
