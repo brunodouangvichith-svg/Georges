@@ -6,6 +6,7 @@ import InstallBar from "./InstallBar";
 const NAV = [
   { key: "univers", label: "Univers", icon: "◆" },
   { key: "trading", label: "Trading", icon: "⇅" },
+  { key: "energie", label: "Marché d'énergie", shortLabel: "Énergie", icon: "↯" },
   { key: "obligataire", label: "Obligataire", icon: "≈" },
   { key: "rapport", label: "Rapport", icon: "▤" },
 ];
@@ -77,7 +78,7 @@ export default function Layout({ view, setView, children }) {
             <span aria-hidden="true" className="gd-tabbar-icon">
               {item.icon}
             </span>
-            {item.label}
+            {item.shortLabel ?? item.label}
           </button>
         ))}
       </nav>
