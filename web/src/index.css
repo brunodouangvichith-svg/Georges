@@ -34,7 +34,7 @@ body {
   font-family: "Space Grotesk", sans-serif;
 }
 
-/* Composants partagés de l'écran Univers (radar + grille de panneaux) et
+/* Composants partagés de l'écran Univers (grille de panneaux) et
    des écrans qui reprennent sa disposition — thème George d'origine
    (bleu nuit, blanc, accent bleu ; vert/orange/rouge pour les décisions). */
 .gd-label {

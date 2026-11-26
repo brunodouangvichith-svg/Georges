@@ -1,9 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UniversTorus from "./UniversTorus";
 import { mockContainerWidth } from "../test/containerWidth";
-import { buildCards, buildFilaments, makeProjector, MAX_RADIUS, nearestFilament, torusPoint } from "./torusLayout";
-import { buildRadar } from "./universRadarLayout";
+import { buildCards, buildFilaments, buildItems, makeProjector, MAX_RADIUS, nearestFilament, torusPoint } from "./torusLayout";
 
 const securities = [
   { symbol: "AAA.PA", name: "Alpha", sector: "Santé" },
@@ -12,10 +11,25 @@ const securities = [
 ];
 const patterns = { "AAA.PA": { confidence: 80 } };
 const decisions = { "AAA.PA": { symbol: "AAA.PA", decision_type: "Achat", entry_price: 10, created_at: "2026-11-20T10:00:00" } };
-const filaments = () => buildFilaments(buildRadar(securities, patterns, decisions).items);
+const filaments = () => buildFilaments(buildItems(securities, patterns, decisions));
 const radius = ([x, y, z]) => Math.hypot(x, y, z);
 
 describe("torusLayout", () => {
+  it("orders securities by sector family, biggest first, small families last", () => {
+    const sectors = ["Médias", "Santé / Biotechnologie", "Énergie", "Santé / Pharmacie", "Énergie", "Santé", "Énergie", "Santé"];
+    const items = buildItems(sectors.map((sector, i) => ({ symbol: `S${i}`, name: "x", sector })), {}, {});
+    expect(items.map((item) => item.symbol)).toEqual(["S1", "S3", "S5", "S7", "S2", "S4", "S6", "S0"]);
+    // Deux places vides séparent deux familles.
+    const step = items[1].angle - items[0].angle;
+    expect(items[4].angle - items[3].angle).toBeCloseTo(3 * step);
+  });
+
+  it("keeps the real pattern confidence and decision, and nothing where there is none", () => {
+    const [first, second] = buildItems(securities, patterns, decisions);
+    expect(first).toMatchObject({ confidence: 80, decision: "Achat" });
+    expect(second).toMatchObject({ confidence: null, decision: null });
+  });
+
   it("lengthens a spike with the pattern confidence", () => {
     const [withPattern, without] = filaments();
     expect(radius(withPattern.tip)).toBeGreaterThan(radius(without.tip));
@@ -23,7 +37,7 @@ describe("torusLayout", () => {
   });
 
   it("keeps every spike inside the frame whatever the rotation", () => {
-    const all = buildFilaments(buildRadar(securities, { "AAA.PA": { confidence: 100 } }, {}).items);
+    const all = buildFilaments(buildItems(securities, { "AAA.PA": { confidence: 100 } }, {}));
     for (let spin = 0; spin < 6.3; spin += 0.2) {
       const project = makeProjector({ spin, yaw: -0.7, tilt: 0.25, width: 600, height: 600 });
       for (const { tip } of all) {
@@ -42,15 +56,24 @@ describe("torusLayout", () => {
     expect(turned(torusPoint(0, 0)).x).not.toBeCloseTo(still(torusPoint(0, 0)).x);
   });
 
-  it("lists the latest decisions first and always keeps the selected security", () => {
+  it("lists the latest decisions first, only for tracked securities", () => {
     const map = {
       "AAA.PA": { symbol: "AAA.PA", created_at: "2026-11-01T10:00:00" },
       "BBB.PA": { symbol: "BBB.PA", created_at: "2026-11-20T10:00:00" },
       "ZZZ.PA": { symbol: "ZZZ.PA", created_at: "2026-11-25T10:00:00" },
     };
     const symbols = (cards) => cards.map((card) => card.symbol);
-    expect(symbols(buildCards(filaments(), map, "AAA.PA"))).toEqual(["BBB.PA", "AAA.PA"]);
-    expect(symbols(buildCards(filaments(), map, "CCC.PA", 2))).toEqual(["BBB.PA", "CCC.PA"]);
+    expect(symbols(buildCards(filaments(), map))).toEqual(["BBB.PA", "AAA.PA"]);
+    // Tout tient dans le fil : il ne défile pas.
+    expect(symbols(buildCards(filaments(), map, 6, 3))).toEqual(["BBB.PA", "AAA.PA"]);
+  });
+
+  it("scrolls in a loop, one card entering at the top at each step", () => {
+    const map = Object.fromEntries(
+      securities.map(({ symbol }, i) => [symbol, { symbol, created_at: `2026-11-0${9 - i}T10:00:00` }])
+    );
+    const at = (step) => buildCards(filaments(), map, 2, step).map((card) => card.symbol[0]).join("");
+    expect([0, 1, 2, 3].map(at)).toEqual(["AB", "CA", "BC", "AB"]);
   });
 
   it("picks the spike under the pointer, and nothing far from every spike", () => {
@@ -72,8 +95,131 @@ describe("UniversTorus", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  // Huit valeurs avec une décision, de la plus récente (V0) à la plus ancienne.
+  const many = Array.from({ length: 8 }, (_, i) => ({ symbol: `V${i}.PA`, name: `Valeur ${i}`, sector: "Santé" }));
+  const feedProps = {
+    securities: many,
+    patternsBySymbol: {},
+    decisionsMap: Object.fromEntries(
+      many.map(({ symbol }, i) => [symbol, { symbol, decision_type: "Achat", created_at: `2026-11-${20 - i}T10:00:00` }])
+    ),
+    selectedSymbol: "V0.PA",
+    onSelect: () => {},
+  };
+  // Sélecteurs directs : les requêtes par rôle, répétées, sont très lentes dans jsdom.
+  const feedGroup = () => document.querySelector('[role="group"][aria-label="Dernières décisions"]');
+  const feed = () => [...feedGroup().querySelectorAll("button strong")].map((symbol) => symbol.textContent);
+  const wait = (ms) => act(() => vi.advanceTimersByTime(ms));
+  // Seul le minuteur du fil est simulé, et le tore n'est pas dessiné : sous
+  // jsdom, le dessin rendrait ces tests très lents.
+  const fakeFeedTimer = () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    HTMLCanvasElement.prototype.getContext.mockReturnValue(null);
+  };
+
+  it("scrolls the decisions by itself, until paused", () => {
+    fakeFeedTimer();
+    for (const width of [900, 360]) {
+      mockContainerWidth(width);
+      const { unmount } = render(<UniversTorus {...feedProps} />);
+      expect(feed()).toEqual(["V0.PA", "V1.PA", "V2.PA", "V3.PA", "V4.PA", "V5.PA"]);
+      wait(3000);
+      expect(feed()).toEqual(["V7.PA", "V0.PA", "V1.PA", "V2.PA", "V3.PA", "V4.PA"]);
+      fireEvent.click(screen.getByText("Mettre en pause"));
+      wait(9000);
+      expect(feed()[0]).toBe("V7.PA");
+      fireEvent.click(screen.getByText("Reprendre l'animation"));
+      wait(3000);
+      expect(feed()[0]).toBe("V6.PA");
+      unmount();
+    }
+  });
+
+  it("holds the feed while the pointer or the keyboard focus is on it", () => {
+    fakeFeedTimer();
+    mockContainerWidth(900);
+    render(<UniversTorus {...feedProps} />);
+    const group = feedGroup();
+    fireEvent.pointerOver(group);
+    wait(9000);
+    expect(feed()[0]).toBe("V0.PA");
+    fireEvent.pointerOut(group);
+    wait(3000);
+    expect(feed()[0]).toBe("V7.PA");
+    const card = group.querySelectorAll("button")[1];
+    // jsdom ne sait pas dire si le focus vient du clavier : on le lui dit.
+    card.matches = () => false; // focus donné par un clic
+    act(() => card.focus());
+    wait(3000);
+    expect(feed()[0]).toBe("V6.PA");
+    act(() => card.blur());
+    card.matches = () => true;
+    act(() => card.focus());
+    wait(9000);
+    expect(feed()[0]).toBe("V6.PA");
+    act(() => card.blur());
+    wait(3000);
+    expect(feed()[0]).toBe("V5.PA");
+  });
+
+  it("finishes sliding the cards even when the torus is off screen", () => {
+    vi.useFakeTimers({
+      toFake: ["setInterval", "clearInterval", "requestAnimationFrame", "cancelAnimationFrame", "performance"],
+    });
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback) {
+          this.callback = callback;
+        }
+        observe() {
+          this.callback([{ isIntersecting: false }]);
+        }
+        disconnect() {}
+      }
+    );
+    mockContainerWidth(360);
+    render(<UniversTorus {...feedProps} />);
+    wait(3000);
+    expect(feedGroup().style.transform).not.toBe("");
+    wait(600);
+    expect(feedGroup().style.transform).toBe("");
+    expect(feedGroup().querySelector("button").style.opacity).toBe("");
+  });
+
+  it("does not stay held when the feed moves under the torus", () => {
+    fakeFeedTimer();
+    let resize;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback) {
+          resize = callback;
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    const width = mockContainerWidth(900);
+    render(<UniversTorus {...feedProps} />);
+    fireEvent.pointerOver(feedGroup());
+    width.mockReturnValue(360);
+    act(() => resize());
+    wait(3000);
+    expect(feed()[0]).toBe("V7.PA");
+  });
+
+  it("stays still when reduced motion is requested", () => {
+    fakeFeedTimer();
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    render(<UniversTorus {...feedProps} />);
+    wait(9000);
+    expect(feed()[0]).toBe("V0.PA");
   });
 
   it("describes the data and the selected security", () => {
@@ -96,13 +242,13 @@ describe("UniversTorus", () => {
   it("lets the user pause and restart the rotation", () => {
     render(<UniversTorus {...props} onSelect={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "Mettre en pause" }));
-    expect(screen.getByRole("button", { name: "Faire tourner" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reprendre l'animation" })).toBeInTheDocument();
   });
 
   it("does not start rotating when reduced motion is requested", () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true }));
     render(<UniversTorus {...props} onSelect={() => {}} />);
-    expect(screen.getByRole("button", { name: "Faire tourner" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reprendre l'animation" })).toBeInTheDocument();
   });
 
   it("selects on a click, ignoring a second finger", () => {
