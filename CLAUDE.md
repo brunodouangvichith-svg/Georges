@@ -69,6 +69,7 @@ Verbatim history, one file per area. Open the matching file (or `graphify sectio
 - `docs/claude/reports-sharing.md` — Strategic report, email sharing: Share by email · Rapport stratégique hebdomadaire
 - `docs/claude/web.md` — Web app: `web/`
 - `docs/claude/mobile.md` — Mobile app (Flutter): Mobile Univers screen tweaks (in-app news links, macro button removed) · Mobile login fixes and additions · Mobile app (Flutter)
+- `docs/claude/housekeeping.md` — Repository upkeep: branches, worktrees, untracked and unused files, disk space, scheduled jobs
 
 ## graphify
 

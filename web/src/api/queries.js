@@ -73,13 +73,6 @@ export function useDecisions({ decisionType, status, basketId, limit = 100 } = {
   });
 }
 
-export function useAgentActivity({ status, limit = 20 } = {}) {
-  return useQuery({
-    queryKey: ["agent-activity", { status, limit }],
-    queryFn: () => apiFetch("/agents/activity", { status, limit }),
-  });
-}
-
 // Couche LLM (Phase 4) — mutations, pas des useQuery : chaque appel déclenche
 // un vrai appel Mistral côté serveur (coût/latence), on ne veut donc jamais
 // les déclencher automatiquement au montage ou au changement de sélection,
@@ -176,14 +169,10 @@ export function useRefreshPrices() {
 }
 
 // Déclenchement manuel d'une tâche de collecte (Phase 7, MVP) — voir
-// api/routers/agents.py:trigger_collection. Pas de scheduler encore : c'est
-// le seul moyen de peupler /agents/activity avec de vraies données pour
-// l'instant.
+// api/routers/agents.py:trigger_collection.
 export function useTriggerCollection() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (taskType) => apiPost("/agents/collect", { task_type: taskType }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agent-activity"] }),
   });
 }
 
